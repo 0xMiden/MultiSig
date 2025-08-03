@@ -1,3 +1,5 @@
+mod persistence;
+
 use miden_client::{Client, ClientBuilder};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
