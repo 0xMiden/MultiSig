@@ -1,13 +1,20 @@
+[workspace.package]
+version = "0.0.1-pre"
+edition = "2024"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
 [workspace]
-members = ["crates/multisig-store", "crates/api"]
+resolver = "3"
+members = [
+  "crates/*",
+]
 
-[package]
-name = "multisig"
-version = "0.1.0"
-edition = "2021"
+[workspace.dependencies]
+miden-multisig-store = { path = "crates/store" }
+miden-multisig-api = { path = "crates/api" }
 
-[dependencies]
-multisig-store = { path = "crates/multisig-store" }
-api = { path = "crates/api" }
-tokio = { version = "1.0", features = ["full"] }
+tokio = "1"
 

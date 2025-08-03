@@ -1,0 +1,19 @@
+[package]
+name = "miden-multisig-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+miden-client = { version = "0.10.0", features = [ "tonic", "sqlite"] }
+sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3.8"
+tokio-test = "0.4"
+
+
