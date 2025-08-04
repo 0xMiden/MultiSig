@@ -6,10 +6,16 @@ publish.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
 miden-client = { version = "0.10.0", features = [ "tonic", "sqlite"] }
-sqlx = { version = "0.7", default-features = false, features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+diesel = { version = "2", features = ["chrono"] }
+diesel-async = { version = "0.5", features = ["deadpool", "postgres"] }
+openssl-sys = { version = "0.9", optional = true }
+pq-sys = { version = "0.7", optional = true }
 serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
 tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]

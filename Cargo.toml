@@ -17,4 +17,4 @@ miden-multisig-store = { path = "crates/store" }
 miden-multisig-api = { path = "crates/api" }
 
 tokio = "1"
-
+tracing = "0.1"
