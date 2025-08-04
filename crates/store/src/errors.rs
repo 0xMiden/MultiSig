@@ -1,39 +1,36 @@
-use std::fmt;
+use std::borrow::Cow;
+
+use crate::persistence::store::StoreError;
+
+pub type Result<T, E = MultisigStoreError> = core::result::Result<T, E>;
 
 /// Errors that can occur when interacting with the store
-#[derive(Debug)]
-pub enum StoreError {
-    /// Database-related errors
-    DatabaseError(String),
-    /// Input validation errors
-    ValidationError(String),
-    /// Resource not found errors
+#[derive(Debug, thiserror::Error)]
+pub enum MultisigStoreError {
+    #[error("database error: {0}")]
+    Store(#[from] StoreError),
+
+    #[error("validation error: {0}")]
+    Validation(String),
+
+    #[error("not found error: {0}")]
     NotFound(String),
-    /// Serialization/deserialization errors
-    SerializationError(String),
+
+    #[error("serialization error: {0}")]
+    Serialization(Cow<'static, str>),
+
+    #[error("pool error")]
+    Pool,
+
+    #[error("invalid value error")]
+    InvalidValue,
+
+    #[error("other error: {0}")]
+    Other(Cow<'static, str>),
 }
 
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StoreError::DatabaseError(msg) => write!(f, "Database error: {}", msg),
-            StoreError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
-            StoreError::NotFound(msg) => write!(f, "Not found: {}", msg),
-            StoreError::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for StoreError {}
-
-impl From<sqlx::Error> for StoreError {
-    fn from(err: sqlx::Error) -> Self {
-        StoreError::DatabaseError(err.to_string())
-    }
-}
-
-impl From<chrono::ParseError> for StoreError {
+impl From<chrono::ParseError> for MultisigStoreError {
     fn from(err: chrono::ParseError) -> Self {
-        StoreError::SerializationError(err.to_string())
+        MultisigStoreError::Serialization(err.to_string().into())
     }
 }

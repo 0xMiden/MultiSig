@@ -8,15 +8,15 @@ diesel::table! {
 }
 
 diesel::table! {
-    contract_approvers (contract_id, address) {
+    contract_approver_mapping (contract_id, approver_address) {
         contract_id -> Text,
-        address -> Text,
+        approver_address -> Text,
     }
 }
 
 diesel::table! {
-    contract_tx (tx_id) {
-        tx_id -> Text,
+    contract_tx (id) {
+        id -> Text,
         contract_id -> Text,
         status -> Text,
         effect -> Text,
@@ -25,34 +25,33 @@ diesel::table! {
 }
 
 diesel::table! {
-    multisig_contract (contract_id) {
-        contract_id -> Text,
+    multisig_contract (id) {
+        id -> Text,
         threshold -> Int4,
-        #[sql_name = "type"]
-        type_ -> Text,
+        kind -> Text,
         created_at -> Timestamptz,
     }
 }
 
 diesel::table! {
-    tx_sigs (tx_id, address) {
+    tx_sig (tx_id, approver_address) {
         tx_id -> Text,
-        address -> Text,
+        approver_address -> Text,
         sig -> Text,
         created_at -> Timestamptz,
     }
 }
 
-diesel::joinable!(contract_approvers -> approver (address));
-diesel::joinable!(contract_approvers -> multisig_contract (contract_id));
+diesel::joinable!(contract_approver_mapping -> approver (approver_address));
+diesel::joinable!(contract_approver_mapping -> multisig_contract (contract_id));
 diesel::joinable!(contract_tx -> multisig_contract (contract_id));
-diesel::joinable!(tx_sigs -> approver (address));
-diesel::joinable!(tx_sigs -> contract_tx (tx_id));
+diesel::joinable!(tx_sig -> approver (approver_address));
+diesel::joinable!(tx_sig -> contract_tx (tx_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     approver,
-    contract_approvers,
+    contract_approver_mapping,
     contract_tx,
     multisig_contract,
-    tx_sigs,
+    tx_sig,
 );
