@@ -200,6 +200,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
             schema::contract_tx::id,
             schema::contract_tx::contract_id,
             schema::contract_tx::status,
+            schema::contract_tx::tx_bz,
             schema::contract_tx::effect,
             schema::contract_tx::created_at,
         ))
@@ -208,6 +209,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
                 schema::contract_tx::id,
                 schema::contract_tx::contract_id,
                 schema::contract_tx::status,
+                schema::contract_tx::tx_bz,
                 schema::contract_tx::effect,
                 schema::contract_tx::created_at,
             ),
@@ -231,6 +233,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
             schema::contract_tx::id,
             schema::contract_tx::contract_id,
             schema::contract_tx::status,
+            schema::contract_tx::tx_bz,
             schema::contract_tx::effect,
             schema::contract_tx::created_at,
         ))
@@ -239,6 +242,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
                 schema::contract_tx::id,
                 schema::contract_tx::contract_id,
                 schema::contract_tx::status,
+                schema::contract_tx::tx_bz,
                 schema::contract_tx::effect,
                 schema::contract_tx::created_at,
             ),

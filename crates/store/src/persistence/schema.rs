@@ -19,6 +19,7 @@ diesel::table! {
         id -> Text,
         contract_id -> Text,
         status -> Text,
+        tx_bz -> Text,
         effect -> Text,
         created_at -> Timestamptz,
     }

@@ -8,6 +8,7 @@ publish.workspace = true
 axum = "0.7"
 hyper = "1"
 miden-multisig-store = { workspace = true }
+miden-client= {workspace = true}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { workspace = true, features = ["full"] }

@@ -9,6 +9,7 @@ pub struct NewContractTxRecord<'a> {
     pub id: &'a str,
     pub contract_id: &'a str,
     pub status: &'a str,
+    pub tx_bz: &'a str,
     pub effect: &'a str,
     pub created_at: Option<&'a DateTime<Utc>>,
 }
