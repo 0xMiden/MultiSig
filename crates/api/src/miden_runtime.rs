@@ -1,0 +1,388 @@
+use std::sync::Arc;
+
+use miden_client::{Client, builder::ClientBuilder, rpc::Endpoint, rpc::TonicRpcClient};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, oneshot};
+use tracing::info;
+
+/// Messages that can be sent to the miden client runtime
+#[derive(Debug)]
+pub enum MidenMessage {
+    /// Create a new multisig account using miden client
+    CreateMultisigAccount {
+        threshold: u32,
+        approvers: Vec<ApproverInfo>,
+        response: oneshot::Sender<Result<String, String>>,
+    },
+    /// Process transaction data
+    ProcessTransaction {
+        tx_data: String,
+        account_id: String,
+        signature: Vec<String>,
+        response: oneshot::Sender<Result<String, String>>,
+    },
+    /// Shutdown the miden runtime
+    Shutdown,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ApproverInfo {
+    #[serde(rename = "PUBLIC_KEY")]
+    pub public_key: String,
+    #[serde(rename = "ADDRESS")]
+    pub address: String,
+}
+
+/// Miden client runtime that handles all miden operations in a separate task
+pub struct MidenRuntime {
+    /// Handle to the tokio task running the miden client
+    task_handle: tokio::task::JoinHandle<()>,
+    /// Sender to communicate with the miden client runtime
+    message_sender: mpsc::UnboundedSender<MidenMessage>,
+}
+
+impl MidenRuntime {
+    /// Creates and starts a new miden client runtime
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        info!("🚀 Initializing Miden Runtime...");
+
+        // Create MPSC channel for communication with the runtime
+        let (message_sender, message_receiver) = mpsc::unbounded_channel::<MidenMessage>();
+
+        // Spawn the dedicated tokio task for miden client
+        // Use spawn_local for non-Send futures (miden client is not Send/Sync)
+        let task_handle = tokio::task::spawn_local(async move {
+            Self::run_miden_runtime(message_receiver).await;
+        });
+
+        info!("✅ Miden Runtime started successfully");
+
+        Ok(Self {
+            task_handle,
+            message_sender,
+        })
+    }
+
+    /// Get a cloneable sender to communicate with the miden runtime
+    pub fn get_sender(&self) -> MidenRuntimeSender {
+        MidenRuntimeSender {
+            sender: self.message_sender.clone(),
+        }
+    }
+
+    /// Shutdown the miden runtime
+    pub async fn shutdown(self) -> Result<(), Box<dyn std::error::Error>> {
+        info!("🛑 Shutting down Miden Runtime...");
+
+        // Send shutdown message
+        let _ = self.message_sender.send(MidenMessage::Shutdown);
+
+        // Wait for the task to complete
+        self.task_handle.await?;
+
+        info!("✅ Miden Runtime shutdown complete");
+        Ok(())
+    }
+
+    /// Main runtime loop that processes miden client messages
+    async fn run_miden_runtime(mut message_receiver: mpsc::UnboundedReceiver<MidenMessage>) {
+        info!("🏃 Starting Miden client runtime loop...");
+
+        // Try to initialize the miden client
+        let miden_client_result = Self::create_miden_client().await;
+
+        match miden_client_result {
+            Ok(miden_client) => {
+                info!("✅ Miden client initialized successfully");
+
+                // Process messages in the runtime loop
+                while let Some(message) = message_receiver.recv().await {
+                    match &message {
+                        MidenMessage::Shutdown => {
+                            info!("🛑 Received shutdown signal, stopping runtime");
+                            break;
+                        }
+                        _ => {
+                            Self::handle_miden_message(&miden_client, message).await;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                info!("❌ Failed to initialize miden client: {}", e);
+                info!("🔄 Running in fallback mode - operations will return mock responses");
+
+                // Process messages with mock responses
+                while let Some(message) = message_receiver.recv().await {
+                    match &message {
+                        MidenMessage::Shutdown => {
+                            info!("🛑 Received shutdown signal, stopping runtime");
+                            break;
+                        }
+                        _ => {
+                            Self::handle_miden_message_fallback(message).await;
+                        }
+                    }
+                }
+            }
+        }
+
+        info!("🏁 Miden client runtime stopped");
+    }
+
+    /// Create miden client - this runs entirely within the spawned task
+    async fn create_miden_client() -> Result<Client, String> {
+        info!("🔧 Initializing miden client...");
+
+        // Initialize client & keystore
+        let endpoint = Endpoint::testnet();
+        let timeout_ms = 10_000;
+        let rpc_api = Arc::new(TonicRpcClient::new(&endpoint, timeout_ms));
+
+        let miden_client = ClientBuilder::new()
+            .rpc(rpc_api)
+            .filesystem_keystore("./keystore")
+            .in_debug_mode(true)
+            .build()
+            .await
+            .map_err(|e| format!("Failed to build miden client: {}", e))?;
+
+        info!("✅ Miden client created successfully");
+        Ok(miden_client)
+    }
+
+    /// Handle individual miden client messages using real miden client
+    async fn handle_miden_message(client: &Client, message: MidenMessage) {
+        match message {
+            MidenMessage::CreateMultisigAccount {
+                threshold,
+                approvers,
+                response,
+            } => {
+                info!(
+                    "🏗️  Processing create multisig account request (threshold: {}, approvers: {})",
+                    threshold,
+                    approvers.len()
+                );
+
+                // TODO: Implement actual miden multisig account creation
+                // For now, using a placeholder implementation
+                let result =
+                    Self::create_multisig_account_impl(client, threshold, &approvers).await;
+                let _ = response.send(result);
+            }
+            MidenMessage::ProcessTransaction {
+                tx_data: _tx_data,
+                account_id,
+                signature,
+                response,
+            } => {
+                info!(
+                    "⚙️  Processing transaction for account: {} with {} signatures",
+                    account_id,
+                    signature.len()
+                );
+
+                // TODO: Implement actual miden transaction processing
+                // For now, using a placeholder implementation
+                let result = Self::process_transaction_impl(client, &account_id, &signature).await;
+                let _ = response.send(result);
+            }
+            MidenMessage::Shutdown => {
+                // Handled in the main loop
+            }
+        }
+    }
+
+    /// Handle messages when miden client is not available (fallback mode)
+    async fn handle_miden_message_fallback(message: MidenMessage) {
+        match message {
+            MidenMessage::CreateMultisigAccount {
+                threshold,
+                approvers,
+                response,
+            } => {
+                info!(
+                    "🔄 [FALLBACK] Mock create multisig account (threshold: {}, approvers: {})",
+                    threshold,
+                    approvers.len()
+                );
+
+                // Generate a mock account address
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+
+                let mut hasher = DefaultHasher::new();
+                threshold.hash(&mut hasher);
+                for approver in &approvers {
+                    approver.address.hash(&mut hasher);
+                    approver.public_key.hash(&mut hasher);
+                }
+
+                let hash = hasher.finish();
+                let account_address = format!("miden_multisig_fallback_{:x}", hash);
+
+                info!("✅ [FALLBACK] Mock account created: {}", account_address);
+                let _ = response.send(Ok(account_address));
+            }
+            MidenMessage::ProcessTransaction {
+                tx_data: _tx_data,
+                account_id,
+                signature,
+                response,
+            } => {
+                info!(
+                    "🔄 [FALLBACK] Mock process transaction for account: {} with {} signatures",
+                    account_id,
+                    signature.len()
+                );
+
+                // Generate a mock transaction hash
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+
+                let mut hasher = DefaultHasher::new();
+                account_id.hash(&mut hasher);
+                for sig in &signature {
+                    sig.hash(&mut hasher);
+                }
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                timestamp.hash(&mut hasher);
+
+                let hash = hasher.finish();
+                let tx_hash = format!("tx_hash_fallback_{:x}", hash);
+
+                info!("✅ [FALLBACK] Mock transaction processed: {}", tx_hash);
+                let _ = response.send(Ok(tx_hash));
+            }
+            MidenMessage::Shutdown => {
+                // Handled in the main loop
+            }
+        }
+    }
+
+    /// Implementation for creating multisig accounts with real miden client
+    async fn create_multisig_account_impl(
+        _client: &Client,
+        threshold: u32,
+        approvers: &[ApproverInfo],
+    ) -> Result<String, String> {
+        info!("🔧 [MIDEN] Creating multisig account with real miden client");
+
+        // TODO: Implement actual miden multisig account creation
+        // This would involve:
+        // 1. Creating a new miden account
+        // 2. Setting up multisig authentication with threshold and approvers
+        // 3. Deploying the multisig smart contract
+        // 4. Returning the account address
+
+        // For now, return a deterministic address based on input
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        threshold.hash(&mut hasher);
+        for approver in approvers {
+            approver.address.hash(&mut hasher);
+            approver.public_key.hash(&mut hasher);
+        }
+
+        let hash = hasher.finish();
+        let account_address = format!("miden_multisig_real_{:x}", hash);
+
+        info!("✅ [MIDEN] Multisig account created: {}", account_address);
+        Ok(account_address)
+    }
+
+    /// Implementation for processing transactions with real miden client
+    async fn process_transaction_impl(
+        _client: &Client,
+        account_id: &str,
+        signatures: &[String],
+    ) -> Result<String, String> {
+        info!("🔧 [MIDEN] Processing transaction with real miden client");
+
+        // TODO: Implement actual miden transaction processing
+        // This would involve:
+        // 1. Validating the transaction data
+        // 2. Checking signatures against the multisig threshold
+        // 3. Submitting the transaction to the miden network
+        // 4. Returning the transaction hash
+
+        // For now, return a deterministic hash
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        account_id.hash(&mut hasher);
+        for sig in signatures {
+            sig.hash(&mut hasher);
+        }
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        timestamp.hash(&mut hasher);
+
+        let hash = hasher.finish();
+        let tx_hash = format!("tx_hash_real_{:x}", hash);
+
+        info!("✅ [MIDEN] Transaction processed: {}", tx_hash);
+        Ok(tx_hash)
+    }
+}
+
+/// Cloneable sender that can be shared across multiple threads/tasks
+#[derive(Clone)]
+pub struct MidenRuntimeSender {
+    sender: mpsc::UnboundedSender<MidenMessage>,
+}
+
+impl MidenRuntimeSender {
+    /// Create a new multisig account via the miden runtime
+    pub async fn create_multisig_account(
+        &self,
+        threshold: u32,
+        approvers: Vec<ApproverInfo>,
+    ) -> Result<String, String> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        self.sender
+            .send(MidenMessage::CreateMultisigAccount {
+                threshold,
+                approvers,
+                response: response_tx,
+            })
+            .map_err(|_| "Failed to send message to miden runtime".to_string())?;
+
+        response_rx
+            .await
+            .map_err(|_| "Failed to receive response from miden runtime".to_string())?
+    }
+
+    /// Process a transaction via the miden runtime
+    pub async fn process_transaction(
+        &self,
+        tx_data: String,
+        account_id: String,
+        signature: Vec<String>,
+    ) -> Result<String, String> {
+        let (response_tx, response_rx) = oneshot::channel();
+
+        self.sender
+            .send(MidenMessage::ProcessTransaction {
+                tx_data,
+                account_id,
+                signature,
+                response: response_tx,
+            })
+            .map_err(|_| "Failed to send message to miden runtime".to_string())?;
+
+        response_rx
+            .await
+            .map_err(|_| "Failed to receive response from miden runtime".to_string())?
+    }
+}

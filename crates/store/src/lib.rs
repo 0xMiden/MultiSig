@@ -2,13 +2,12 @@ mod persistence;
 
 mod errors;
 
-pub use self::errors::MultisigStoreError;
+pub use self::{errors::MultisigStoreError, persistence::pool::establish_pool};
 
 use core::num::NonZeroU64;
 
 use chrono::{DateTime, Utc};
 use diesel_async::AsyncConnection;
-use miden_client::Client;
 use serde::{Deserialize, Serialize};
 
 use self::{
@@ -21,7 +20,7 @@ use self::{
             },
             select::{ContractTxRecord, MultisigContractRecord, TxSigRecord},
         },
-        store,
+        store::{self, StoreError},
     },
 };
 
@@ -42,6 +41,7 @@ pub struct TransactionInfo {
     pub tx_id: String,
     pub contract_id: String,
     pub status: String,
+    pub tx_bz: String,
     pub effect: String,
     pub created_at: DateTime<Utc>,
 
@@ -56,29 +56,36 @@ pub struct SignatureRecord {
     pub sig: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionThresholdInfo {
+    pub tx_id: String,
+    pub contract_id: String,
+    pub status: String,
+    pub effect: String,
+    pub created_at: DateTime<Utc>,
+    pub threshold: u32,
+    pub signature_count: u32,
+    pub threshold_met: bool,
+}
+
 // MULTISIG STORE
 // ================================================================================================
 
 /// Represents a connection pool with PostgreSQL database for multisig operations.
 /// Current table definitions can be found at `store.sql` migration file.
 pub struct MultisigStore {
-    client: Client,
     pool: DbPool,
 }
 
 impl MultisigStore {
     /// Returns a new instance of [MultisigStore] with the specified database URL.
-    pub async fn new(pool: DbPool, client: Client) -> Self {
-        MultisigStore { pool, client }
+    pub async fn new(pool: DbPool) -> Self {
+        MultisigStore { pool }
     }
 
     /// Gets the current timestamp as a Unix timestamp
     pub fn get_current_timestamp(&self) -> i64 {
         chrono::Utc::now().timestamp()
-    }
-
-    pub fn client(&self) -> &Client {
-        &self.client
     }
 }
 
@@ -141,6 +148,7 @@ impl MultisigStore {
                         tx_id,
                         contract_id,
                         status,
+                        tx_bz,
                         effect,
                         created_at,
                     },
@@ -150,6 +158,7 @@ impl MultisigStore {
                         tx_id,
                         contract_id,
                         status,
+                        tx_bz,
                         effect,
                         created_at,
                         sigs_count: count
@@ -175,6 +184,7 @@ impl MultisigStore {
             tx_id,
             contract_id,
             status,
+            tx_bz,
             effect,
             created_at,
         }) = store::fetch_tx_by_tx_id(conn, tx_id).await?
@@ -186,6 +196,7 @@ impl MultisigStore {
             tx_id,
             contract_id,
             status,
+            tx_bz,
             effect,
             created_at,
             sigs_count: None,
@@ -200,12 +211,14 @@ impl MultisigStore {
         &self,
         tx_id: &str,
         contract_id: &str,
+        tx_bz: &str,
         effect: &str,
     ) -> Result<(), MultisigStoreError> {
         let new_tx = NewContractTxRecord {
             id: tx_id,
             contract_id,
             status: "PENDING",
+            tx_bz,
             effect,
             created_at: None,
         };
@@ -222,12 +235,13 @@ impl MultisigStore {
     // =============================================================================================
 
     /// Add a signature to a transaction (with validation)
+    /// Returns (signature_added, threshold_met)
     pub async fn add_transaction_signature(
         &self,
         tx_id: &str,
         approver_address: &str,
         sig: &str,
-    ) -> Result<bool, MultisigStoreError> {
+    ) -> Result<(bool, bool), MultisigStoreError> {
         self.get_conn()
             .await?
             .transaction(|conn| {
@@ -253,7 +267,18 @@ impl MultisigStore {
                         true
                     };
 
-                    Ok(added)
+                    // Check if threshold is met after adding signature
+                    let threshold_met = if added {
+                        Self::check_threshold_met_internal(conn, tx_id)
+                            .await
+                            .map_err(|e| {
+                                StoreError::other(format!("Threshold check failed: {}", e))
+                            })?
+                    } else {
+                        false
+                    };
+
+                    Ok((added, threshold_met))
                 })
             })
             .await
@@ -316,15 +341,41 @@ impl MultisigStore {
         contract_id: &str,
         threshold: i32,
         kind: &str,
+        approver_address: Vec<&str>,
+        public_key: Vec<&str>,
     ) -> Result<(), MultisigStoreError> {
-        let new_contract = NewMultisigContractRecord {
-            id: contract_id,
-            threshold,
-            kind,
-            created_at: None,
-        };
+        self.get_conn()
+            .await?
+            .transaction(|conn| {
+                Box::pin(async move {
+                    let new_contract = NewMultisigContractRecord {
+                        id: contract_id,
+                        threshold,
+                        kind,
+                        created_at: None,
+                    };
 
-        store::save_new_multisig_contract(&mut self.get_conn().await?, new_contract).await?;
+                    store::save_new_multisig_contract(conn, new_contract).await?;
+
+                    for (address, public_key) in approver_address.iter().zip(public_key.iter()) {
+                        let new_approver = NewApproverRecord {
+                            address: address,
+                            public_key: public_key,
+                        };
+
+                        store::upsert_approver(conn, new_approver).await?;
+                    }
+
+                    for (address, _) in approver_address.iter().zip(public_key.iter()) {
+                        store::save_new_contract_approver_mapping(conn, contract_id, address)
+                            .await?;
+                    }
+
+                    Ok(())
+                })
+            })
+            .await
+            .map_err(MultisigStoreError::Store)?;
 
         Ok(())
     }
@@ -333,6 +384,8 @@ impl MultisigStore {
     pub async fn add_contract_approver(
         &self,
         contract_id: &str,
+        threshold: i32,
+        kind: &str,
         address: &str,
         public_key: &str,
     ) -> Result<(), MultisigStoreError> {
@@ -340,6 +393,14 @@ impl MultisigStore {
             .await?
             .transaction(|conn| {
                 Box::pin(async move {
+                    let new_contract = NewMultisigContractRecord {
+                        id: contract_id,
+                        threshold,
+                        kind,
+                        created_at: None,
+                    };
+
+                    store::save_new_multisig_contract(conn, new_contract).await?;
                     let new_approver = NewApproverRecord {
                         address,
                         public_key,
@@ -357,6 +418,99 @@ impl MultisigStore {
 
     async fn get_conn(&self) -> Result<DbConn> {
         self.pool.get().await.map_err(|_| MultisigStoreError::Pool)
+    }
+
+    // THRESHOLD CHECKING
+    // =============================================================================================
+
+    /// Check if a transaction has met its threshold (public method)
+    pub async fn is_threshold_met(&self, tx_id: &str) -> Result<bool, MultisigStoreError> {
+        let conn = &mut self.get_conn().await?;
+        Self::check_threshold_met_internal(conn, tx_id).await
+    }
+
+    /// Internal method to check threshold within a transaction
+    async fn check_threshold_met_internal(
+        conn: &mut DbConn,
+        tx_id: &str,
+    ) -> Result<bool, MultisigStoreError> {
+        // Get transaction to find its contract
+        let tx = store::fetch_tx_by_tx_id(conn, tx_id).await?;
+        let Some(tx_record) = tx else {
+            return Err(MultisigStoreError::NotFound(format!(
+                "Transaction {} not found",
+                tx_id
+            )));
+        };
+
+        // Get contract to find threshold
+        let contract =
+            store::fetch_mutisig_contract_by_contract_id(conn, &tx_record.contract_id).await?;
+        let Some(contract_record) = contract else {
+            return Err(MultisigStoreError::NotFound(format!(
+                "Contract {} not found",
+                tx_record.contract_id
+            )));
+        };
+
+        // Count signatures for this transaction
+        let signatures = store::fetch_tx_sigs_by_tx_id(conn, tx_id).await?;
+        let signature_count = signatures.len() as i32;
+
+        // Check if signature count meets or exceeds threshold
+        Ok(signature_count >= contract_record.threshold)
+    }
+
+    /// Process transaction when threshold is met (update status to CONFIRMED)
+    pub async fn process_transaction_threshold_met(
+        &self,
+        tx_id: &str,
+    ) -> Result<(), MultisigStoreError> {
+        // First verify threshold is actually met
+        if !self.is_threshold_met(tx_id).await? {
+            return Err(MultisigStoreError::InvalidValue);
+        }
+
+        // Update transaction status to CONFIRMED
+        self.update_transaction_status(tx_id, "CONFIRMED").await?;
+
+        Ok(())
+    }
+
+    /// Get transaction details with threshold information
+    pub async fn get_transaction_with_threshold_info(
+        &self,
+        tx_id: &str,
+    ) -> Result<Option<TransactionThresholdInfo>, MultisigStoreError> {
+        let conn = &mut self.get_conn().await?;
+
+        let Some(tx_record) = store::fetch_tx_by_tx_id(conn, tx_id).await? else {
+            return Ok(None);
+        };
+
+        let Some(contract_record) =
+            store::fetch_mutisig_contract_by_contract_id(conn, &tx_record.contract_id).await?
+        else {
+            return Err(MultisigStoreError::NotFound(format!(
+                "Contract {} not found",
+                tx_record.contract_id
+            )));
+        };
+
+        let signatures = store::fetch_tx_sigs_by_tx_id(conn, tx_id).await?;
+        let signature_count = signatures.len() as u32;
+        let threshold = contract_record.threshold as u32;
+
+        Ok(Some(TransactionThresholdInfo {
+            tx_id: tx_record.tx_id,
+            contract_id: tx_record.contract_id,
+            status: tx_record.status,
+            effect: tx_record.effect,
+            created_at: tx_record.created_at,
+            threshold,
+            signature_count,
+            threshold_met: signature_count >= threshold,
+        }))
     }
 }
 

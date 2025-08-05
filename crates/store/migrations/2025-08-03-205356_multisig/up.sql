@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS contract_tx (
     id TEXT PRIMARY KEY,
     contract_id TEXT NOT NULL REFERENCES multisig_contract(id) ON DELETE CASCADE,
     status TEXT NOT NULL DEFAULT 'PENDING',
+    tx_bz TEXT NOT NULL,
     effect TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

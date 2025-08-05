@@ -6,4 +6,5 @@ publish.workspace = true
 
 [dependencies]
 miden-multisig-api = { workspace = true }
+miden-multisig-store = {workspace= true}
 tokio = { workspace = true, features = ["full"] }
