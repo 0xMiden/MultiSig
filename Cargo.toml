@@ -15,7 +15,7 @@ members = [
 [workspace.dependencies]
 miden-multisig-store = { path = "crates/store" }
 miden-multisig-api = { path = "crates/api" }
-miden-client = { version = "0.10.0", features = ["testing", "tonic", "sqlite"] }
+miden-client = { version = "0.10" }
 
 
 tokio = "1"

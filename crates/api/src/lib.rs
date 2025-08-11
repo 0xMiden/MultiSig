@@ -1,3 +1,7 @@
+mod miden_runtime;
+
+use std::sync::Arc;
+
 use axum::{
     Router,
     extract::{Path, Query, State},
@@ -5,75 +9,63 @@ use axum::{
     response::{IntoResponse, Json, Response},
     routing::{get, post},
 };
-
 use miden_multisig_store::MultisigStore;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use sha3::{Digest, Sha3_256};
+use tokio::{sync::mpsc, task::LocalSet};
 use tower_http::cors::CorsLayer;
 use tracing::{error, info};
 
-mod miden_runtime;
-use miden_runtime::{ApproverInfo, MidenRuntime, MidenRuntimeSender};
+use self::miden_runtime::{ApproverInfo, MidenMessage, MidenRuntime, MidenRuntimeSender};
 
 // API Response Types
 // ================================================================================================
 
 #[derive(Debug, Serialize)]
 pub struct AccountInfoResponse {
-    #[serde(rename = "APPROVER_NUMBER")]
     pub approver_number: usize,
-    #[serde(rename = "TYPE")]
-    pub r#type: String,
-    #[serde(rename = "THRESHOLD")]
+    pub kind: String,
     pub threshold: u32,
-    #[serde(rename = "APPROVER")]
-    pub approver: Vec<String>,
+    pub approvers: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TransactionItem {
-    #[serde(rename = "STATUS")]
+    pub tx_id: String,
     pub status: String,
-    #[serde(rename = "SIGNATURE_NUMBER")]
-    pub signature_number: u64,
-    #[serde(rename = "TRANSACTION_DATA_BYTES")]
-    pub transaction_data_bytes: String,
+    pub sigs_count: u64,
+    pub tx_effect: String,
+    pub tx_bz: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TransactionsResponse {
-    #[serde(rename = "TRANSACTIONS")]
-    pub transactions: Vec<TransactionItem>,
+    pub txs: Vec<TransactionItem>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct TransactionByHashResponse {
-    #[serde(rename = "TRANSACTION_DATA_BYTES")]
-    pub transaction_data_bytes: String,
+    pub tx_effect: String,
+    pub tx_bz: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct CreateMultiSigAccountResponse {
-    #[serde(rename = "MULTISIG_ACCOUNT_ADDRESS")]
     pub multisig_account_address: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct CreateTransactionResponse {}
+pub struct CreateTransactionResponse {
+    pub tx_id: String,
+}
 
 #[derive(Debug, Serialize)]
 pub struct TransactionThresholdResponse {
-    #[serde(rename = "TX_ID")]
     pub tx_id: String,
-    #[serde(rename = "CONTRACT_ID")]
     pub contract_id: String,
-    #[serde(rename = "STATUS")]
     pub status: String,
-    #[serde(rename = "THRESHOLD")]
     pub threshold: u32,
-    #[serde(rename = "SIGNATURE_COUNT")]
-    pub signature_count: u32,
-    #[serde(rename = "THRESHOLD_MET")]
+    pub sigs_count: u32,
     pub threshold_met: bool,
 }
 
@@ -82,37 +74,26 @@ pub struct TransactionThresholdResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTransactionRequest {
-    #[serde(rename = "TX_ID")]
-    pub tx_id: String,
-    #[serde(rename = "CONTRACT_ID")]
     pub contract_id: String,
-    #[serde(rename = "TRANSACTION_SUMMARY_HASH")]
-    pub transaction_summary_hash: String,
-    #[serde(rename = "TRANSACTION_DATA_BYTES")]
-    pub transaction_data_bytes: String,
+    pub tx_effect: String,
+    pub tx_bz: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct AddSignatureRequest {
-    #[serde(rename = "APPROVER_ADDRESS")]
     pub approver_address: String,
-    #[serde(rename = "SIGNATURE")]
     pub signature: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TransactionQuery {
-    #[serde(rename = "STATUS")]
     pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateMultiSigAccountRequest {
-    #[serde(rename = "THRESHOLD")]
     pub threshold: u32,
-    #[serde(rename = "TOTAL_APPROVERS")]
     pub total_approvers: u32,
-    #[serde(rename = "APPROVER_LIST")]
     pub approver_list: Vec<ApproverInfo>,
 }
 
@@ -161,9 +142,10 @@ pub async fn create_multisig_account(
     State(app_state): State<AppState>,
     Json(payload): Json<CreateMultiSigAccountRequest>,
 ) -> Result<Json<CreateMultiSigAccountResponse>, APIError> {
-    info!(
+    tracing::info!(
         "Creating multisig account with threshold: {}, total_approvers: {}",
-        payload.threshold, payload.total_approvers
+        payload.threshold,
+        payload.total_approvers
     );
 
     // Validate input
@@ -201,6 +183,8 @@ pub async fn create_multisig_account(
         }
     }
 
+    tracing::info!("Creating multisig account using miden client");
+
     // Create multisig account using miden client (running in separate runtime)
     let contract_id = app_state
         .miden_sender
@@ -210,6 +194,8 @@ pub async fn create_multisig_account(
             error!("Miden client error: {}", e);
             APIError::MidenError
         })?;
+
+    tracing::info!("Miden client created multisig account: {}", contract_id);
 
     // Store the contract in the database
     app_state
@@ -230,8 +216,8 @@ pub async fn create_multisig_account(
                 .collect(),
         )
         .await
-        .map_err(|_| {
-            error!("Failed to create contract in database");
+        .map_err(|e| {
+            error!("Failed to create contract in database: {e}");
             APIError::AccountCreationFailed
         })?;
 
@@ -261,9 +247,9 @@ pub async fn get_account_info(
         Some(info) => {
             let response = AccountInfoResponse {
                 approver_number: info.approvers.len(),
-                r#type: info.contract_type,
+                kind: info.contract_type,
                 threshold: info.threshold,
-                approver: info.approvers,
+                approvers: info.approvers,
             };
             Ok(Json(response))
         }
@@ -289,14 +275,16 @@ pub async fn get_account_transactions(
     let transaction_items: Vec<TransactionItem> = transactions
         .into_iter()
         .map(|tx| TransactionItem {
+            tx_id: tx.tx_id,
             status: tx.status,
-            signature_number: tx.sigs_count.map(|c| c.get()).unwrap_or(0),
-            transaction_data_bytes: tx.effect,
+            sigs_count: tx.sigs_count.map(|c| c.get()).unwrap_or(0),
+            tx_effect: tx.effect,
+            tx_bz: tx.tx_bz,
         })
         .collect();
 
     let response = TransactionsResponse {
-        transactions: transaction_items,
+        txs: transaction_items,
     };
 
     Ok(Json(response))
@@ -306,7 +294,7 @@ pub async fn get_account_transactions(
 pub async fn get_transaction_by_hash(
     State(app_state): State<AppState>,
     Path(tx_id): Path<String>,
-) -> Result<Json<TransactionByHashResponse>, APIError> {
+) -> Result<Json<TransactionItem>, APIError> {
     info!("Getting transaction by hash: {}", tx_id);
 
     let transaction = app_state
@@ -317,8 +305,12 @@ pub async fn get_transaction_by_hash(
 
     match transaction {
         Some(tx) => {
-            let response = TransactionByHashResponse {
-                transaction_data_bytes: tx.effect,
+            let response = TransactionItem {
+                tx_id: tx.tx_id,
+                status: tx.status,
+                sigs_count: tx.sigs_count.map(|c| c.get()).unwrap_or(0),
+                tx_effect: tx.effect,
+                tx_bz: tx.tx_bz,
             };
             Ok(Json(response))
         }
@@ -347,24 +339,27 @@ pub async fn create_transaction(
         return Err(APIError::AccountNotFound);
     }
 
+    let tx_bz_decoded = const_hex::decode(&payload.tx_bz).map_err(|_| APIError::InvalidInput)?;
+
+    let tx_hash_encoded = { const_hex::encode(Sha3_256::digest(tx_bz_decoded)) };
+
     // Create the transaction in database using the miden tx_hash as tx_id
     app_state
         .store
         .create_transaction(
-            &payload.tx_id,
+            &tx_hash_encoded,
             &account_id,
-            &payload.transaction_data_bytes,
-            &payload.transaction_summary_hash,
+            &payload.tx_bz,
+            &payload.tx_effect,
         )
         .await
         .map_err(|_| APIError::StateNotFound)?;
 
-    info!(
-        "Successfully processed and stored transaction: {}",
-        payload.tx_id
-    );
+    tracing::info!("Successfully processed and stored transaction: {tx_hash_encoded}",);
 
-    Ok(Json(CreateTransactionResponse {}))
+    Ok(Json(CreateTransactionResponse {
+        tx_id: tx_hash_encoded,
+    }))
 }
 
 /// POST /api/v1/transactions/{tx_id}/signatures
@@ -485,7 +480,7 @@ pub async fn get_transaction_threshold_status(
                 contract_id: info.contract_id,
                 status: info.status,
                 threshold: info.threshold,
-                signature_count: info.signature_count,
+                sigs_count: info.sigs_count,
                 threshold_met: info.threshold_met,
             };
             Ok(Json(response))
@@ -529,8 +524,15 @@ pub async fn start_server(
 
     // Create and start the miden runtime with MPSC channels
     info!("🚀 Starting Miden Runtime...");
-    let miden_runtime = MidenRuntime::new().await?;
-    let miden_sender = miden_runtime.get_sender();
+
+    let local = LocalSet::new();
+
+    // Create MPSC channel for communication with the runtime
+    let (message_sender, message_receiver) = mpsc::unbounded_channel::<MidenMessage>();
+
+    let miden_sender = MidenRuntimeSender {
+        sender: message_sender.clone(),
+    };
 
     // Create app state with both store and miden runtime sender
     let app_state = AppState {
@@ -545,16 +547,22 @@ pub async fn start_server(
 
     // Use the bind_address parameter instead of hardcoded address
     let listener = tokio::net::TcpListener::bind(bind_address).await?;
-    println!("🚀 Listening on http://{}", bind_address);
+    println!("🚀 Listening on http://{bind_address}");
 
     // Start the HTTP server
     // Note: miden_runtime will continue running in the background
-    let server_result = axum::serve(listener, app).await;
+    let axum_handle = tokio::spawn(async { axum::serve(listener, app).await });
 
-    // If server stops, shutdown the miden runtime
-    info!("🛑 Shutting down Miden Runtime...");
-    miden_runtime.shutdown().await?;
+    local
+        .run_until(async {
+            let runtime = MidenRuntime::new(message_receiver).await.unwrap();
+            runtime.shutdown().await.unwrap();
+        })
+        .await;
 
-    server_result?;
+    axum_handle.await??;
+
+    // runtime.shutdown().await.unwrap();
+
     Ok(())
 }

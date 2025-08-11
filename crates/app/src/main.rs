@@ -11,13 +11,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Database configuration - using PostgreSQL
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://localhost/multisig".to_string());
+        .unwrap_or_else(|_| "postgresql://myuser:mypassword@localhost/multisig".to_string());
 
     // Server bind address
     let bind_address = "0.0.0.0:3000";
 
-    println!("📄 Database: {}", database_url);
-    println!("🌐 Server will be available at: http://{}", bind_address);
+    println!("📄 Database: {database_url}");
+    println!("🌐 Server will be available at: http://{bind_address}");
 
     // Create database pool
     println!("🔧 Creating database connection pool...");
