@@ -27,9 +27,7 @@ pub enum MidenMessage {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ApproverInfo {
-    #[serde(rename = "PUBLIC_KEY")]
     pub public_key: String,
-    #[serde(rename = "ADDRESS")]
     pub address: String,
 }
 
@@ -37,45 +35,27 @@ pub struct ApproverInfo {
 pub struct MidenRuntime {
     /// Handle to the tokio task running the miden client
     task_handle: tokio::task::JoinHandle<()>,
-    /// Sender to communicate with the miden client runtime
-    message_sender: mpsc::UnboundedSender<MidenMessage>,
 }
 
 impl MidenRuntime {
     /// Creates and starts a new miden client runtime
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new(
+        message_receiver: mpsc::UnboundedReceiver<MidenMessage>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         info!("🚀 Initializing Miden Runtime...");
-
-        // Create MPSC channel for communication with the runtime
-        let (message_sender, message_receiver) = mpsc::unbounded_channel::<MidenMessage>();
 
         // Spawn the dedicated tokio task for miden client
         // Use spawn_local for non-Send futures (miden client is not Send/Sync)
-        let task_handle = tokio::task::spawn_local(async move {
-            Self::run_miden_runtime(message_receiver).await;
-        });
+        let task_handle = tokio::task::spawn_local(Self::run_miden_runtime(message_receiver));
 
         info!("✅ Miden Runtime started successfully");
 
-        Ok(Self {
-            task_handle,
-            message_sender,
-        })
-    }
-
-    /// Get a cloneable sender to communicate with the miden runtime
-    pub fn get_sender(&self) -> MidenRuntimeSender {
-        MidenRuntimeSender {
-            sender: self.message_sender.clone(),
-        }
+        Ok(Self { task_handle })
     }
 
     /// Shutdown the miden runtime
     pub async fn shutdown(self) -> Result<(), Box<dyn std::error::Error>> {
         info!("🛑 Shutting down Miden Runtime...");
-
-        // Send shutdown message
-        let _ = self.message_sender.send(MidenMessage::Shutdown);
 
         // Wait for the task to complete
         self.task_handle.await?;
@@ -103,6 +83,7 @@ impl MidenRuntime {
                             break;
                         }
                         _ => {
+                            tracing::info!("Handling miden message: {:?}", message);
                             Self::handle_miden_message(&miden_client, message).await;
                         }
                     }
@@ -338,7 +319,7 @@ impl MidenRuntime {
 /// Cloneable sender that can be shared across multiple threads/tasks
 #[derive(Clone)]
 pub struct MidenRuntimeSender {
-    sender: mpsc::UnboundedSender<MidenMessage>,
+    pub sender: mpsc::UnboundedSender<MidenMessage>,
 }
 
 impl MidenRuntimeSender {
@@ -358,8 +339,13 @@ impl MidenRuntimeSender {
             })
             .map_err(|_| "Failed to send message to miden runtime".to_string())?;
 
+        tracing::info!("Waiting for response from miden runtime");
         response_rx
             .await
+            .inspect(|r| tracing::info!("Received response from miden runtime: {:?}", r))
+            .inspect_err(|e| {
+                tracing::error!("Error receiving response from miden runtime: {:?}", e)
+            })
             .map_err(|_| "Failed to receive response from miden runtime".to_string())?
     }
 

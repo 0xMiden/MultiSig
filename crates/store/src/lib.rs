@@ -64,7 +64,7 @@ pub struct TransactionThresholdInfo {
     pub effect: String,
     pub created_at: DateTime<Utc>,
     pub threshold: u32,
-    pub signature_count: u32,
+    pub sigs_count: u32,
     pub threshold_met: bool,
 }
 
@@ -508,7 +508,7 @@ impl MultisigStore {
             effect: tx_record.effect,
             created_at: tx_record.created_at,
             threshold,
-            signature_count,
+            sigs_count: signature_count,
             threshold_met: signature_count >= threshold,
         }))
     }

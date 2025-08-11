@@ -6,11 +6,13 @@ publish.workspace = true
 
 [dependencies]
 axum = "0.7"
+const-hex = "1"
 hyper = "1"
 miden-multisig-store = { workspace = true }
-miden-client= {workspace = true}
+miden-client= { workspace = true, features = ["testing", "tonic", "sqlite"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha3 = "0.10"
 tokio = { workspace = true, features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors"] }
