@@ -7,19 +7,16 @@ publish = false
 unsafe_code = "forbid"
 
 [workspace]
-members = ["crates/miden-multisig-client"]
-resolver = "2"
+resolver = "3"
+members = [
+  "crates/*",
+]
 
-[workspace.lints.rust]
-missing_docs = "warn"
+[workspace.dependencies]
+miden-multisig-store = { path = "crates/store" }
+miden-multisig-api = { path = "crates/api" }
+miden-client = { version = "0.10" }
 
-[package]
-name = "multisig"
-version = "0.1.0"
-edition = "2021"
 
-[dependencies]
-multisig-store = { path = "crates/multisig-store" }
-api = { path = "crates/api" }
-tokio = { version = "1.0", features = ["full"] }
-
+tokio = "1"
+tracing = "0.1"
