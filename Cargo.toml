@@ -16,6 +16,7 @@ members = [
 miden-multisig-store = { path = "crates/store" }
 miden-multisig-api = { path = "crates/api" }
 miden-client = { version = "0.10" }
+miden-tx ={ version = "0.10" }
 
 
 tokio = "1"

@@ -1,6 +1,24 @@
+use rand::RngCore;
 use std::sync::Arc;
 
-use miden_client::{Client, builder::ClientBuilder, rpc::Endpoint, rpc::TonicRpcClient};
+use miden_client::{
+    Client,
+    account::{
+        AccountBuilder, AccountId, AccountStorageMode, AccountType,
+        component::{BasicFungibleFaucet, BasicWallet, RpoFalcon512},
+    },
+    auth::AuthSecretKey,
+    builder::ClientBuilder,
+    crypto::SecretKey,
+    keystore::FilesystemKeyStore,
+    rpc::{Endpoint, TonicRpcClient},
+    transaction::TransactionRequest,
+};
+
+use miden_tx::utils::{
+    ByteReader, ByteWriter, Deserializable, DeserializationError, Serializable, hex_to_bytes,
+};
+
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
@@ -72,7 +90,7 @@ impl MidenRuntime {
         let miden_client_result = Self::create_miden_client().await;
 
         match miden_client_result {
-            Ok(miden_client) => {
+            Ok(mut miden_client) => {
                 info!("✅ Miden client initialized successfully");
 
                 // Process messages in the runtime loop
@@ -84,7 +102,7 @@ impl MidenRuntime {
                         }
                         _ => {
                             tracing::info!("Handling miden message: {:?}", message);
-                            Self::handle_miden_message(&miden_client, message).await;
+                            Self::handle_miden_message(&mut miden_client, message).await;
                         }
                     }
                 }
@@ -92,19 +110,6 @@ impl MidenRuntime {
             Err(e) => {
                 info!("❌ Failed to initialize miden client: {}", e);
                 info!("🔄 Running in fallback mode - operations will return mock responses");
-
-                // Process messages with mock responses
-                while let Some(message) = message_receiver.recv().await {
-                    match &message {
-                        MidenMessage::Shutdown => {
-                            info!("🛑 Received shutdown signal, stopping runtime");
-                            break;
-                        }
-                        _ => {
-                            Self::handle_miden_message_fallback(message).await;
-                        }
-                    }
-                }
             }
         }
 
@@ -133,7 +138,7 @@ impl MidenRuntime {
     }
 
     /// Handle individual miden client messages using real miden client
-    async fn handle_miden_message(client: &Client, message: MidenMessage) {
+    async fn handle_miden_message(client: &mut Client, message: MidenMessage) {
         match message {
             MidenMessage::CreateMultisigAccount {
                 threshold,
@@ -153,7 +158,7 @@ impl MidenRuntime {
                 let _ = response.send(result);
             }
             MidenMessage::ProcessTransaction {
-                tx_data: _tx_data,
+                tx_data,
                 account_id,
                 signature,
                 response,
@@ -166,78 +171,9 @@ impl MidenRuntime {
 
                 // TODO: Implement actual miden transaction processing
                 // For now, using a placeholder implementation
-                let result = Self::process_transaction_impl(client, &account_id, &signature).await;
+                let result =
+                    Self::process_transaction_impl(client, tx_data, &account_id, &signature).await;
                 let _ = response.send(result);
-            }
-            MidenMessage::Shutdown => {
-                // Handled in the main loop
-            }
-        }
-    }
-
-    /// Handle messages when miden client is not available (fallback mode)
-    async fn handle_miden_message_fallback(message: MidenMessage) {
-        match message {
-            MidenMessage::CreateMultisigAccount {
-                threshold,
-                approvers,
-                response,
-            } => {
-                info!(
-                    "🔄 [FALLBACK] Mock create multisig account (threshold: {}, approvers: {})",
-                    threshold,
-                    approvers.len()
-                );
-
-                // Generate a mock account address
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-
-                let mut hasher = DefaultHasher::new();
-                threshold.hash(&mut hasher);
-                for approver in &approvers {
-                    approver.address.hash(&mut hasher);
-                    approver.public_key.hash(&mut hasher);
-                }
-
-                let hash = hasher.finish();
-                let account_address = format!("miden_multisig_fallback_{:x}", hash);
-
-                info!("✅ [FALLBACK] Mock account created: {}", account_address);
-                let _ = response.send(Ok(account_address));
-            }
-            MidenMessage::ProcessTransaction {
-                tx_data: _tx_data,
-                account_id,
-                signature,
-                response,
-            } => {
-                info!(
-                    "🔄 [FALLBACK] Mock process transaction for account: {} with {} signatures",
-                    account_id,
-                    signature.len()
-                );
-
-                // Generate a mock transaction hash
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-
-                let mut hasher = DefaultHasher::new();
-                account_id.hash(&mut hasher);
-                for sig in &signature {
-                    sig.hash(&mut hasher);
-                }
-                let timestamp = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-                timestamp.hash(&mut hasher);
-
-                let hash = hasher.finish();
-                let tx_hash = format!("tx_hash_fallback_{:x}", hash);
-
-                info!("✅ [FALLBACK] Mock transaction processed: {}", tx_hash);
-                let _ = response.send(Ok(tx_hash));
             }
             MidenMessage::Shutdown => {
                 // Handled in the main loop
@@ -247,7 +183,7 @@ impl MidenRuntime {
 
     /// Implementation for creating multisig accounts with real miden client
     async fn create_multisig_account_impl(
-        _client: &Client,
+        client: &mut Client,
         threshold: u32,
         approvers: &[ApproverInfo],
     ) -> Result<String, String> {
@@ -274,13 +210,46 @@ impl MidenRuntime {
         let hash = hasher.finish();
         let account_address = format!("miden_multisig_real_{:x}", hash);
 
+        println!("\n[STEP 1] Creating a new account for Alice");
+
+        // Account seed
+        let mut init_seed = [0_u8; 32];
+        client.rng().fill_bytes(&mut init_seed);
+
+        let key_pair = SecretKey::with_rng(client.rng());
+
+        // Build the account
+        let builder = AccountBuilder::new(init_seed)
+            .account_type(AccountType::RegularAccountUpdatableCode)
+            .storage_mode(AccountStorageMode::Public)
+            .with_auth_component(RpoFalcon512::new(key_pair.public_key()))
+            .with_component(BasicWallet);
+
+        let (alice_account, seed) = builder.build().unwrap();
+
+        // Add the account to the client
+        client
+            .add_account(&alice_account, Some(seed), false)
+            .await?;
+
+        let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
+            FilesystemKeyStore::new("./keystore".into()).unwrap();
+
+        // Add the key pair to the keystore
+        keystore
+            .add_key(&AuthSecretKey::RpoFalcon512(key_pair))
+            .unwrap();
+
+        // Ensure keystore directory exists before creating FilesystemKeyStore
+
         info!("✅ [MIDEN] Multisig account created: {}", account_address);
         Ok(account_address)
     }
 
     /// Implementation for processing transactions with real miden client
     async fn process_transaction_impl(
-        _client: &Client,
+        client: &mut Client,
+        tx_data: String,
         account_id: &str,
         signatures: &[String],
     ) -> Result<String, String> {
@@ -310,6 +279,25 @@ impl MidenRuntime {
 
         let hash = hasher.finish();
         let tx_hash = format!("tx_hash_real_{:x}", hash);
+
+        // TODO: Implement actual miden transaction processing
+        // This would involve:
+        // 1. Validating the transaction data
+        // 2. Checking signatures against the multisig threshold
+        // 3. Submitting the transaction to the miden network
+        // 4. Returning the transaction hash
+
+        let bytes = hex_to_bytes(&tx_data).unwrap();
+        let account_id = AccountId::from_hex(account_id).unwrap();
+
+        let transaction_request = TransactionRequest::read_from_bytes(&bytes).unwrap();
+
+        let tx_execution_result = client
+            .new_transaction(account_id, transaction_request)
+            .await?;
+
+        client.submit_transaction(tx_execution_result).await?;
+        println!("All of Alice's notes consumed successfully.");
 
         info!("✅ [MIDEN] Transaction processed: {}", tx_hash);
         Ok(tx_hash)
