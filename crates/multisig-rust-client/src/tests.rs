@@ -84,7 +84,6 @@ async fn multisig() {
     let tx_request = TransactionRequestBuilder::new()
         .auth_arg(salt)
         .build_consume_notes(vec![note.id()])
-        // .build()
         .unwrap();
 
     // Propose the transaction (should fail with Unauthorized)
