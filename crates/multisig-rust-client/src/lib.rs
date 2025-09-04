@@ -1,3 +1,4 @@
+//! A client for managing multisig transactions.
 #[macro_use]
 extern crate alloc;
 
@@ -22,19 +23,24 @@ use thiserror::Error;
 #[cfg(test)]
 pub mod tests;
 
+/// Represents errors that can occur in the multisig client.
 #[derive(Debug, Error)]
 pub enum MultisigClientError {
     #[error("multisig transaction proposal error: {0}")]
+    /// An error occurred while proposing a new transaction.
     TxProposalError(String),
     #[error("multisig transaction execution error: {0}")]
+    /// An error occurred while executing a transaction.
     TxExecutionError(String),
 }
 
+/// A client for interacting with Miden multisig accounts.
 pub struct MultisigClient<AUTH: TransactionAuthenticator + Sync + 'static> {
     client: Client<AUTH>,
 }
 
 impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
+    /// Creates a new `MultisigClient` wrapping around the provided Miden client.
     pub fn new(client: Client<AUTH>) -> Self {
         Self { client }
     }
@@ -55,6 +61,7 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> DerefMut for MultisigClien
 }
 
 impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
+    /// Sets up a new multisig account with the specified approvers and threshold.
     pub fn setup_account(&mut self, approvers: Vec<PublicKey>, threshold: u32) -> (Account, Word) {
         let mut init_seed = [0u8; 32];
         self.rng().fill_bytes(&mut init_seed);
