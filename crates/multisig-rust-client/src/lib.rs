@@ -82,20 +82,16 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
     ) -> Result<TransactionSummary, MultisigClientError> {
         let tx_result = self.new_transaction(account_id, transaction_request).await;
 
-        let tx_summary = match tx_result {
-            Ok(_) => {
-                return Err(MultisigClientError::TxProposalError(
-                    "expecting a dry run, but tx was executed".to_string(),
-                ));
-            }
+        match tx_result {
+            Ok(_) => Err(MultisigClientError::TxProposalError(
+                "expecting a dry run, but tx was executed".to_string(),
+            )),
             // otherwise match on Unauthorized
             Err(ClientError::TransactionExecutorError(TransactionExecutorError::Unauthorized(
                 summary,
             ))) => Ok(*summary),
             Err(e) => Err(MultisigClientError::TxProposalError(e.to_string())),
-        };
-
-        tx_summary
+        }
     }
 
     /// Creates and executes a transaction specified by the request against the specified multisig
