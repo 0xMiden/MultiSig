@@ -1,0 +1,7 @@
+[workspace]
+members = ["crates/multisig-rust-client"]
+resolver = "2"
+
+[patch.crates-io]
+# TODO: remove this once 0.11.3 is released
+miden-client = { git = "https://github.com/0xMiden/miden-client.git", branch = "mmagician-multisig-support" }
