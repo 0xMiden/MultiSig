@@ -55,12 +55,13 @@ lint: format fix clippy toml typos-check machete ## Run all linting tasks at onc
 
 # --- testing -------------------------------------------------------------------------------------
 
-.PHONY: test-default
-test-default: ## Run tests with default features
-	$(DEBUG_OVERFLOW_INFO) cargo nextest run --profile default --release --all-features
+.PHONY: test-build
+test-build: ## Build the test binary
+	cargo nextest run --all-features --no-run
 
 .PHONY: test
-test: test-default
+test: ## Run tests with default features
+	$(DEBUG_OVERFLOW_INFO) cargo nextest run --profile default --release --all-features
 
 # --- checking ------------------------------------------------------------------------------------
 
