@@ -21,7 +21,7 @@ use miden_client::{Client, ClientError};
 use thiserror::Error;
 
 #[cfg(test)]
-pub mod tests;
+mod tests;
 
 /// Represents errors that can occur in the multisig client.
 #[derive(Debug, Error)]
