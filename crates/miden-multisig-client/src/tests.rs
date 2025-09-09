@@ -44,12 +44,9 @@ async fn multisig() {
     .unwrap();
     let pub_key_b = secret_key_b.public_key();
 
-    let (multisig_account, seed) = coordinator_client.setup_account(vec![pub_key_a, pub_key_b], 2);
-
-    coordinator_client
-        .add_account(&multisig_account, Some(seed), false)
-        .await
-        .unwrap();
+    let multisig_account = coordinator_client
+        .setup_account(vec![pub_key_a, pub_key_b], 2)
+        .await;
 
     // we insert the faucet to the coordinator client for convenience
     let (faucet_account, ..) = insert_new_fungible_faucet(

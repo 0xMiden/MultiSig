@@ -62,7 +62,7 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> DerefMut for MultisigClien
 
 impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
     /// Sets up a new multisig account with the specified approvers and threshold.
-    pub fn setup_account(&mut self, approvers: Vec<PublicKey>, threshold: u32) -> (Account, Word) {
+    pub async fn setup_account(&mut self, approvers: Vec<PublicKey>, threshold: u32) -> Account {
         let mut init_seed = [0u8; 32];
         self.rng().fill_bytes(&mut init_seed);
 
@@ -75,7 +75,11 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
             .build()
             .unwrap();
 
-        (multisig_account, seed)
+        self.add_account(&multisig_account, Some(seed), false)
+            .await
+            .unwrap();
+
+        multisig_account
     }
 }
 
