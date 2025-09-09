@@ -1340,6 +1340,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "miden-multisig-client"
+version = "0.1.0"
+dependencies = [
+ "miden-client",
+ "miden-lib",
+ "miden-objects",
+ "miden-tx",
+ "rand",
+ "thiserror 2.0.16",
+ "tokio",
+]
+
+[[package]]
 name = "miden-node-proto-build"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1578,19 +1591,6 @@ name = "multimap"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
-
-[[package]]
-name = "multisig-rust-client"
-version = "0.1.0"
-dependencies = [
- "miden-client",
- "miden-lib",
- "miden-objects",
- "miden-tx",
- "rand",
- "thiserror 2.0.16",
- "tokio",
-]
 
 [[package]]
 name = "new_debug_unreachable"

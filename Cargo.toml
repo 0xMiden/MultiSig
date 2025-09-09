@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/multisig-rust-client"]
+members = ["crates/miden-multisig-client"]
 resolver = "2"
 
 [patch.crates-io]
