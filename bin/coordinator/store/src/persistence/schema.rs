@@ -11,6 +11,7 @@ diesel::table! {
     contract_approver_mapping (contract_id, approver_address) {
         contract_id -> Text,
         approver_address -> Text,
+        approver_index -> Int4,
     }
 }
 
@@ -21,6 +22,7 @@ diesel::table! {
         status -> Text,
         tx_bz -> Text,
         effect -> Text,
+        summary -> Text,
         created_at -> Timestamptz,
     }
 }

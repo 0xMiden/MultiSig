@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS approver (
 CREATE TABLE IF NOT EXISTS contract_approver_mapping (
     contract_id TEXT NOT NULL REFERENCES multisig_contract(id) ON DELETE CASCADE,
     approver_address TEXT NOT NULL REFERENCES approver(address) ON DELETE CASCADE,
+    approver_index INTEGER NOT NULL,
     
-    PRIMARY KEY (contract_id, approver_address)
+    PRIMARY KEY (contract_id, approver_address),
+    UNIQUE (contract_id, approver_index)
 );
 
 CREATE TABLE IF NOT EXISTS contract_tx (
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS contract_tx (
     status TEXT NOT NULL DEFAULT 'PENDING',
     tx_bz TEXT NOT NULL,
     effect TEXT NOT NULL,
+    summary TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

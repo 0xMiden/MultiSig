@@ -2,8 +2,7 @@ use core::num::NonZeroUsize;
 
 use std::sync::Arc;
 
-use miden_multisig_api::start_server;
-use miden_multisig_store::MultisigStore;
+use miden_multisig_coordinator_store::MultisigStore;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,10 +20,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Create database pool
 	println!("🔧 Creating database connection pool...");
-	let db_pool =
-		miden_multisig_store::establish_pool(&database_url, NonZeroUsize::new(10).unwrap())
-			.await
-			.map_err(|e| format!("Failed to create database pool: {}", e))?;
+	let db_pool = miden_multisig_coordinator_store::establish_pool(
+		&database_url,
+		NonZeroUsize::new(10).unwrap(),
+	)
+	.await
+	.map_err(|e| format!("Failed to create database pool: {}", e))?;
 
 	// Create MultisigStore
 	println!("🏪 Initializing MultisigStore...");
@@ -32,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Start the server with both miden runtime and database store
 	println!("🚀 Starting server with Miden Runtime and Database Store...");
-	start_server(store, bind_address).await?;
+	miden_multisig_coordinator_api::start_server(store, bind_address).await?;
 
 	Ok(())
 }

@@ -40,7 +40,20 @@ pub async fn fetch_contract_approvers_by_contract_id(
 	schema::contract_approver_mapping::table
 		.select(schema::contract_approver_mapping::approver_address)
 		.filter(schema::contract_approver_mapping::contract_id.eq(contract_id))
+		.order(schema::contract_approver_mapping::approver_index.asc())
 		.load(conn)
+		.await
+		.map_err(From::from)
+}
+
+pub async fn fetch_public_key_by_approver_address(
+	conn: &mut DbConn,
+	approver_address: &str,
+) -> Result<String> {
+	schema::approver::table
+		.select(schema::approver::public_key)
+		.filter(schema::approver::address.eq(approver_address))
+		.first(conn)
 		.await
 		.map_err(From::from)
 }
@@ -171,11 +184,13 @@ pub async fn save_new_contract_approver_mapping(
 	conn: &mut DbConn,
 	contract_id: &str,
 	approver_address: &str,
+	approver_index: u32,
 ) -> Result<()> {
 	diesel::insert_into(schema::contract_approver_mapping::table)
 		.values((
 			schema::contract_approver_mapping::contract_id.eq(contract_id),
 			schema::contract_approver_mapping::approver_address.eq(approver_address),
+			schema::contract_approver_mapping::approver_index.eq(approver_index as i32),
 		))
 		.execute(conn)
 		.await?;
@@ -196,6 +211,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
 			schema::contract_tx::status,
 			schema::contract_tx::tx_bz,
 			schema::contract_tx::effect,
+			schema::contract_tx::summary,
 			schema::contract_tx::created_at,
 		))
 		.select((
@@ -205,6 +221,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
 				schema::contract_tx::status,
 				schema::contract_tx::tx_bz,
 				schema::contract_tx::effect,
+				schema::contract_tx::summary,
 				schema::contract_tx::created_at,
 			),
 			diesel::dsl::count(schema::tx_sig::tx_id.nullable()),
@@ -229,6 +246,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
 			schema::contract_tx::status,
 			schema::contract_tx::tx_bz,
 			schema::contract_tx::effect,
+			schema::contract_tx::summary,
 			schema::contract_tx::created_at,
 		))
 		.select((
@@ -238,6 +256,7 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
 				schema::contract_tx::status,
 				schema::contract_tx::tx_bz,
 				schema::contract_tx::effect,
+				schema::contract_tx::summary,
 				schema::contract_tx::created_at,
 			),
 			diesel::dsl::count(schema::tx_sig::tx_id.nullable()),

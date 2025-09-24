@@ -43,6 +43,7 @@ pub struct TransactionInfo {
 	pub status: String,
 	pub tx_bz: String,
 	pub effect: String,
+	pub summary: String,
 	pub created_at: DateTime<Utc>,
 
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -137,7 +138,15 @@ impl MultisigStore {
 			.into_iter()
 			.map(
 				|(
-					ContractTxRecord { tx_id, contract_id, status, tx_bz, effect, created_at },
+					ContractTxRecord {
+						tx_id,
+						contract_id,
+						status,
+						tx_bz,
+						effect,
+						summary,
+						created_at,
+					},
 					count,
 				)| {
 					let tx_info = TransactionInfo {
@@ -146,6 +155,7 @@ impl MultisigStore {
 						status,
 						tx_bz,
 						effect,
+						summary,
 						created_at,
 						sigs_count: count
 							.try_into()
@@ -166,8 +176,15 @@ impl MultisigStore {
 	pub async fn get_transaction_by_id(&self, tx_id: &str) -> Result<Option<TransactionInfo>> {
 		let conn = &mut self.get_conn().await?;
 
-		let Some(ContractTxRecord { tx_id, contract_id, status, tx_bz, effect, created_at }) =
-			store::fetch_tx_by_tx_id(conn, tx_id).await?
+		let Some(ContractTxRecord {
+			tx_id,
+			contract_id,
+			status,
+			tx_bz,
+			effect,
+			summary,
+			created_at,
+		}) = store::fetch_tx_by_tx_id(conn, tx_id).await?
 		else {
 			return Ok(None);
 		};
@@ -178,6 +195,7 @@ impl MultisigStore {
 			status,
 			tx_bz,
 			effect,
+			summary,
 			created_at,
 			sigs_count: None,
 		}))
@@ -193,6 +211,7 @@ impl MultisigStore {
 		contract_id: &str,
 		tx_bz: &str,
 		effect: &str,
+		summary: &str,
 	) -> Result<(), MultisigStoreError> {
 		let new_tx = NewContractTxRecord {
 			id: tx_id,
@@ -200,6 +219,7 @@ impl MultisigStore {
 			status: "PENDING",
 			tx_bz,
 			effect,
+			summary,
 			created_at: None,
 		};
 
@@ -257,6 +277,15 @@ impl MultisigStore {
 			})
 			.await
 			.map_err(MultisigStoreError::Store)
+	}
+
+	pub async fn get_public_key_by_approver_address(
+		&self,
+		approver_address: &str,
+	) -> Result<String, MultisigStoreError> {
+		store::fetch_public_key_by_approver_address(&mut self.get_conn().await?, approver_address)
+			.await
+			.map_err(From::from)
 	}
 
 	/// Get all signatures for a transaction
@@ -324,15 +353,20 @@ impl MultisigStore {
 
 					store::save_new_multisig_contract(conn, new_contract).await?;
 
-					for (address, public_key) in approver_address.iter().zip(public_key.iter()) {
+					for (idx, (&address, &public_key)) in
+						approver_address.iter().zip(public_key.iter()).enumerate()
+					{
 						let new_approver = NewApproverRecord { address, public_key };
 
 						store::upsert_approver(conn, new_approver).await?;
-					}
 
-					for (address, _) in approver_address.iter().zip(public_key.iter()) {
-						store::save_new_contract_approver_mapping(conn, contract_id, address)
-							.await?;
+						store::save_new_contract_approver_mapping(
+							conn,
+							contract_id,
+							address,
+							idx as u32,
+						)
+						.await?;
 					}
 
 					Ok(())
@@ -344,38 +378,38 @@ impl MultisigStore {
 		Ok(())
 	}
 
-	/// Add an approver to a contract
-	pub async fn add_contract_approver(
-		&self,
-		contract_id: &str,
-		threshold: i32,
-		kind: &str,
-		address: &str,
-		public_key: &str,
-	) -> Result<(), MultisigStoreError> {
-		self.get_conn()
-			.await?
-			.transaction(|conn| {
-				Box::pin(async move {
-					let new_contract = NewMultisigContractRecord {
-						id: contract_id,
-						threshold,
-						kind,
-						created_at: None,
-					};
+	// /// Add an approver to a contract
+	// pub async fn add_contract_approver(
+	// 	&self,
+	// 	contract_id: &str,
+	// 	threshold: i32,
+	// 	kind: &str,
+	// 	address: &str,
+	// 	public_key: &str,
+	// ) -> Result<(), MultisigStoreError> {
+	// 	self.get_conn()
+	// 		.await?
+	// 		.transaction(|conn| {
+	// 			Box::pin(async move {
+	// 				let new_contract = NewMultisigContractRecord {
+	// 					id: contract_id,
+	// 					threshold,
+	// 					kind,
+	// 					created_at: None,
+	// 				};
 
-					store::save_new_multisig_contract(conn, new_contract).await?;
-					let new_approver = NewApproverRecord { address, public_key };
+	// 				store::save_new_multisig_contract(conn, new_contract).await?;
+	// 				let new_approver = NewApproverRecord { address, public_key };
 
-					store::upsert_approver(conn, new_approver).await?;
+	// 				store::upsert_approver(conn, new_approver).await?;
 
-					store::save_new_contract_approver_mapping(conn, contract_id, address).await?;
-					Ok(())
-				})
-			})
-			.await
-			.map_err(MultisigStoreError::Store)
-	}
+	// 				store::save_new_contract_approver_mapping(conn, contract_id, address).await?;
+	// 				Ok(())
+	// 			})
+	// 		})
+	// 		.await
+	// 		.map_err(MultisigStoreError::Store)
+	// }
 
 	async fn get_conn(&self) -> Result<DbConn> {
 		self.pool.get().await.map_err(|_| MultisigStoreError::Pool)

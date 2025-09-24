@@ -1,6 +1,6 @@
 mod miden_runtime;
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
 	Router,
@@ -9,7 +9,10 @@ use axum::{
 	response::{IntoResponse, Json, Response},
 	routing::{get, post},
 };
-use miden_multisig_store::MultisigStore;
+use miden_client::Word;
+use miden_multisig_coordinator_store::{MultisigStore, SignatureRecord};
+use miden_objects::crypto::dsa::rpo_falcon512::{PublicKey, Signature};
+use miden_tx::utils::{Deserializable, Serializable};
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use tokio::{sync::mpsc, task::LocalSet};
@@ -20,6 +23,19 @@ use self::miden_runtime::{ApproverInfo, MidenMessage, MidenRuntime, MidenRuntime
 
 // API Response Types
 // ================================================================================================
+//
+
+#[derive(Debug, Serialize)]
+pub struct NewTransactionRequest {
+	pub contract_id: String,
+	pub recipient: String,
+	pub faucet_id: String,
+	pub amount: u64,
+}
+
+pub struct NewTransactionResponse {
+	pub transaction_summary: String,
+}
 
 #[derive(Debug, Serialize)]
 pub struct AccountInfoResponse {
@@ -34,7 +50,7 @@ pub struct TransactionItem {
 	pub tx_id: String,
 	pub status: String,
 	pub sigs_count: u64,
-	pub tx_effect: String,
+	pub tx_summary_commitment: String,
 	pub tx_bz: String,
 }
 
@@ -55,11 +71,6 @@ pub struct CreateMultiSigAccountResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct CreateTransactionResponse {
-	pub tx_id: String,
-}
-
-#[derive(Debug, Serialize)]
 pub struct TransactionThresholdResponse {
 	pub tx_id: String,
 	pub contract_id: String,
@@ -77,6 +88,7 @@ pub struct CreateTransactionRequest {
 	pub contract_id: String,
 	pub tx_effect: String,
 	pub tx_bz: String,
+	pub summary: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -95,6 +107,19 @@ pub struct CreateMultiSigAccountRequest {
 	pub threshold: u32,
 	pub total_approvers: u32,
 	pub approver_list: Vec<ApproverInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProposeTransactionRequest {
+	pub contract: String,
+	pub tx_bz: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProposeTransactionResponse {
+	pub tx_id: String,
+	pub tx_summary: String,
+	pub tx_summary_commitment: String,
 }
 
 // Application State
@@ -136,6 +161,12 @@ impl IntoResponse for APIError {
 
 // API Handlers
 // ================================================================================================
+//
+
+// pub async fn create_new_transaction(
+// 	State(app_state): State<AppState>,
+// 	Json(payload): Json<NewTransactionRequest>,
+// ) -> Result<Json>
 
 /// POST /api/v1/multisig-accounts
 pub async fn create_multisig_account(
@@ -220,6 +251,56 @@ pub async fn create_multisig_account(
 	Ok(Json(response))
 }
 
+pub async fn propose_transaction(
+	State(app_state): State<AppState>,
+	Json(ProposeTransactionRequest { contract, tx_bz }): Json<ProposeTransactionRequest>,
+) -> Result<Json<ProposeTransactionResponse>, APIError> {
+	info!("propose transaction from {contract}");
+
+	app_state
+		.store
+		.get_contract_info(&contract)
+		.await
+		.map_err(|_| APIError::AccountNotFound)?
+		.ok_or(APIError::AccountNotFound)?;
+
+	let tx_summary = app_state
+		.miden_sender
+		.propose_transaction(contract.clone(), tx_bz.clone())
+		.await
+		.map_err(|_| APIError::MidenError)?;
+
+	let tx_summary_commitment = tx_summary.to_commitment();
+
+	let tx_bz_decoded = const_hex::decode(&tx_bz).map_err(|_| APIError::InvalidInput)?;
+
+	let tx_id = const_hex::encode(Sha3_256::digest(tx_bz_decoded));
+
+	let tx_summary_hex = const_hex::encode(tx_summary.to_bytes());
+	let tx_summary_commitment_hex = const_hex::encode(tx_summary_commitment.to_bytes());
+
+	// Create the transaction in database using the miden tx_hash as tx_id
+	app_state
+		.store
+		.create_transaction(
+			&tx_id,
+			&contract,
+			&tx_bz,
+			&tx_summary_commitment_hex,
+			&tx_summary_hex,
+		)
+		.await
+		.map_err(|_| APIError::StateNotFound)?;
+
+	tracing::info!("Successfully processed and stored transaction: {tx_id}",);
+
+	Ok(Json(ProposeTransactionResponse {
+		tx_id,
+		tx_summary: tx_summary_hex,
+		tx_summary_commitment: tx_summary_commitment_hex,
+	}))
+}
+
 /// GET /api/v1/accounts/{account_id}
 pub async fn get_account_info(
 	State(app_state): State<AppState>,
@@ -268,7 +349,7 @@ pub async fn get_account_transactions(
 			tx_id: tx.tx_id,
 			status: tx.status,
 			sigs_count: tx.sigs_count.map(|c| c.get()).unwrap_or(0),
-			tx_effect: tx.effect,
+			tx_summary_commitment: tx.effect,
 			tx_bz: tx.tx_bz,
 		})
 		.collect();
@@ -297,7 +378,7 @@ pub async fn get_transaction_by_hash(
 				tx_id: tx.tx_id,
 				status: tx.status,
 				sigs_count: tx.sigs_count.map(|c| c.get()).unwrap_or(0),
-				tx_effect: tx.effect,
+				tx_summary_commitment: tx.effect,
 				tx_bz: tx.tx_bz,
 			};
 			Ok(Json(response))
@@ -306,47 +387,48 @@ pub async fn get_transaction_by_hash(
 	}
 }
 
-/// POST /api/v1/accounts/{account_id}/transactions
-pub async fn create_transaction(
-	State(app_state): State<AppState>,
-	Path(account_id): Path<String>,
-	Json(payload): Json<CreateTransactionRequest>,
-) -> Result<Json<CreateTransactionResponse>, APIError> {
-	info!(
-		"Creating and processing transaction for account: {}",
-		account_id
-	);
+// /// POST /api/v1/accounts/{account_id}/transactions
+// pub async fn create_transaction(
+// 	State(app_state): State<AppState>,
+// 	Path(account_id): Path<String>,
+// 	Json(payload): Json<CreateTransactionRequest>,
+// ) -> Result<Json<CreateTransactionResponse>, APIError> {
+// 	info!(
+// 		"Creating and processing transaction for account: {}",
+// 		account_id
+// 	);
 
-	// Verify the account exists
-	let contract_info = app_state
-		.store
-		.get_contract_info(&account_id)
-		.await
-		.map_err(|_| APIError::AccountNotFound)?;
-	if contract_info.is_none() {
-		return Err(APIError::AccountNotFound);
-	}
+// 	// Verify the account exists
+// 	let contract_info = app_state
+// 		.store
+// 		.get_contract_info(&account_id)
+// 		.await
+// 		.map_err(|_| APIError::AccountNotFound)?;
+// 	if contract_info.is_none() {
+// 		return Err(APIError::AccountNotFound);
+// 	}
 
-	let tx_bz_decoded = const_hex::decode(&payload.tx_bz).map_err(|_| APIError::InvalidInput)?;
+// 	let tx_bz_decoded = const_hex::decode(&payload.tx_bz).map_err(|_| APIError::InvalidInput)?;
 
-	let tx_hash_encoded = { const_hex::encode(Sha3_256::digest(tx_bz_decoded)) };
+// 	let tx_hash_encoded = { const_hex::encode(Sha3_256::digest(tx_bz_decoded)) };
 
-	// Create the transaction in database using the miden tx_hash as tx_id
-	app_state
-		.store
-		.create_transaction(
-			&tx_hash_encoded,
-			&account_id,
-			&payload.tx_bz,
-			&payload.tx_effect,
-		)
-		.await
-		.map_err(|_| APIError::StateNotFound)?;
+// 	// Create the transaction in database using the miden tx_hash as tx_id
+// 	app_state
+// 		.store
+// 		.create_transaction(
+// 			&tx_hash_encoded,
+// 			&account_id,
+// 			&payload.tx_bz,
+// 			&payload.tx_effect,
+// 			&payload.summary,
+// 		)
+// 		.await
+// 		.map_err(|_| APIError::StateNotFound)?;
 
-	tracing::info!("Successfully processed and stored transaction: {tx_hash_encoded}",);
+// 	tracing::info!("Successfully processed and stored transaction: {tx_hash_encoded}",);
 
-	Ok(Json(CreateTransactionResponse { tx_id: tx_hash_encoded }))
-}
+// 	Ok(Json(CreateTransactionResponse { tx_id: tx_hash_encoded }))
+// }
 
 /// POST /api/v1/transactions/{tx_id}/signatures
 pub async fn add_signature(
@@ -361,9 +443,45 @@ pub async fn add_signature(
 		.store
 		.get_transaction_by_id(&tx_id)
 		.await
-		.map_err(|_| APIError::TransactionNotFound)?;
-	if transaction.is_none() {
-		return Err(APIError::TransactionNotFound);
+		.map_err(|_| APIError::TransactionNotFound)?
+		.ok_or(APIError::TransactionNotFound)?;
+
+	let contract_info = app_state
+		.store
+		.get_contract_info(&transaction.contract_id)
+		.await
+		.map_err(|_| APIError::AccountNotFound)?
+		.ok_or(APIError::AccountNotFound)?;
+
+	let pub_key = {
+		let hex = app_state
+			.store
+			.get_public_key_by_approver_address(&payload.approver_address)
+			.await
+			.map_err(|_| APIError::StateNotFound)?;
+
+		const_hex::decode(hex)
+			.map(|bz| Word::read_from_bytes(&bz))
+			.map_err(|_| APIError::InvalidInput)?
+			.map(PublicKey::new)
+			.map_err(|_| APIError::InvalidInput)?
+	};
+
+	let sig = {
+		const_hex::decode(&payload.signature)
+			.map(|bz| Signature::read_from_bytes(&bz))
+			.map_err(|_| APIError::InvalidInput)?
+			.map_err(|_| APIError::InvalidInput)?
+	};
+
+	let tx_commitment = const_hex::decode(transaction.effect)
+		.map(|bz| Word::read_from_bytes(&bz))
+		.map_err(|_| APIError::InvalidInput)?
+		.map_err(|_| APIError::InvalidInput)?;
+
+	if !sig.verify(tx_commitment, pub_key.into()) {
+		error!("invalid signature for pub key");
+		return Err(APIError::InvalidInput);
 	}
 
 	// Add the signature and check if threshold is met
@@ -382,7 +500,7 @@ pub async fn add_signature(
 		if threshold_met {
 			info!(
 				"🎉 Threshold met for transaction {}! Processing transaction...",
-				tx_id
+				tx_id,
 			);
 
 			// Get transaction details to collect signatures for miden processing
@@ -392,7 +510,33 @@ pub async fn add_signature(
 				.await
 				.map_err(|_| APIError::StateNotFound)?;
 
-			let signature_list: Vec<String> = signatures.into_iter().map(|s| s.sig).collect();
+			let approver_sigs_map: HashMap<String, String> = signatures
+				.into_iter()
+				.map(|SignatureRecord { approver_address, sig, .. }| (approver_address, sig))
+				.collect();
+
+			let sigs: Vec<Option<Signature>> = contract_info
+				.approvers
+				.into_iter()
+				.inspect(|approver| tracing::info!("approver = {approver}"))
+				.map(|approver| approver_sigs_map.get(&approver))
+				.map(|sig| {
+					sig.map(const_hex::decode).transpose().map_err(|_| APIError::InvalidInput)
+				})
+				.map(|sig| {
+					sig.and_then(|sig| {
+						sig.map(|bz| {
+							Signature::read_from_bytes(&bz).inspect(|s| {
+								let pk: PublicKey = s.pk_poly().clone().into();
+								let word: Word = pk.into();
+								tracing::info!("sig pubkey = {}", word.to_hex());
+							})
+						})
+						.transpose()
+						.map_err(|_| APIError::InvalidInput)
+					})
+				})
+				.collect::<Result<_, _>>()?;
 
 			// Get transaction details
 			let tx_info = app_state
@@ -406,14 +550,15 @@ pub async fn add_signature(
 			match app_state
 				.miden_sender
 				.process_transaction(
-					tx_info.effect.clone(),
+					tx_info.tx_bz.clone(),
+					tx_info.summary.clone(),
 					tx_info.contract_id.clone(),
-					signature_list,
+					sigs,
 				)
 				.await
 			{
-				Ok(miden_tx_hash) => {
-					info!("✅ Miden processed transaction: {}", miden_tx_hash);
+				Ok(miden_tx_result) => {
+					tracing::info!("✅ Miden processed transaction: {miden_tx_result:?}");
 
 					// Update transaction status to CONFIRMED
 					if let Err(e) = app_state.store.process_transaction_threshold_met(&tx_id).await
@@ -478,7 +623,7 @@ pub fn create_router(app_state: AppState) -> Router {
 		.route("/api/v1/accounts/:account_id", get(get_account_info))
 		.route(
 			"/api/v1/accounts/:account_id/transactions",
-			get(get_account_transactions).post(create_transaction),
+			get(get_account_transactions), //.post(create_transaction),
 		)
 		.route("/api/v1/transactions/:tx_id", get(get_transaction_by_hash))
 		.route(
@@ -489,6 +634,7 @@ pub fn create_router(app_state: AppState) -> Router {
 			"/api/v1/transactions/:tx_id/threshold",
 			get(get_transaction_threshold_status),
 		)
+		.route("/api/v1/transactions/propose", post(propose_transaction))
 		.layer(CorsLayer::permissive())
 		.with_state(app_state)
 }
@@ -530,7 +676,7 @@ pub async fn start_server(
 
 	local
 		.run_until(async {
-			let runtime = MidenRuntime::new(message_receiver).await.unwrap();
+			let runtime = MidenRuntime::new(message_receiver);
 			runtime.shutdown().await.unwrap();
 		})
 		.await;

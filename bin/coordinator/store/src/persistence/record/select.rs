@@ -14,6 +14,7 @@ pub struct ContractTxRecord {
 	pub status: String,
 	pub tx_bz: String,
 	pub effect: String,
+	pub summary: String,
 	pub created_at: DateTime<Utc>,
 }
 

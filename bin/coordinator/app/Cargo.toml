@@ -1,10 +1,10 @@
 [package]
-name = "miden-multisig-app"
+name = "miden-multisig-coordinator-app"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-miden-multisig-api = { workspace = true }
-miden-multisig-store = {workspace= true}
+miden-multisig-coordinator-api = { workspace = true }
+miden-multisig-coordinator-store = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
