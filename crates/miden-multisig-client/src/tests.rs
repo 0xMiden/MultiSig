@@ -3,10 +3,12 @@ use alloc::boxed::Box;
 use miden_objects::note::NoteType;
 use miden_tx::auth::SigningInputs;
 
+mod test_utils;
+use test_utils::*;
+
 use super::*;
 use miden_client::testing::common::{
-    TestClientKeyStore, create_test_client, insert_new_fungible_faucet, insert_new_wallet,
-    mint_note,
+    TestClientKeyStore, insert_new_fungible_faucet, insert_new_wallet, mint_note,
 };
 use miden_client::testing::mock::MockRpcApi;
 use miden_client::transaction::TransactionRequestBuilder;
@@ -15,7 +17,7 @@ type TestMultisigClient = MultisigClient<TestClientKeyStore>;
 
 async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, TestClientKeyStore) {
     let (client, mock_rpc_api, keystore) = create_test_client().await;
-    (MultisigClient::new(client), mock_rpc_api, keystore)
+    (MultisigClient { client }, mock_rpc_api, keystore)
 }
 
 #[tokio::test]

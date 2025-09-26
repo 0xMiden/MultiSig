@@ -2,10 +2,22 @@
 #[macro_use]
 extern crate alloc;
 
+use std::path::PathBuf;
+use std::time::Duration;
+
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use anyhow::Context;
 use core::ops::{Deref, DerefMut};
+use miden_client::account::AccountFile;
+use miden_client::builder::ClientBuilder;
+use miden_client::rpc::Endpoint;
+use miden_objects::assembly::diagnostics::tracing::info;
+use rand::rngs::StdRng;
+use std::sync::Arc;
+use url::Url;
 
+use miden_client::keystore::FilesystemKeyStore;
 use miden_lib::account::auth::AuthRpoFalcon512Multisig;
 use miden_lib::account::wallets::BasicWallet;
 use miden_objects::account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType};
@@ -39,10 +51,43 @@ pub struct MultisigClient<AUTH: TransactionAuthenticator + Sync + 'static> {
     client: Client<AUTH>,
 }
 
-impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
-    /// Creates a new `MultisigClient` wrapping around the provided Miden client.
-    pub fn new(client: Client<AUTH>) -> Self {
-        Self { client }
+impl MultisigClient<FilesystemKeyStore<StdRng>> {
+    /// Loads the multisig client.
+    ///
+    /// A client is instantiated with the provided store path, node url and timeout. The account is
+    /// loaded from the provided account file. If the account is already tracked by the current
+    /// store, it is loaded. Otherwise, the account is added from the file state.
+    ///
+    /// If a remote transaction prover url is provided, it is used to prove transactions. Otherwise,
+    /// a local transaction prover is used.
+    pub async fn load(
+        store_path: PathBuf,
+        account_files: Vec<AccountFile>,
+        node_url: &Url,
+        timeout: Duration,
+    ) -> anyhow::Result<Self> {
+        let keystore = FilesystemKeyStore::<StdRng>::new(PathBuf::from("keystore"))
+            .context("failed to create keystore")?;
+        for key in account_files.iter().flat_map(|f| f.auth_secret_keys.iter()) {
+            keystore.add_key(key)?;
+        }
+        let url: &str = node_url.as_str().trim_end_matches('/');
+        let endpoint = Endpoint::try_from(url)
+            .map_err(anyhow::Error::msg)
+            .with_context(|| format!("failed to parse node url: {node_url}"))?;
+
+        let mut client = ClientBuilder::new()
+            .tonic_rpc_client(&endpoint, Some(timeout.as_millis() as u64))
+            .authenticator(Arc::new(keystore))
+            .sqlite_store(store_path.to_str().context("invalid store path")?)
+            .build()
+            .await?;
+
+        info!("Fetching faucet state from node");
+
+        client.ensure_genesis_in_place().await?;
+
+        Ok(Self { client })
     }
 }
 
