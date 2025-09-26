@@ -1480,7 +1480,6 @@ dependencies = [
  "miden-client",
  "miden-objects",
  "miden-testing",
- "miden-tx",
  "rand",
  "thiserror 2.0.16",
  "tokio",
