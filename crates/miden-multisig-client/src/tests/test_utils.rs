@@ -20,6 +20,8 @@ use miden_client::testing::mock::{MockClient, MockRpcApi};
 
 // HELPERS
 // ================================================================================================
+// These already exist in miden-client, but are not exported publicly.
+// See https://github.com/0xMiden/miden-client/pull/1255 which might resolve this.
 
 pub async fn create_test_client_builder() -> (
     ClientBuilder<TestClientKeyStore>,
