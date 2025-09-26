@@ -10,7 +10,6 @@ repository = "https://github.com/0xMiden/MultiSig"
 [dependencies]
 miden-client = { version = "0.11", features = ["sqlite", "tonic"] }
 miden-objects = "0.11"
-miden-lib = "0.11"
 miden-tx = "0.11"
 
 rand = "0.9"

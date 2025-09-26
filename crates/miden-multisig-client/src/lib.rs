@@ -2,35 +2,35 @@
 #[macro_use]
 extern crate alloc;
 
-use std::path::PathBuf;
-use std::time::Duration;
-
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use anyhow::Context;
 use core::ops::{Deref, DerefMut};
-use miden_client::account::AccountFile;
-use miden_client::builder::ClientBuilder;
-use miden_client::rpc::Endpoint;
-use miden_objects::assembly::diagnostics::tracing::info;
+use rand::RngCore;
 use rand::rngs::StdRng;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
+use thiserror::Error;
 use url::Url;
 
+use miden_client::ClientError;
+use miden_client::account::AccountFile;
+use miden_client::account::component::{AuthRpoFalcon512Multisig, BasicWallet};
+use miden_client::account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType};
+use miden_client::auth::TransactionAuthenticator;
+use miden_client::builder::ClientBuilder;
 use miden_client::keystore::FilesystemKeyStore;
-use miden_lib::account::auth::AuthRpoFalcon512Multisig;
-use miden_lib::account::wallets::BasicWallet;
-use miden_objects::account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType};
+use miden_client::rpc::Endpoint;
+use miden_client::transaction::TransactionExecutorError;
+use miden_client::{Felt, Word, ZERO};
+use miden_objects::Hasher;
+use miden_objects::assembly::diagnostics::tracing::info;
 use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
 use miden_objects::transaction::TransactionSummary;
-use miden_objects::{Felt, Hasher, Word, ZERO};
-use miden_tx::TransactionExecutorError;
-use miden_tx::auth::TransactionAuthenticator;
-use rand::RngCore;
 
+use miden_client::Client;
 use miden_client::transaction::{TransactionRequest, TransactionResult};
-use miden_client::{Client, ClientError};
-use thiserror::Error;
 
 #[cfg(test)]
 mod tests;

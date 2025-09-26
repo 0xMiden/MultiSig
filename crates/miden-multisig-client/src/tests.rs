@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 
-use miden_objects::note::NoteType;
-use miden_tx::auth::SigningInputs;
+use miden_client::auth::SigningInputs;
+use miden_client::note::NoteType;
 
 mod test_utils;
 use test_utils::*;
@@ -74,7 +74,7 @@ async fn multisig() {
     coordinator_client.sync_state().await.unwrap();
 
     coordinator_client
-        .import_note(miden_objects::note::NoteFile::NoteId(note.id()))
+        .import_note(miden_client::note::NoteFile::NoteId(note.id()))
         .await
         .unwrap();
 

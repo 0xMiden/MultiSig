@@ -2,13 +2,11 @@ use std::boxed::Box;
 use std::env::temp_dir;
 use std::sync::Arc;
 
-// TESTS
-// ================================================================================================
-use miden_lib::testing::note::NoteBuilder;
-use miden_objects::Felt;
-use miden_objects::crypto::rand::RpoRandomCoin;
-use miden_objects::note::{NoteExecutionMode, NoteTag, NoteType};
-use miden_objects::transaction::OutputNote;
+use miden_client::Felt;
+use miden_client::crypto::RpoRandomCoin;
+use miden_client::note::{NoteExecutionMode, NoteTag, NoteType};
+use miden_client::testing::NoteBuilder;
+use miden_client::transaction::OutputNote;
 use miden_testing::{MockChain, MockChainBuilder};
 use rand::Rng;
 use rand::rngs::StdRng;

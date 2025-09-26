@@ -1478,7 +1478,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "miden-client",
- "miden-lib",
  "miden-objects",
  "miden-testing",
  "miden-tx",
