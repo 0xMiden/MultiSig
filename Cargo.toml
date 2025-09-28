@@ -4,6 +4,7 @@ edition = "2024"
 publish = false
 
 [workspace.lints.rust]
+missing_docs = "warn"
 unsafe_code = "forbid"
 
 [workspace]
@@ -16,7 +17,6 @@ members = [
 miden-multisig-store = { path = "crates/store" }
 miden-multisig-api = { path = "crates/api" }
 miden-client = { version = "0.10" }
-
 
 tokio = "1"
 tracing = "0.1"

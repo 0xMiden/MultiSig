@@ -5,7 +5,7 @@ use miden_client::{
 	Client,
 	account::{
 		AccountBuilder, AccountId, AccountStorageMode, AccountType,
-		component::{BasicFungibleFaucet, BasicWallet, RpoFalcon512},
+		component::{BasicWallet, RpoFalcon512},
 	},
 	auth::AuthSecretKey,
 	builder::ClientBuilder,
@@ -13,10 +13,7 @@ use miden_client::{
 	keystore::FilesystemKeyStore,
 	rpc::{Endpoint, TonicRpcClient},
 	transaction::TransactionRequest,
-};
-
-use miden_tx::utils::{
-	ByteReader, ByteWriter, Deserializable, DeserializationError, Serializable, hex_to_bytes,
+	utils::Deserializable,
 };
 
 use serde::{Deserialize, Serialize};
@@ -272,7 +269,7 @@ impl MidenRuntime {
 		// 3. Submitting the transaction to the miden network
 		// 4. Returning the transaction hash
 
-		let bytes = hex_to_bytes(&tx_data).unwrap();
+		let bytes = const_hex::decode(&tx_data).unwrap();
 		let account_id = AccountId::from_hex(account_id).unwrap();
 
 		let transaction_request = TransactionRequest::read_from_bytes(&bytes).unwrap();
