@@ -1,12 +1,13 @@
 mod error;
 
+pub use self::error::StoreError;
+
 use diesel::{
 	ExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl, pg::upsert,
 	result::OptionalExtension,
 };
 use diesel_async::RunQueryDsl;
-
-pub use self::error::StoreError;
+use uuid::Uuid;
 
 use super::{
 	pool::DbConn,
@@ -45,41 +46,13 @@ pub async fn fetch_contract_approvers_by_contract_id(
 		.map_err(From::from)
 }
 
-pub async fn fetch_tx_by_tx_id(conn: &mut DbConn, tx_id: &str) -> Result<Option<ContractTxRecord>> {
+pub async fn fetch_tx_by_tx_id(conn: &mut DbConn, tx_id: Uuid) -> Result<Option<ContractTxRecord>> {
 	schema::contract_tx::table
 		.select(schema::contract_tx::all_columns)
 		.filter(schema::contract_tx::id.eq(tx_id))
 		.first(conn)
 		.await
 		.optional()
-		.map_err(From::from)
-}
-
-pub async fn fetch_txs_by_contract_id(
-	conn: &mut DbConn,
-	contract_id: &str,
-) -> Result<Vec<ContractTxRecord>> {
-	schema::contract_tx::table
-		.select(schema::contract_tx::all_columns)
-		.filter(schema::contract_tx::contract_id.eq(contract_id))
-		.order(schema::contract_tx::created_at.desc())
-		.load(conn)
-		.await
-		.map_err(From::from)
-}
-
-pub async fn fetch_txs_by_contract_id_and_tx_status(
-	conn: &mut DbConn,
-	contract_id: &str,
-	tx_status: &str,
-) -> Result<Vec<ContractTxRecord>> {
-	schema::contract_tx::table
-		.select(schema::contract_tx::all_columns)
-		.filter(schema::contract_tx::contract_id.eq(contract_id))
-		.filter(schema::contract_tx::status.eq(tx_status))
-		.order(schema::contract_tx::created_at.desc())
-		.load(conn)
-		.await
 		.map_err(From::from)
 }
 
@@ -94,7 +67,7 @@ pub async fn save_new_contract_tx(
 
 pub async fn update_status_by_contract_tx_status(
 	conn: &mut DbConn,
-	tx_id: &str,
+	tx_id: Uuid,
 	new_status: &str,
 ) -> Result<bool> {
 	let affected = diesel::update(
@@ -111,20 +84,9 @@ pub async fn update_status_by_contract_tx_status(
 	Ok(affected == 1)
 }
 
-pub async fn fetch_tx_sigs_count_by_tx_id(conn: &mut DbConn, tx_id: &str) -> Result<u64> {
-	schema::tx_sig::table
-		.filter(schema::tx_sig::tx_id.eq(tx_id))
-		.count()
-		.get_result::<i64>(conn)
-		.await
-		.map(TryFrom::try_from)?
-		.map_err(|_| "count must be positive")
-		.map_err(StoreError::other)
-}
-
 pub async fn validate_approver_address_by_tx_id(
 	conn: &mut DbConn,
-	tx_id: &str,
+	tx_id: Uuid,
 	approver_address: &str,
 ) -> Result<bool> {
 	diesel::select(diesel::dsl::exists(
@@ -146,7 +108,7 @@ pub async fn save_new_tx_sig(conn: &mut DbConn, new_tx_sig: NewTxSigRecord<'_>) 
 	Ok(())
 }
 
-pub async fn fetch_tx_sigs_by_tx_id(conn: &mut DbConn, tx_id: &str) -> Result<Vec<TxSigRecord>> {
+pub async fn fetch_tx_sigs_by_tx_id(conn: &mut DbConn, tx_id: Uuid) -> Result<Vec<TxSigRecord>> {
 	schema::tx_sig::table
 		.select(schema::tx_sig::all_columns)
 		.filter(schema::tx_sig::tx_id.eq(tx_id))
@@ -195,7 +157,8 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
 			schema::contract_tx::contract_id,
 			schema::contract_tx::status,
 			schema::contract_tx::tx_bz,
-			schema::contract_tx::effect,
+			schema::contract_tx::tx_summary,
+			schema::contract_tx::tx_summary_commitment,
 			schema::contract_tx::created_at,
 		))
 		.select((
@@ -204,7 +167,8 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id(
 				schema::contract_tx::contract_id,
 				schema::contract_tx::status,
 				schema::contract_tx::tx_bz,
-				schema::contract_tx::effect,
+				schema::contract_tx::tx_summary,
+				schema::contract_tx::tx_summary_commitment,
 				schema::contract_tx::created_at,
 			),
 			diesel::dsl::count(schema::tx_sig::tx_id.nullable()),
@@ -228,7 +192,8 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
 			schema::contract_tx::contract_id,
 			schema::contract_tx::status,
 			schema::contract_tx::tx_bz,
-			schema::contract_tx::effect,
+			schema::contract_tx::tx_summary,
+			schema::contract_tx::tx_summary_commitment,
 			schema::contract_tx::created_at,
 		))
 		.select((
@@ -237,7 +202,8 @@ pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
 				schema::contract_tx::contract_id,
 				schema::contract_tx::status,
 				schema::contract_tx::tx_bz,
-				schema::contract_tx::effect,
+				schema::contract_tx::tx_summary,
+				schema::contract_tx::tx_summary_commitment,
 				schema::contract_tx::created_at,
 			),
 			diesel::dsl::count(schema::tx_sig::tx_id.nullable()),

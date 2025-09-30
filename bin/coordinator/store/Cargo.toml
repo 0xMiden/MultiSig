@@ -5,21 +5,13 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+bon = { version = "3", default-features = false }
+bytes = { workspace = true, features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-futures = "0.3"
-miden-client = { workspace = true, features = [ "tonic", "sqlite"] }
-diesel = { version = "2", features = ["chrono"] }
-diesel-async = { version = "0.5", features = ["deadpool", "postgres"] }
-openssl-sys = { version = "0.9", optional = true }
-pq-sys = { version = "0.7", optional = true }
+diesel = { version = "2", features = ["chrono", "uuid"] }
+diesel-async = { version = "0.7", features = ["deadpool", "postgres"] }
+dissolve-derive = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
-tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-
-[dev-dependencies]
-tempfile = "3.8"
-tokio-test = "0.4"
-
-
+uuid = { version = "1", features = ["serde"] }

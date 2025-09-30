@@ -1,34 +1,31 @@
 use chrono::{DateTime, Utc};
 use diesel::prelude::Queryable;
+use dissolve_derive::Dissolve;
+use uuid::Uuid;
 
-#[derive(Debug, Queryable)]
-pub struct ContractApproverMappingRecord {
-	pub contract_id: String,
-	pub approver_address: String,
-}
-
-#[derive(Debug, Queryable)]
+#[derive(Debug, Dissolve, Queryable)]
 pub struct ContractTxRecord {
-	pub tx_id: String,
-	pub contract_id: String,
-	pub status: String,
-	pub tx_bz: String,
-	pub effect: String,
-	pub created_at: DateTime<Utc>,
+	tx_id: Uuid,
+	contract_id: String,
+	status: String,
+	tx_bz: Vec<u8>,
+	tx_summary: Vec<u8>,
+	tx_summary_commitment: Vec<u8>,
+	created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Queryable)]
+#[derive(Debug, Dissolve, Queryable)]
 pub struct TxSigRecord {
-	pub tx_id: String,
-	pub approver_address: String,
-	pub sig: String,
-	pub created_at: DateTime<Utc>,
+	tx_id: Uuid,
+	approver_address: String,
+	sig: Vec<u8>,
+	created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Queryable)]
+#[derive(Debug, Dissolve, Queryable)]
 pub struct MultisigContractRecord {
-	pub contract_id: String,
-	pub threshold: i32,
-	pub kind: String,
-	pub created_at: DateTime<Utc>,
+	contract_id: String,
+	threshold: i32,
+	kind: String,
+	created_at: DateTime<Utc>,
 }

@@ -3,7 +3,7 @@
 diesel::table! {
     approver (address) {
         address -> Text,
-        public_key -> Text,
+        public_key -> Bytea,
     }
 }
 
@@ -11,16 +11,18 @@ diesel::table! {
     contract_approver_mapping (contract_id, approver_address) {
         contract_id -> Text,
         approver_address -> Text,
+        approver_index -> Int4,
     }
 }
 
 diesel::table! {
     contract_tx (id) {
-        id -> Text,
+        id -> Uuid,
         contract_id -> Text,
         status -> Text,
-        tx_bz -> Text,
-        effect -> Text,
+        tx_bz -> Bytea,
+        tx_summary -> Bytea,
+        tx_summary_commitment -> Bytea,
         created_at -> Timestamptz,
     }
 }
@@ -36,9 +38,9 @@ diesel::table! {
 
 diesel::table! {
     tx_sig (tx_id, approver_address) {
-        tx_id -> Text,
+        tx_id -> Uuid,
         approver_address -> Text,
-        sig -> Text,
+        sig -> Bytea,
         created_at -> Timestamptz,
     }
 }

@@ -1,40 +1,38 @@
-use chrono::{DateTime, Utc};
+use bon::Builder;
 use diesel::prelude::Insertable;
+use uuid::Uuid;
 
 use crate::persistence::schema;
 
-#[derive(Debug, Insertable)]
+#[derive(Debug, Builder, Insertable)]
 #[diesel(table_name = schema::contract_tx)]
 pub struct NewContractTxRecord<'a> {
-	pub id: &'a str,
-	pub contract_id: &'a str,
-	pub status: &'a str,
-	pub tx_bz: &'a str,
-	pub effect: &'a str,
-	pub created_at: Option<&'a DateTime<Utc>>,
+	contract_id: &'a str,
+	status: &'a str,
+	tx_bz: &'a [u8],
+	tx_summary: &'a [u8],
+	tx_summary_commitment: &'a [u8],
 }
 
-#[derive(Debug, Insertable)]
+#[derive(Debug, Builder, Insertable)]
 #[diesel(table_name = schema::tx_sig)]
 pub struct NewTxSigRecord<'a> {
-	pub tx_id: &'a str,
-	pub approver_address: &'a str,
-	pub sig: &'a str,
-	pub created_at: Option<&'a DateTime<Utc>>,
+	tx_id: Uuid,
+	approver_address: &'a str,
+	sig: &'a [u8],
 }
 
-#[derive(Debug, Insertable)]
+#[derive(Debug, Builder, Insertable)]
 #[diesel(table_name = schema::multisig_contract)]
 pub struct NewMultisigContractRecord<'a> {
-	pub id: &'a str,
-	pub threshold: i32,
-	pub kind: &'a str,
-	pub created_at: Option<&'a DateTime<Utc>>,
+	id: &'a str,
+	threshold: i32,
+	kind: &'a str,
 }
 
 #[derive(Debug, Insertable)]
 #[diesel(table_name = schema::approver)]
 pub struct NewApproverRecord<'a> {
 	pub address: &'a str,
-	pub public_key: &'a str,
+	pub public_key: &'a [u8],
 }

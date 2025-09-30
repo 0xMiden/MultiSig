@@ -11,10 +11,10 @@ pub enum MultisigStoreError {
 	Store(#[from] StoreError),
 
 	#[error("validation error: {0}")]
-	Validation(String),
+	Validation(Cow<'static, str>),
 
 	#[error("not found error: {0}")]
-	NotFound(String),
+	NotFound(Cow<'static, str>),
 
 	#[error("serialization error: {0}")]
 	Serialization(Cow<'static, str>),
