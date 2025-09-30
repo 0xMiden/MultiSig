@@ -52,9 +52,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.11"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "862ed96ca487e809f1c8e5a8447f6ee2cf102f846893800b20cebdf541fc6bbd"
+checksum = "5192cca8006f1fd4f7237516f40fa183bb07f8fbdfedaa0036de5ea9b0b45e78"
 
 [[package]]
 name = "anstyle-parse"
@@ -1601,7 +1601,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af5e74b13a68f17c5a52d10adbce489faba95d2bd43d4d48014e4af818f109f8"
 dependencies = [
  "miden-core 0.15.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-air 0.12.3",
  "winter-prover 0.12.3",
 ]
@@ -1613,7 +1613,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2871bc4f392053cd115d4532e4b0fb164791829cc94b35641ed72480547dfd1"
 dependencies = [
  "miden-core 0.17.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-air 0.13.1",
  "winter-prover 0.13.1",
 ]
@@ -1631,7 +1631,7 @@ dependencies = [
  "miden-miette",
  "rustc_version 0.4.1",
  "smallvec",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tracing",
  "unicode-width 0.2.1",
 ]
@@ -1647,7 +1647,7 @@ dependencies = [
  "miden-core 0.17.2",
  "miden-mast-package",
  "smallvec",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1668,7 +1668,7 @@ dependencies = [
  "rustc_version 0.4.1",
  "semver 1.0.27",
  "smallvec",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1679,7 +1679,7 @@ checksum = "341ad21413b501b1d7aaa3f6fa69309bca2c812059cb638dcb14a2154787f47d"
 dependencies = [
  "miden-lib 0.10.1",
  "miden-objects 0.10.1",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1690,7 +1690,7 @@ checksum = "a7dbd611fe4a0cf3f5feb68501f74cb70fe62b25cb9ad7242866089470312b8c"
 dependencies = [
  "miden-lib 0.11.4",
  "miden-objects 0.11.4",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1717,7 +1717,7 @@ dependencies = [
  "rand 0.9.2",
  "rusqlite",
  "rusqlite_migration",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "toml 0.8.23",
  "tonic",
  "tonic-build",
@@ -1728,9 +1728,9 @@ dependencies = [
 
 [[package]]
 name = "miden-client"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a98d1ba71f874f63073d6b27ca93951fcd9b3d25468de912d4a4a5a4903dbf1"
+checksum = "bc406e1e5350afb80cbc4f66f3dd23f8f0166a23fa920e9f64f9b3edd4c12c19"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1751,7 +1751,7 @@ dependencies = [
  "rand 0.9.2",
  "rusqlite",
  "rusqlite_migration",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tonic",
  "tonic-build",
  "tracing",
@@ -1774,7 +1774,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "parking_lot",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-math 0.12.0",
  "winter-utils 0.12.0",
 ]
@@ -1790,7 +1790,7 @@ dependencies = [
  "miden-formatting",
  "num-derive",
  "num-traits",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-math 0.13.1",
  "winter-utils 0.13.1",
 ]
@@ -1809,7 +1809,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_core 0.9.3",
  "sha3",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-crypto 0.12.0",
  "winter-math 0.12.0",
  "winter-utils 0.12.0",
@@ -1829,7 +1829,7 @@ dependencies = [
  "rand 0.9.2",
  "rand_core 0.9.3",
  "sha3",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-crypto 0.13.1",
  "winter-math 0.13.1",
  "winter-utils 0.13.1",
@@ -1849,7 +1849,7 @@ dependencies = [
  "paste",
  "serde",
  "serde_spanned 1.0.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -1871,7 +1871,7 @@ dependencies = [
  "miden-objects 0.10.1",
  "miden-stdlib 0.15.0",
  "regex",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "walkdir",
 ]
 
@@ -1887,7 +1887,7 @@ dependencies = [
  "miden-stdlib 0.17.2",
  "rand 0.9.2",
  "regex",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "walkdir",
 ]
 
@@ -1928,7 +1928,7 @@ dependencies = [
  "syn",
  "terminal_size 0.3.0",
  "textwrap",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "trybuild",
  "unicode-width 0.1.14",
 ]
@@ -1979,11 +1979,11 @@ name = "miden-multisig-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "miden-client 0.11.7",
+ "miden-client 0.11.8",
  "miden-objects 0.11.4",
  "miden-testing 0.11.4",
  "rand 0.9.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "url",
 ]
@@ -2001,7 +2001,7 @@ dependencies = [
  "pq-sys",
  "serde",
  "tempfile",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-test",
  "tracing",
@@ -2049,7 +2049,7 @@ dependencies = [
  "rand_xoshiro",
  "semver 1.0.27",
  "serde",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "toml 0.8.23",
  "winter-rand-utils 0.12.0",
 ]
@@ -2072,7 +2072,7 @@ dependencies = [
  "rand_xoshiro",
  "semver 1.0.27",
  "serde",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "toml 0.8.23",
  "winter-rand-utils 0.13.1",
 ]
@@ -2086,7 +2086,7 @@ dependencies = [
  "miden-air 0.15.0",
  "miden-core 0.15.0",
  "miden-miette",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tracing",
  "winter-prover 0.12.3",
 ]
@@ -2101,7 +2101,7 @@ dependencies = [
  "miden-core 0.17.2",
  "miden-debug-types",
  "miden-utils-diagnostics",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "winter-prover 0.13.1",
@@ -2149,7 +2149,7 @@ dependencies = [
  "prost",
  "prost-build",
  "protox 0.8.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "tonic",
  "tonic-build",
@@ -2170,7 +2170,7 @@ dependencies = [
  "prost",
  "prost-build",
  "protox 0.8.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "tonic",
  "tonic-build",
@@ -2198,7 +2198,7 @@ dependencies = [
  "miden-core 0.17.2",
  "miden-processor 0.17.2",
  "miden-utils-sync",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2216,7 +2216,7 @@ dependencies = [
  "miden-tx 0.10.1",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-maybe-async 0.12.0",
  "winterfell 0.12.0",
 ]
@@ -2236,7 +2236,7 @@ dependencies = [
  "miden-tx 0.11.4",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
  "winterfell 0.13.1",
 ]
@@ -2254,7 +2254,7 @@ dependencies = [
  "miden-prover 0.15.0",
  "miden-verifier 0.15.0",
  "rand 0.9.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "winter-maybe-async 0.12.0",
 ]
 
@@ -2270,7 +2270,7 @@ dependencies = [
  "miden-prover 0.17.2",
  "miden-verifier 0.17.2",
  "rand 0.9.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tokio",
 ]
 
@@ -2306,7 +2306,7 @@ checksum = "2a0043e6fe42c3f349d333e85793d07e3984a05d28a73620b3ff76940cfa74f8"
 dependencies = [
  "miden-air 0.15.0",
  "miden-core 0.15.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tracing",
  "winter-verifier 0.12.3",
 ]
@@ -2319,7 +2319,7 @@ checksum = "72a305e5e2c68d10bcb8e2ed3dc38e54bc3a538acc9eadc154b713d5bb47af22"
 dependencies = [
  "miden-air 0.17.2",
  "miden-core 0.17.2",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tracing",
  "winter-verifier 0.13.1",
 ]
@@ -2332,7 +2332,7 @@ checksum = "e381ba23e4f57ffa0d6039113f6d6004e5b8c7ae6cb909329b48f2ab525e8680"
 dependencies = [
  "miden-formatting",
  "smallvec",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2548,9 +2548,9 @@ dependencies = [
 
 [[package]]
 name = "owo-colors"
-version = "4.2.2"
+version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48dd4f4a2c8405440fd0462561f0e5806bd0f77e86f51c761481bdd4018b545e"
+checksum = "9c6901729fa79e91a0913333229e9ca5dc725089d1c363b2f4b4760709dc4a52"
 
 [[package]]
 name = "parking_lot"
@@ -2890,7 +2890,7 @@ dependencies = [
  "prost-reflect 0.15.3",
  "prost-types",
  "protox-parse 0.8.0",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2914,14 +2914,14 @@ dependencies = [
  "logos 0.15.1",
  "miette",
  "prost-types",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.40"
+version = "1.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
+checksum = "ce25767e7b499d1b604768e7cde645d14cc8584231ea6b295e9c9eb22c02e1d1"
 dependencies = [
  "proc-macro2",
 ]
@@ -3266,9 +3266,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "security-framework"
-version = "3.5.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc198e42d9b7510827939c9a15f5062a0c913f3371d765977e586d2fe6c16f4a"
+checksum = "b3297343eaf830f66ede390ea39da1d462b6b0c1b000f420d0a83f898bbbe6ef"
 dependencies = [
  "bitflags",
  "core-foundation",
@@ -3680,11 +3680,11 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.16"
+version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3467d614147380f2e4e374161426ff399c91084acd2363eaf549172b3d5e60c0"
+checksum = "f63587ca0f12b72a0600bcba1d40081f830876000bb46dd2337a3051618f4fc8"
 dependencies = [
- "thiserror-impl 2.0.16",
+ "thiserror-impl 2.0.17",
 ]
 
 [[package]]
@@ -3700,9 +3700,9 @@ dependencies = [
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.16"
+version = "2.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c5e1be1c48b9172ee610da68fd9cd2770e7a4056cb3fc98710ee6906f0c7960"
+checksum = "3ff15c8ecd7de3849db632e14d18d2571fa09dfc5ed93479bc4485c7a517c913"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3996,7 +3996,7 @@ dependencies = [
  "httparse",
  "js-sys",
  "pin-project",
- "thiserror 2.0.16",
+ "thiserror 2.0.17",
  "tonic",
  "tower-service",
  "wasm-bindgen",
@@ -5158,9 +5158,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.8.1"
+version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ced3678a2879b30306d323f4542626697a464a97c0a07c9aebf7ebca65cd4dde"
+checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
 
 [[package]]
 name = "zerotrie"

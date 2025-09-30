@@ -10,13 +10,15 @@ unsafe_code = "forbid"
 [workspace]
 resolver = "3"
 members = [
-  "bin/*",
+  "bin/coordinator/api",
+  "bin/coordinator/store",
+  "bin/coordinator/app",
   "crates/*",
 ]
 
 [workspace.dependencies]
-miden-multisig-store = { path = "bin/store" }
-miden-multisig-api = { path = "bin/api" }
+miden-multisig-store = { path = "bin/coordinator/store" }
+miden-multisig-api = { path = "bin/coordinator/api" }
 miden-client = { version = "0.10" }
 
 tokio = "1"
