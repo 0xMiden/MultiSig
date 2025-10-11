@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use core::num::NonZeroU64;
 
 use bon::Builder;

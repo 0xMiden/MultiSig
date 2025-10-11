@@ -1,3 +1,6 @@
+//! This crate defines the interactions with the persistence layer i.e. the database.
+
+/// Payload structs.
 pub mod types;
 
 mod errors;

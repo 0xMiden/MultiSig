@@ -11,6 +11,7 @@ use diesel_async::{
 pub type DbPool = Pool<AsyncPgConnection>;
 pub type DbConn = Object<AsyncPgConnection>;
 
+/// Returns a [DbPool] with `max_size` connections with the Postgres database.
 #[tracing::instrument(skip(url))]
 pub async fn establish_pool<U>(url: U, max_size: NonZeroUsize) -> Result<DbPool, BuildError>
 where
