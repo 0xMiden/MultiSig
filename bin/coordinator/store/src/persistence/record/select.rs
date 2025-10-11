@@ -3,29 +3,31 @@ use diesel::prelude::Queryable;
 use dissolve_derive::Dissolve;
 use uuid::Uuid;
 
+use crate::persistence::record::{AccountKind, TxStatus};
+
 #[derive(Debug, Dissolve, Queryable)]
-pub struct ContractTxRecord {
-    tx_id: Uuid,
-    contract_id: String,
-    status: String,
-    tx_bz: Vec<u8>,
-    tx_summary: Vec<u8>,
-    tx_summary_commitment: Vec<u8>,
+pub struct MultisigAccountRecord {
+    address: String,
+    kind: AccountKind,
+    threshold: i64,
     created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Dissolve, Queryable)]
-pub struct TxSigRecord {
+pub struct TxRecord {
+    id: Uuid,
+    multisig_account_address: String,
+    status: TxStatus,
+    tx_bytes: Vec<u8>,
+    tx_summary: Vec<u8>,
+    tx_summary_commit: Vec<u8>,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Dissolve, Queryable)]
+pub struct SignatureRecord {
     tx_id: Uuid,
     approver_address: String,
-    sig: Vec<u8>,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Dissolve, Queryable)]
-pub struct MultisigContractRecord {
-    contract_id: String,
-    threshold: i32,
-    kind: String,
+    signature_bytes: Vec<u8>,
     created_at: DateTime<Utc>,
 }

@@ -1,60 +1,76 @@
 // @generated automatically by Diesel CLI.
 
+pub mod sql_types {
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "account_kind"))]
+    pub struct AccountKind;
+
+    #[derive(diesel::query_builder::QueryId, diesel::sql_types::SqlType)]
+    #[diesel(postgres_type(name = "tx_status"))]
+    pub struct TxStatus;
+}
+
 diesel::table! {
     approver (address) {
         address -> Text,
-        public_key -> Bytea,
+        pub_key_commit -> Bytea,
     }
 }
 
 diesel::table! {
-    contract_approver_mapping (contract_id, approver_address) {
-        contract_id -> Text,
+    use diesel::sql_types::*;
+    use super::sql_types::AccountKind;
+
+    multisig_account (address) {
+        address -> Text,
+        kind -> AccountKind,
+        threshold -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    multisig_account_approver_mapping (multisig_account_address, approver_address) {
+        multisig_account_address -> Text,
         approver_address -> Text,
-        approver_index -> Int4,
+        approver_index -> Int8,
     }
 }
 
 diesel::table! {
-    contract_tx (id) {
-        id -> Uuid,
-        contract_id -> Text,
-        status -> Text,
-        tx_bz -> Bytea,
-        tx_summary -> Bytea,
-        tx_summary_commitment -> Bytea,
-        created_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    multisig_contract (id) {
-        id -> Text,
-        threshold -> Int4,
-        kind -> Text,
-        created_at -> Timestamptz,
-    }
-}
-
-diesel::table! {
-    tx_sig (tx_id, approver_address) {
+    signature (tx_id, approver_address) {
         tx_id -> Uuid,
         approver_address -> Text,
-        sig -> Bytea,
+        signature_bytes -> Bytea,
         created_at -> Timestamptz,
     }
 }
 
-diesel::joinable!(contract_approver_mapping -> approver (approver_address));
-diesel::joinable!(contract_approver_mapping -> multisig_contract (contract_id));
-diesel::joinable!(contract_tx -> multisig_contract (contract_id));
-diesel::joinable!(tx_sig -> approver (approver_address));
-diesel::joinable!(tx_sig -> contract_tx (tx_id));
+diesel::table! {
+    use diesel::sql_types::*;
+    use super::sql_types::TxStatus;
+
+    tx (id) {
+        id -> Uuid,
+        multisig_account_address -> Text,
+        status -> TxStatus,
+        tx_bytes -> Bytea,
+        tx_summary -> Bytea,
+        tx_summary_commit -> Bytea,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(multisig_account_approver_mapping -> approver (approver_address));
+diesel::joinable!(multisig_account_approver_mapping -> multisig_account (multisig_account_address));
+diesel::joinable!(signature -> approver (approver_address));
+diesel::joinable!(signature -> tx (tx_id));
+diesel::joinable!(tx -> multisig_account (multisig_account_address));
 
 diesel::allow_tables_to_appear_in_same_query!(
     approver,
-    contract_approver_mapping,
-    contract_tx,
-    multisig_contract,
-    tx_sig,
+    multisig_account,
+    multisig_account_approver_mapping,
+    signature,
+    tx,
 );

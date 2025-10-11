@@ -1,5 +1,7 @@
 mod error;
 
+use crate::persistence::record::TxStatus;
+
 pub use self::error::StoreError;
 
 use diesel::{
@@ -12,77 +14,149 @@ use uuid::Uuid;
 use super::{
     pool::DbConn,
     record::{
-        insert::{
-            NewApproverRecord, NewContractTxRecord, NewMultisigContractRecord, NewTxSigRecord,
-        },
-        select::{ContractTxRecord, MultisigContractRecord, TxSigRecord},
+        insert::{NewApproverRecord, NewMultisigAccountRecord, NewSignatureRecord, NewTxRecord},
+        select::{MultisigAccountRecord, SignatureRecord, TxRecord},
     },
     schema,
 };
 
 use self::error::Result;
 
-pub async fn fetch_mutisig_contract_by_contract_id(
+pub async fn fetch_mutisig_account_by_address(
     conn: &mut DbConn,
-    contract_id: &str,
-) -> Result<Option<MultisigContractRecord>> {
-    schema::multisig_contract::table
-        .filter(schema::multisig_contract::id.eq(contract_id))
+    address: &str,
+) -> Result<Option<MultisigAccountRecord>> {
+    schema::multisig_account::table
+        .filter(schema::multisig_account::address.eq(address))
         .first(conn)
         .await
         .optional()
         .map_err(From::from)
 }
 
-pub async fn fetch_contract_approvers_by_contract_id(
+pub async fn fetch_approvers_by_multisig_account_address(
     conn: &mut DbConn,
-    contract_id: &str,
+    multisig_account_address: &str,
 ) -> Result<Vec<String>> {
-    schema::contract_approver_mapping::table
-        .select(schema::contract_approver_mapping::approver_address)
-        .filter(schema::contract_approver_mapping::contract_id.eq(contract_id))
+    schema::multisig_account_approver_mapping::table
+        .select(schema::multisig_account_approver_mapping::approver_address)
+        .filter(
+            schema::multisig_account_approver_mapping::multisig_account_address
+                .eq(multisig_account_address),
+        )
         .load(conn)
         .await
         .map_err(From::from)
 }
 
-pub async fn fetch_tx_by_tx_id(conn: &mut DbConn, tx_id: Uuid) -> Result<Option<ContractTxRecord>> {
-    schema::contract_tx::table
-        .select(schema::contract_tx::all_columns)
-        .filter(schema::contract_tx::id.eq(tx_id))
+pub async fn fetch_tx_by_id(conn: &mut DbConn, id: Uuid) -> Result<Option<TxRecord>> {
+    schema::tx::table
+        .select(schema::tx::all_columns)
+        .filter(schema::tx::id.eq(id))
         .first(conn)
         .await
         .optional()
         .map_err(From::from)
 }
 
-pub async fn save_new_contract_tx(
+pub async fn fetch_signatures_by_tx_id(
     conn: &mut DbConn,
-    new_tx: NewContractTxRecord<'_>,
-) -> Result<()> {
-    diesel::insert_into(schema::contract_tx::table)
-        .values(new_tx)
-        .execute(conn)
-        .await?;
+    tx_id: Uuid,
+) -> Result<Vec<SignatureRecord>> {
+    schema::signature::table
+        .select(schema::signature::all_columns)
+        .filter(schema::signature::tx_id.eq(tx_id))
+        .load(conn)
+        .await
+        .map_err(From::from)
+}
+
+pub async fn fetch_txs_with_signature_count_by_multisig_account_address(
+    conn: &mut DbConn,
+    multisig_account_address: &str,
+) -> Result<Vec<(TxRecord, i64)>> {
+    schema::tx::table
+        .left_join(schema::signature::table.on(schema::signature::tx_id.eq(schema::tx::id)))
+        .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
+        .group_by((
+            schema::tx::id,
+            schema::tx::multisig_account_address,
+            schema::tx::status,
+            schema::tx::tx_bytes,
+            schema::tx::tx_summary,
+            schema::tx::tx_summary_commit,
+            schema::tx::created_at,
+        ))
+        .select((
+            (
+                schema::tx::id,
+                schema::tx::multisig_account_address,
+                schema::tx::status,
+                schema::tx::tx_bytes,
+                schema::tx::tx_summary,
+                schema::tx::tx_summary_commit,
+                schema::tx::created_at,
+            ),
+            diesel::dsl::count(schema::signature::tx_id.nullable()),
+        ))
+        .load(conn)
+        .await
+        .map_err(From::from)
+}
+
+pub async fn fetch_txs_with_signature_count_by_multisig_account_address_and_status(
+    conn: &mut DbConn,
+    multisig_account_address: &str,
+    tx_status: TxStatus,
+) -> Result<Vec<(TxRecord, i64)>> {
+    schema::tx::table
+        .left_join(schema::signature::table.on(schema::signature::tx_id.eq(schema::tx::id)))
+        .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
+        .filter(schema::tx::status.eq(tx_status))
+        .group_by((
+            schema::tx::id,
+            schema::tx::multisig_account_address,
+            schema::tx::status,
+            schema::tx::tx_bytes,
+            schema::tx::tx_summary,
+            schema::tx::tx_summary_commit,
+            schema::tx::created_at,
+        ))
+        .select((
+            (
+                schema::tx::id,
+                schema::tx::multisig_account_address,
+                schema::tx::status,
+                schema::tx::tx_bytes,
+                schema::tx::tx_summary,
+                schema::tx::tx_summary_commit,
+                schema::tx::created_at,
+            ),
+            diesel::dsl::count(schema::signature::tx_id.nullable()),
+        ))
+        .order(schema::tx::created_at.desc())
+        .load(conn)
+        .await
+        .map_err(From::from)
+}
+
+pub async fn save_new_tx(conn: &mut DbConn, new_tx: NewTxRecord<'_>) -> Result<()> {
+    diesel::insert_into(schema::tx::table).values(new_tx).execute(conn).await?;
 
     Ok(())
 }
 
-pub async fn update_status_by_contract_tx_status(
+pub async fn update_status_by_tx_id(
     conn: &mut DbConn,
     tx_id: Uuid,
-    new_status: &str,
+    new_status: TxStatus,
 ) -> Result<bool> {
-    let affected = diesel::update(
-        schema::contract_tx::dsl::contract_tx.filter(schema::contract_tx::id.eq(tx_id)),
-    )
-    .set(schema::contract_tx::status.eq(new_status))
-    .execute(conn)
-    .await?;
+    let affected = diesel::update(schema::tx::dsl::tx.filter(schema::tx::id.eq(tx_id)))
+        .set(schema::tx::status.eq(new_status))
+        .execute(conn)
+        .await?;
 
-    if affected > 1 {
-        return Err(StoreError::other("duplicate tx id"));
-    }
+    assert!(affected <= 1, "duplicate tx id must not exist");
 
     Ok(affected == 1)
 }
@@ -93,41 +167,38 @@ pub async fn validate_approver_address_by_tx_id(
     approver_address: &str,
 ) -> Result<bool> {
     diesel::select(diesel::dsl::exists(
-        schema::contract_approver_mapping::table
-            .inner_join(schema::contract_tx::table.on(
-                schema::contract_tx::contract_id.eq(schema::contract_approver_mapping::contract_id),
-            ))
-            .filter(schema::contract_tx::id.eq(tx_id))
-            .filter(schema::contract_approver_mapping::approver_address.eq(approver_address)),
+        schema::multisig_account_approver_mapping::table
+            .inner_join(
+                schema::tx::table.on(schema::tx::multisig_account_address
+                    .eq(schema::multisig_account_approver_mapping::multisig_account_address)),
+            )
+            .filter(schema::tx::id.eq(tx_id))
+            .filter(
+                schema::multisig_account_approver_mapping::approver_address.eq(approver_address),
+            ),
     ))
     .get_result(conn)
     .await
     .map_err(From::from)
 }
 
-pub async fn save_new_tx_sig(conn: &mut DbConn, new_tx_sig: NewTxSigRecord<'_>) -> Result<()> {
-    diesel::insert_into(schema::tx_sig::table)
-        .values(new_tx_sig)
+pub async fn save_new_signature(
+    conn: &mut DbConn,
+    new_signature: NewSignatureRecord<'_>,
+) -> Result<()> {
+    diesel::insert_into(schema::signature::table)
+        .values(new_signature)
         .execute(conn)
         .await?;
 
     Ok(())
 }
 
-pub async fn fetch_tx_sigs_by_tx_id(conn: &mut DbConn, tx_id: Uuid) -> Result<Vec<TxSigRecord>> {
-    schema::tx_sig::table
-        .select(schema::tx_sig::all_columns)
-        .filter(schema::tx_sig::tx_id.eq(tx_id))
-        .load(conn)
-        .await
-        .map_err(From::from)
-}
-
 pub async fn save_new_multisig_contract(
     conn: &mut DbConn,
-    new_contract: NewMultisigContractRecord<'_>,
+    new_contract: NewMultisigAccountRecord<'_>,
 ) -> Result<()> {
-    diesel::insert_into(schema::multisig_contract::table)
+    diesel::insert_into(schema::multisig_account::table)
         .values(new_contract)
         .execute(conn)
         .await?;
@@ -135,15 +206,16 @@ pub async fn save_new_multisig_contract(
     Ok(())
 }
 
-pub async fn save_new_contract_approver_mapping(
+pub async fn save_new_multisig_account_approver_mapping(
     conn: &mut DbConn,
-    contract_id: &str,
+    multisig_account_address: &str,
     approver_address: &str,
 ) -> Result<()> {
-    diesel::insert_into(schema::contract_approver_mapping::table)
+    diesel::insert_into(schema::multisig_account_approver_mapping::table)
         .values((
-            schema::contract_approver_mapping::contract_id.eq(contract_id),
-            schema::contract_approver_mapping::approver_address.eq(approver_address),
+            schema::multisig_account_approver_mapping::multisig_account_address
+                .eq(multisig_account_address),
+            schema::multisig_account_approver_mapping::approver_address.eq(approver_address),
         ))
         .execute(conn)
         .await?;
@@ -151,81 +223,14 @@ pub async fn save_new_contract_approver_mapping(
     Ok(())
 }
 
-pub async fn fetch_txs_with_sigs_count_by_contract_id(
-    conn: &mut DbConn,
-    contract_id: &str,
-) -> Result<Vec<(ContractTxRecord, i64)>> {
-    schema::contract_tx::table
-        .left_join(schema::tx_sig::table.on(schema::tx_sig::tx_id.eq(schema::contract_tx::id)))
-        .filter(schema::contract_tx::contract_id.eq(contract_id))
-        .group_by((
-            schema::contract_tx::id,
-            schema::contract_tx::contract_id,
-            schema::contract_tx::status,
-            schema::contract_tx::tx_bz,
-            schema::contract_tx::tx_summary,
-            schema::contract_tx::tx_summary_commitment,
-            schema::contract_tx::created_at,
-        ))
-        .select((
-            (
-                schema::contract_tx::id,
-                schema::contract_tx::contract_id,
-                schema::contract_tx::status,
-                schema::contract_tx::tx_bz,
-                schema::contract_tx::tx_summary,
-                schema::contract_tx::tx_summary_commitment,
-                schema::contract_tx::created_at,
-            ),
-            diesel::dsl::count(schema::tx_sig::tx_id.nullable()),
-        ))
-        .load(conn)
-        .await
-        .map_err(From::from)
-}
-
-pub async fn fetch_txs_with_sigs_count_by_contract_id_and_tx_status(
-    conn: &mut DbConn,
-    contract_id: &str,
-    tx_status: &str,
-) -> Result<Vec<(ContractTxRecord, i64)>> {
-    schema::contract_tx::table
-        .left_join(schema::tx_sig::table.on(schema::tx_sig::tx_id.eq(schema::contract_tx::id)))
-        .filter(schema::contract_tx::contract_id.eq(contract_id))
-        .filter(schema::contract_tx::status.eq(tx_status))
-        .group_by((
-            schema::contract_tx::id,
-            schema::contract_tx::contract_id,
-            schema::contract_tx::status,
-            schema::contract_tx::tx_bz,
-            schema::contract_tx::tx_summary,
-            schema::contract_tx::tx_summary_commitment,
-            schema::contract_tx::created_at,
-        ))
-        .select((
-            (
-                schema::contract_tx::id,
-                schema::contract_tx::contract_id,
-                schema::contract_tx::status,
-                schema::contract_tx::tx_bz,
-                schema::contract_tx::tx_summary,
-                schema::contract_tx::tx_summary_commitment,
-                schema::contract_tx::created_at,
-            ),
-            diesel::dsl::count(schema::tx_sig::tx_id.nullable()),
-        ))
-        .order(schema::contract_tx::created_at.desc())
-        .load(conn)
-        .await
-        .map_err(From::from)
-}
-
 pub async fn upsert_approver(conn: &mut DbConn, new_approver: NewApproverRecord<'_>) -> Result<()> {
     diesel::insert_into(schema::approver::table)
         .values(new_approver)
         .on_conflict(schema::approver::address)
         .do_update()
-        .set(schema::approver::public_key.eq(upsert::excluded(schema::approver::public_key)))
+        .set(
+            schema::approver::pub_key_commit.eq(upsert::excluded(schema::approver::pub_key_commit)),
+        )
         .execute(conn)
         .await?;
 

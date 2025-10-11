@@ -33,7 +33,7 @@ pub struct TransactionInfo {
 }
 
 #[derive(Debug, Clone, Builder, Dissolve, Serialize, Deserialize)]
-pub struct SignatureRecord {
+pub struct SignatureInfo {
     tx_id: Uuid,
     approver_address: String,
     sig: Bytes,
