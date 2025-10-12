@@ -1,19 +1,19 @@
 [workspace.package]
-version = "0.0.1-pre"
 edition = "2024"
 publish = false
+version = "0.0.1-pre"
 
 [workspace.lints.rust]
 missing_docs = "warn"
-unsafe_code = "forbid"
+unsafe_code  = "forbid"
 
 [workspace]
+members  = ["bin/coordinator/store", "crates/*"]
 resolver = "3"
-members = ["bin/coordinator/store", "crates/*"]
 
 [workspace.dependencies]
 miden-client = { version = "0.11" }
 
-bytes = "1"
-tokio = "1"
+bytes   = "1"
+tokio   = "1"
 tracing = "0.1"
