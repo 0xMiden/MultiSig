@@ -5,15 +5,19 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-bon                = { version = "3", default-features = false }
-bytes              = { workspace = true, features = ["serde"] }
-chrono             = { version = "0.4", features = ["serde"] }
-diesel             = { version = "2", features = ["chrono", "uuid"] }
-diesel-async       = { version = "0.7", features = ["deadpool", "postgres"] }
-diesel-derive-enum = { version = "2.1", features = ["postgres"] }
-dissolve-derive    = "0.1"
-serde              = { version = "1.0", default-features = false, features = ["derive"] }
-strum              = { version = "0.27", features = ["derive"] }
-thiserror          = "2"
-tracing            = { workspace = true }
-uuid               = { version = "1", features = ["serde"] }
+bon                               = { workspace = true }
+bytes                             = { workspace = true }
+chrono                            = { workspace = true }
+diesel                            = { version = "2", features = ["chrono", "uuid"] }
+diesel-async                      = { version = "0.7", features = ["deadpool", "postgres"] }
+diesel-derive-enum                = { version = "2.1", features = ["postgres"] }
+dissolve-derive                   = { workspace = true }
+futures                           = { version = "0.3", default-features = false }
+itertools                         = "0.14"
+miden-client                      = { workspace = true }
+miden-multisig-coordinator-domain = { workspace = true }
+miden-objects                     = { workspace = true }
+oblux                             = "0.1"
+thiserror                         = { workspace = true }
+tracing                           = { workspace = true }
+uuid                              = { workspace = true }

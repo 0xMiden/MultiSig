@@ -2,10 +2,7 @@ use bon::Builder;
 use diesel::prelude::Insertable;
 use uuid::Uuid;
 
-use crate::persistence::{
-    record::{AccountKind, TxStatus},
-    schema,
-};
+use crate::persistence::{record::AccountKind, schema};
 
 #[derive(Debug, Builder, Insertable)]
 #[diesel(table_name = schema::multisig_account)]
@@ -26,8 +23,7 @@ pub struct NewApproverRecord<'a> {
 #[diesel(table_name = schema::tx)]
 pub struct NewTxRecord<'a> {
     multisig_account_address: &'a str,
-    status: TxStatus,
-    tx_bytes: &'a [u8],
+    tx_request: &'a [u8],
     tx_summary: &'a [u8],
     tx_summary_commit: &'a [u8],
 }

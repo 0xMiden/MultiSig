@@ -54,7 +54,7 @@ diesel::table! {
         id -> Uuid,
         multisig_account_address -> Text,
         status -> TxStatus,
-        tx_bytes -> Bytea,
+        tx_request -> Bytea,
         tx_summary -> Bytea,
         tx_summary_commit -> Bytea,
         created_at -> Timestamptz,

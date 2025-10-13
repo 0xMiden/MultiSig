@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS tx (
     multisig_account_address TEXT NOT NULL REFERENCES multisig_account(address) ON DELETE CASCADE,
 
     status tx_status NOT NULL DEFAULT 'pending',
-    tx_bytes BYTEA NOT NULL,
+    tx_request BYTEA NOT NULL,
     tx_summary BYTEA NOT NULL,
     tx_summary_commit BYTEA NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

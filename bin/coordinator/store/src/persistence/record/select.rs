@@ -14,11 +14,17 @@ pub struct MultisigAccountRecord {
 }
 
 #[derive(Debug, Dissolve, Queryable)]
+pub struct ApproverRecord {
+    address: String,
+    pub_key_commit: Vec<u8>,
+}
+
+#[derive(Debug, Dissolve, Queryable)]
 pub struct TxRecord {
     id: Uuid,
     multisig_account_address: String,
     status: TxStatus,
-    tx_bytes: Vec<u8>,
+    tx_request: Vec<u8>,
     tx_summary: Vec<u8>,
     tx_summary_commit: Vec<u8>,
     created_at: DateTime<Utc>,

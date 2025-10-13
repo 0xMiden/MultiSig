@@ -7,19 +7,19 @@ readme      = "README.md"
 repository  = "https://github.com/0xMiden/MultiSig"
 version     = "0.1.0"
 
+[lints]
+workspace = true
+
 [dependencies]
-miden-client  = { version = "0.11", features = ["sqlite", "tonic"] }
-miden-objects = "0.11"
+miden-client  = { workspace = true, features = ["sqlite", "tonic"] }
+miden-objects = { workspace = true }
 
 anyhow    = "1.0"
 rand      = "0.9"
-thiserror = { default-features = false, version = "2.0" }
+thiserror = { workspace = true }
 tokio     = { version = "1.40", default-features = false }
 url       = "2.5"
 
 [dev-dependencies]
 miden-client  = { version = "0.11", features = ["sqlite", "testing", "tonic"] }
 miden-testing = "0.11"
-
-[lints]
-workspace = true

@@ -262,9 +262,6 @@ name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "cc"
@@ -549,9 +546,9 @@ checksum = "8975ffdaa0ef3661bfe02dbdcc06c9f829dfafe6a3c474de366a8d5e44276921"
 
 [[package]]
 name = "dissolve-derive"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d791b164e0e3a335d06e0f9c17211b22e6e4a7a69238476a84386f98659ef69d"
+checksum = "124987971d3585ffc198848f53ff9c2293ba3dbb3a9770b2d1b68603bea6ec90"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -781,9 +778,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.14.7"
+version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+checksum = "1dc8f7d2ded5f9209535e4b3fd4d39c002f30902ff5ce9f64e2c33d549576500"
 dependencies = [
  "typenum",
  "version_check",
@@ -999,7 +996,7 @@ dependencies = [
  "hyper",
  "libc",
  "pin-project-lite",
- "socket2 0.6.0",
+ "socket2 0.6.1",
  "tokio",
  "tower-service",
  "tracing",
@@ -1694,6 +1691,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "miden-multisig-coordinator-domain"
+version = "0.0.1-pre"
+dependencies = [
+ "bon",
+ "chrono",
+ "dissolve-derive",
+ "miden-client",
+ "miden-objects",
+ "serde",
+ "strum",
+ "uuid",
+]
+
+[[package]]
 name = "miden-multisig-coordinator-store"
 version = "0.0.1-pre"
 dependencies = [
@@ -1704,8 +1715,12 @@ dependencies = [
  "diesel-async",
  "diesel-derive-enum",
  "dissolve-derive",
- "serde",
- "strum",
+ "futures",
+ "itertools",
+ "miden-client",
+ "miden-multisig-coordinator-domain",
+ "miden-objects",
+ "oblux",
  "thiserror 2.0.17",
  "tracing",
  "uuid",
@@ -2069,6 +2084,12 @@ checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "oblux"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb65ba3bec44d6a50017fd4c21a120f06919e516c2232014bc8156ad90e09313"
 
 [[package]]
 name = "once_cell"
@@ -2901,12 +2922,12 @@ dependencies = [
 
 [[package]]
 name = "socket2"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+checksum = "17129e116933cf371d018bb80ae557e889637989d8638274fb25622827b03881"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3190,7 +3211,7 @@ dependencies = [
  "mio",
  "pin-project-lite",
  "slab",
- "socket2 0.6.0",
+ "socket2 0.6.1",
  "tokio-macros",
  "windows-sys 0.59.0",
 ]
@@ -3226,7 +3247,7 @@ dependencies = [
  "postgres-protocol",
  "postgres-types",
  "rand",
- "socket2 0.6.0",
+ "socket2 0.6.1",
  "tokio",
  "tokio-util",
  "whoami",
