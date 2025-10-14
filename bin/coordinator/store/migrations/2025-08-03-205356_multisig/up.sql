@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS approver (
     -- bech32 account address
     address TEXT PRIMARY KEY,
 
-    pub_key_commit BYTEA NOT NULL
+    pub_key_commit BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS multisig_account_approver_mapping (

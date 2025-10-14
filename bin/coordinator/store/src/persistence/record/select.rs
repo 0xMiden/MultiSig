@@ -17,6 +17,7 @@ pub struct MultisigAccountRecord {
 pub struct ApproverRecord {
     address: String,
     pub_key_commit: Vec<u8>,
+    created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Dissolve, Queryable)]
@@ -27,13 +28,5 @@ pub struct TxRecord {
     tx_request: Vec<u8>,
     tx_summary: Vec<u8>,
     tx_summary_commit: Vec<u8>,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Dissolve, Queryable)]
-pub struct SignatureRecord {
-    tx_id: Uuid,
-    approver_address: String,
-    signature_bytes: Vec<u8>,
     created_at: DateTime<Utc>,
 }

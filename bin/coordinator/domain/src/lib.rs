@@ -3,21 +3,18 @@
 
 extern crate alloc;
 
+pub mod account;
 pub mod tx;
 
 #[cfg(feature = "serde")]
 mod with_serde;
 
-use core::num::NonZeroU32;
-
-use alloc::vec::Vec;
-
 use bon::Builder;
 use chrono::{DateTime, Utc};
 use dissolve_derive::Dissolve;
-use miden_client::account::{AccountIdAddress, AccountStorageMode, NetworkId};
+use miden_client::account::AccountIdAddress;
+use miden_objects::crypto::dsa::rpo_falcon512::{PublicKey, Signature};
 
-use miden_objects::crypto::dsa::rpo_falcon512::Signature;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -32,20 +29,12 @@ pub struct Timestamps {
 
 #[derive(Debug, Clone, Builder, Dissolve)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultisigAccount<AUX = Timestamps> {
+pub struct MultisigApprover<AUX = Timestamps> {
     #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
     address: AccountIdAddress,
 
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
-    network_id: NetworkId,
-
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_storage_mode"))]
-    kind: AccountStorageMode,
-
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_account_id_address"))]
-    approvers: Vec<AccountIdAddress>,
-
-    threshold: NonZeroU32,
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::pub_key_commit"))]
+    pub_key_commit: PublicKey,
 
     aux: AUX,
 }

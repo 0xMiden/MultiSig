@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::Timestamps;
 
+#[cfg(feature = "serde")]
+use crate::with_serde;
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MultisigTxId(Uuid);
@@ -34,21 +37,21 @@ pub enum MultisigTxStatus {
 pub struct MultisigTx<AUX = Timestamps> {
     id: MultisigTxId,
 
-    #[cfg_attr(feature = "serde", serde(with = "super::with_serde::account_id_address"))]
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
     address: AccountIdAddress,
 
-    #[cfg_attr(feature = "serde", serde(with = "super::with_serde::network_id"))]
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
     network_id: NetworkId,
 
     status: MultisigTxStatus,
 
-    #[cfg_attr(feature = "serde", serde(with = "super::with_serde::transaction_request"))]
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::transaction_request"))]
     tx_request: TransactionRequest,
 
-    #[cfg_attr(feature = "serde", serde(with = "super::with_serde::transaction_summary"))]
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::transaction_summary"))]
     tx_summary: TransactionSummary,
 
-    #[cfg_attr(feature = "serde", serde(with = "super::with_serde::word"))]
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::word"))]
     tx_summary_commit: Word,
 
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]

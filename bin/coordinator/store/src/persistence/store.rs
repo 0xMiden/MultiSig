@@ -2,9 +2,13 @@ mod error;
 
 pub use self::error::StoreError;
 
+use chrono::{DateTime, Utc};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, QueryDsl, dsl, pg::upsert,
+    AggregateExpressionMethods, BoolExpressionMethods, ExpressionMethods, JoinOnDsl,
+    NullableExpressionMethods, QueryDsl, dsl,
+    pg::upsert,
     result::OptionalExtension,
+    sql_types::{Bytea, Nullable},
 };
 use diesel_async::RunQueryDsl;
 use futures::TryStreamExt;
@@ -30,36 +34,6 @@ pub async fn fetch_mutisig_account_by_address(
 ) -> Result<Option<MultisigAccountRecord>> {
     schema::multisig_account::table
         .filter(schema::multisig_account::address.eq(address))
-        .first(conn)
-        .await
-        .optional()
-        .map_err(From::from)
-}
-
-pub async fn fetch_approvers_by_multisig_account_address(
-    conn: &mut DbConn,
-    multisig_account_address: &str,
-) -> Result<Vec<ApproverRecord>> {
-    schema::approver::table
-        .left_join(
-            schema::multisig_account_approver_mapping::table
-                .on(schema::multisig_account_approver_mapping::approver_address
-                    .eq(schema::approver::address)),
-        )
-        .filter(
-            schema::multisig_account_approver_mapping::multisig_account_address
-                .eq(multisig_account_address),
-        )
-        .select(schema::approver::all_columns)
-        .load(conn)
-        .await
-        .map_err(From::from)
-}
-
-pub async fn fetch_tx_by_id(conn: &mut DbConn, id: Uuid) -> Result<Option<TxRecord>> {
-    schema::tx::table
-        .select(schema::tx::all_columns)
-        .filter(schema::tx::id.eq(id))
         .first(conn)
         .await
         .optional()
@@ -118,6 +92,51 @@ pub async fn fetch_tx_with_signature_count_by_id(
         .map_err(From::from)
 }
 
+pub async fn fetch_approver_by_approver_address(
+    conn: &mut DbConn,
+    approver_account_address: &str,
+) -> Result<Option<ApproverRecord>> {
+    schema::approver::table
+        .select(schema::approver::all_columns)
+        .filter(schema::approver::address.eq(approver_account_address))
+        .first(conn)
+        .await
+        .optional()
+        .map_err(From::from)
+}
+
+pub async fn fetch_all_signature_bytes_with_tx_by_tx_id_in_order_of_approvers(
+    conn: &mut DbConn,
+    tx_id: Uuid,
+) -> Result<(Vec<Option<Vec<u8>>>, TxRecord)> {
+    diesel::define_sql_function! {
+        #[aggregate]
+        fn array_agg(expr: Nullable<Bytea>) -> Array<Nullable<Bytea>>;
+    }
+
+    schema::tx::table
+        .filter(schema::tx::id.eq(tx_id))
+        .inner_join(
+            schema::multisig_account_approver_mapping::table
+                .on(schema::tx::multisig_account_address
+                    .eq(schema::multisig_account_approver_mapping::multisig_account_address)),
+        )
+        .left_join(
+            schema::signature::table.on(schema::signature::approver_address
+                .eq(schema::multisig_account_approver_mapping::approver_address)
+                .and(schema::signature::tx_id.eq(tx_id))),
+        )
+        .group_by((schema::tx::multisig_account_address, schema::tx::id))
+        .select((
+            array_agg(schema::signature::signature_bytes.nullable())
+                .aggregate_order(schema::multisig_account_approver_mapping::approver_index.asc()),
+            schema::tx::all_columns,
+        ))
+        .first(conn)
+        .await
+        .map_err(From::from)
+}
+
 pub async fn save_new_tx(conn: &mut DbConn, new_tx: NewTxRecord<'_>) -> Result<Uuid> {
     diesel::insert_into(schema::tx::table)
         .values(new_tx)
@@ -163,6 +182,18 @@ pub async fn validate_approver_address_by_tx_id(
     .map_err(From::from)
 }
 
+pub async fn save_new_multisig_account(
+    conn: &mut DbConn,
+    new_contract: NewMultisigAccountRecord<'_>,
+) -> Result<DateTime<Utc>> {
+    diesel::insert_into(schema::multisig_account::table)
+        .values(new_contract)
+        .returning(schema::multisig_account::created_at)
+        .get_result(conn)
+        .await
+        .map_err(From::from)
+}
+
 pub async fn save_new_signature(
     conn: &mut DbConn,
     new_signature: NewSignatureRecord<'_>,
@@ -175,28 +206,18 @@ pub async fn save_new_signature(
     Ok(())
 }
 
-pub async fn save_new_multisig_account(
-    conn: &mut DbConn,
-    new_contract: NewMultisigAccountRecord<'_>,
-) -> Result<()> {
-    diesel::insert_into(schema::multisig_account::table)
-        .values(new_contract)
-        .execute(conn)
-        .await?;
-
-    Ok(())
-}
-
 pub async fn save_new_multisig_account_approver_mapping(
     conn: &mut DbConn,
     multisig_account_address: &str,
     approver_address: &str,
+    approver_index: u32,
 ) -> Result<()> {
     diesel::insert_into(schema::multisig_account_approver_mapping::table)
         .values((
             schema::multisig_account_approver_mapping::multisig_account_address
                 .eq(multisig_account_address),
             schema::multisig_account_approver_mapping::approver_address.eq(approver_address),
+            schema::multisig_account_approver_mapping::approver_index.eq(i64::from(approver_index)),
         ))
         .execute(conn)
         .await?;

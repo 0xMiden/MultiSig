@@ -8,15 +8,15 @@ pub use self::{errors::MultisigStoreError, persistence::pool::establish_pool};
 use core::num::NonZeroU32;
 
 use diesel_async::AsyncConnection;
-use itertools::Itertools;
 use miden_client::{
     Word,
-    account::{AccountIdAddress, AccountStorageMode, Address, NetworkId},
+    account::{AccountIdAddress, Address, NetworkId},
     transaction::TransactionRequest,
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_domain::{
-    MultisigAccount, Timestamps,
+    MultisigApprover, Timestamps,
+    account::{MultisigAccount, WithApprovers, WithPubKeyCommits},
     tx::{MultisigTx, MultisigTxId, MultisigTxStatus},
 };
 use miden_objects::{
@@ -49,7 +49,7 @@ pub struct MultisigStore {
 
 impl MultisigStore {
     /// Returns a new instance of [MultisigStore] with the specified database URL.
-    pub async fn new(pool: DbPool) -> Self {
+    pub fn new(pool: DbPool) -> Self {
         MultisigStore { pool }
     }
 }
@@ -57,30 +57,33 @@ impl MultisigStore {
 impl MultisigStore {
     pub async fn create_multisig_account(
         &self,
-        network_id: NetworkId,
-        multisig_account_id_address: AccountIdAddress,
-        kind: AccountStorageMode,
-        threshold: NonZeroU32,
-        approvers: Vec<(AccountIdAddress, PublicKey)>,
-    ) -> Result<()> {
+        multisig_account: MultisigAccount<WithApprovers, WithPubKeyCommits, ()>,
+    ) -> Result<MultisigAccount<WithApprovers, WithPubKeyCommits>> {
         self.get_conn()
             .await?
             .transaction(|conn| {
                 Box::pin(async move {
-                    let multisig_account_address =
-                        Address::AccountId(multisig_account_id_address).to_bech32(network_id);
+                    let multisig_account_address = Address::AccountId(multisig_account.address())
+                        .to_bech32(multisig_account.network_id());
 
                     let new_multisig_account = NewMultisigAccountRecord::builder()
                         .address(&multisig_account_address)
-                        .kind(kind.into())
-                        .threshold(threshold.get().into())
+                        .kind(multisig_account.kind().into())
+                        .threshold(multisig_account.threshold().get().into())
                         .build();
 
-                    store::save_new_multisig_account(conn, new_multisig_account).await?;
+                    let timestamps = store::save_new_multisig_account(conn, new_multisig_account)
+                        .await
+                        .map(|t| Timestamps::builder().created_at(t).updated_at(t).build())?;
 
-                    for (approver_account_id_address, pub_key_commit) in approvers {
-                        let approver_address =
-                            Address::AccountId(approver_account_id_address).to_bech32(network_id);
+                    for (idx, (&approver_account_id_address, &pub_key_commit)) in multisig_account
+                        .approvers()
+                        .iter()
+                        .zip(multisig_account.pub_key_commits())
+                        .enumerate()
+                    {
+                        let approver_address = Address::AccountId(approver_account_id_address)
+                            .to_bech32(multisig_account.network_id());
 
                         let pub_key_commit_bz = Word::from(pub_key_commit).as_bytes();
 
@@ -91,21 +94,21 @@ impl MultisigStore {
 
                         store::upsert_approver(conn, new_approver).await?;
 
+                        // casting idx to u32 is safe as approvers length cannot exceed u32::MAX
                         store::save_new_multisig_account_approver_mapping(
                             conn,
                             &multisig_account_address,
                             &approver_address,
+                            idx as u32,
                         )
                         .await?;
                     }
 
-                    Ok(())
+                    Ok(multisig_account.with_aux(timestamps).0)
                 })
             })
             .await
-            .map_err(MultisigStoreError::Store)?;
-
-        Ok(())
+            .map_err(MultisigStoreError::Store)
     }
 
     pub async fn create_multisig_tx(
@@ -211,22 +214,13 @@ impl MultisigStore {
 
         let address = Address::AccountId(account_id_address).to_bech32(network_id);
 
-        let Some(MultisigAccountRecordDissolved { address, kind, threshold, created_at }) =
+        let Some(MultisigAccountRecordDissolved { kind, threshold, created_at, .. }) =
             store::fetch_mutisig_account_by_address(conn, &address)
                 .await?
                 .map(MultisigAccountRecord::dissolve)
         else {
             return Ok(None);
         };
-
-        let approvers = store::fetch_approvers_by_multisig_account_address(conn, &address)
-            .await?
-            .into_iter()
-            .map(ApproverRecord::dissolve)
-            .map(|ApproverRecordDissolved { address, .. }| address)
-            .map(|a| extract_network_id_account_id_address_pair(&a))
-            .map_ok(|(_, approver_address)| approver_address)
-            .try_collect()?;
 
         let threshold = threshold
             .try_into()
@@ -241,7 +235,6 @@ impl MultisigStore {
             .address(account_id_address)
             .network_id(network_id)
             .kind(kind.into_inner())
-            .approvers(approvers)
             .threshold(threshold)
             .aux(timestamps)
             .build();
@@ -288,6 +281,48 @@ impl MultisigStore {
             .await?
             .map(|(tx_record, sigs_count)| make_multisig_tx(tx_record, sigs_count))
             .transpose()
+    }
+
+    pub async fn get_approver_by_approver_address(
+        &self,
+        network_id: NetworkId,
+        approver_account_id_address: AccountIdAddress,
+    ) -> Result<Option<MultisigApprover>> {
+        let address = Address::AccountId(approver_account_id_address).to_bech32(network_id);
+        store::fetch_approver_by_approver_address(&mut self.get_conn().await?, &address)
+            .await?
+            .map(make_multisig_approver)
+            .transpose()
+    }
+
+    pub async fn get_signatures_of_all_approvers_with_multisig_tx_by_tx_id(
+        &self,
+        tx_id: &MultisigTxId,
+    ) -> Result<(Vec<Option<Signature>>, MultisigTx)> {
+        let (signatures, tx_record) =
+            store::fetch_all_signature_bytes_with_tx_by_tx_id_in_order_of_approvers(
+                &mut self.get_conn().await?,
+                tx_id.into(),
+            )
+            .await?;
+
+        let mut sigs_count = 0i64;
+
+        let signatures = signatures
+            .into_iter()
+            .inspect(|s| {
+                if s.is_some() {
+                    sigs_count += 1
+                }
+            })
+            .map(|s| s.as_deref().map(Deserializable::read_from_bytes).transpose())
+            .map(|s| s.map_err(|_| MultisigStoreError::InvalidValue))
+            .collect::<Result<_, _>>()?;
+
+        // unwrap is safe because sigs_count is non-negative
+        let sigs_count = U63::from_signed(sigs_count).unwrap();
+
+        Ok((signatures, make_multisig_tx(tx_record, sigs_count)?))
     }
 
     async fn get_conn(&self) -> Result<DbConn> {
@@ -339,6 +374,27 @@ fn make_multisig_tx(tx_record: TxRecord, signature_count: U63) -> Result<Multisi
         .build();
 
     Ok(tx)
+}
+
+fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApprover> {
+    let ApproverRecordDissolved { address, pub_key_commit, created_at } =
+        approver_record.dissolve();
+
+    let (_, address) = extract_network_id_account_id_address_pair(&address)?;
+
+    let pub_key_commit = Word::read_from_bytes(&pub_key_commit)
+        .map(PublicKey::new)
+        .map_err(|_| MultisigStoreError::InvalidValue)?;
+
+    let timestamps = Timestamps::builder().created_at(created_at).updated_at(created_at).build();
+
+    let approver = MultisigApprover::builder()
+        .address(address)
+        .pub_key_commit(pub_key_commit)
+        .aux(timestamps)
+        .build();
+
+    Ok(approver)
 }
 
 fn extract_network_id_account_id_address_pair(

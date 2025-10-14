@@ -14,6 +14,7 @@ diesel::table! {
     approver (address) {
         address -> Text,
         pub_key_commit -> Bytea,
+        created_at -> Timestamptz,
     }
 }
 

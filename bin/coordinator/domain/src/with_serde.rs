@@ -85,6 +85,29 @@ pub mod network_id {
     }
 }
 
+pub mod pub_key_commit {
+    use miden_client::Word;
+    use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    pub fn serialize<S>(&pub_key_commit: &PublicKey, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_bytes(&Word::from(pub_key_commit).as_bytes())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<PublicKey, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        <[u8; Word::SERIALIZED_SIZE]>::deserialize(deserializer)
+            .map(Word::try_from)?
+            .map(PublicKey::new)
+            .map_err(D::Error::custom)
+    }
+}
+
 pub mod signature {
     use miden_client::utils::{Deserializable, Serializable};
     use miden_objects::crypto::dsa::rpo_falcon512::Signature;

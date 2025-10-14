@@ -2,35 +2,34 @@
 #[macro_use]
 extern crate alloc;
 
+use core::ops::{Deref, DerefMut};
+
 use alloc::string::ToString;
 use alloc::vec::Vec;
+
+use std::{path::PathBuf, sync::Arc, time::Duration};
+
 use anyhow::Context;
-use core::ops::{Deref, DerefMut};
-use rand::RngCore;
-use rand::rngs::StdRng;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use rand::{RngCore, rngs::StdRng};
 use thiserror::Error;
 use url::Url;
 
-use miden_client::ClientError;
-use miden_client::account::AccountFile;
-use miden_client::account::component::{AuthRpoFalcon512Multisig, BasicWallet};
-use miden_client::account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType};
-use miden_client::auth::TransactionAuthenticator;
-use miden_client::builder::ClientBuilder;
-use miden_client::keystore::FilesystemKeyStore;
-use miden_client::rpc::Endpoint;
-use miden_client::transaction::TransactionExecutorError;
-use miden_client::{Felt, Word, ZERO};
-use miden_objects::Hasher;
-use miden_objects::assembly::diagnostics::tracing::info;
-use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
-use miden_objects::transaction::TransactionSummary;
-
-use miden_client::Client;
-use miden_client::transaction::{TransactionRequest, TransactionResult};
+use miden_client::{
+    Client, ClientError, Felt, Word, ZERO,
+    account::{
+        Account, AccountBuilder, AccountFile, AccountId, AccountStorageMode, AccountType,
+        component::{AuthRpoFalcon512Multisig, BasicWallet},
+    },
+    auth::TransactionAuthenticator,
+    builder::ClientBuilder,
+    keystore::FilesystemKeyStore,
+    rpc::Endpoint,
+    transaction::{TransactionExecutorError, TransactionRequest, TransactionResult},
+};
+use miden_objects::{
+    Hasher, assembly::diagnostics::tracing::info, crypto::dsa::rpo_falcon512::PublicKey,
+    transaction::TransactionSummary,
+};
 
 #[cfg(test)]
 mod tests;
@@ -49,6 +48,16 @@ pub enum MultisigClientError {
 /// A client for interacting with Miden multisig accounts.
 pub struct MultisigClient<AUTH: TransactionAuthenticator + Sync + 'static> {
     client: Client<AUTH>,
+}
+
+impl<AUTH> MultisigClient<AUTH>
+where
+    AUTH: TransactionAuthenticator + Sync + 'static,
+{
+    /// Construct a `MultisigClient`.
+    pub fn new(client: Client<AUTH>) -> Self {
+        Self { client }
+    }
 }
 
 impl MultisigClient<FilesystemKeyStore<StdRng>> {
