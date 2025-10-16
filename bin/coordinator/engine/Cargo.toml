@@ -20,3 +20,13 @@ thiserror                         = { workspace = true }
 tokio                             = { workspace = true, default-features = false, features = ["sync"] }
 tracing                           = { workspace = true }
 url                               = { workspace = true }
+
+[dev-dependencies]
+diesel                 = { version = "2", features = ["postgres"] }
+diesel_migrations      = "2"
+openssl-sys            = { version = "0.9", features = ["vendored"] }
+pq-sys                 = { version = "0.7", features = ["bundled"] }
+rand                   = "0.9"
+tempfile               = "3"
+testcontainers         = "0.25"
+testcontainers-modules = { version = "0.13", features = ["postgres"] }
