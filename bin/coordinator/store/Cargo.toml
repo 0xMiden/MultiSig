@@ -6,11 +6,9 @@ version.workspace = true
 
 [dependencies]
 bon                               = { workspace = true }
-bytes                             = { workspace = true }
 chrono                            = { workspace = true }
-diesel                            = { version = "2", features = ["chrono", "uuid"] }
+diesel                            = { version = "2", default-features = false, features = ["chrono", "uuid"] }
 diesel-async                      = { version = "0.7", features = ["deadpool", "postgres"] }
-diesel-derive-enum                = { version = "2.1", features = ["postgres"] }
 dissolve-derive                   = { workspace = true }
 futures                           = { version = "0.3", default-features = false }
 itertools                         = "0.14"

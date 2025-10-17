@@ -6,9 +6,9 @@ use chrono::{DateTime, Utc};
 use diesel::{
     AggregateExpressionMethods, BoolExpressionMethods, ExpressionMethods, JoinOnDsl,
     NullableExpressionMethods, QueryDsl, dsl,
-    pg::upsert,
     result::OptionalExtension,
     sql_types::{Bytea, Nullable},
+    upsert,
 };
 use diesel_async::RunQueryDsl;
 use futures::TryStreamExt;
