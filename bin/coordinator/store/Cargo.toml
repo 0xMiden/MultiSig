@@ -11,7 +11,6 @@ diesel                            = { version = "2", default-features = false, f
 diesel-async                      = { version = "0.7", features = ["deadpool", "postgres"] }
 dissolve-derive                   = { workspace = true }
 futures                           = { version = "0.3", default-features = false }
-itertools                         = "0.14"
 miden-client                      = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true }
 miden-objects                     = { workspace = true }

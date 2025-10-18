@@ -54,11 +54,11 @@ pub struct MultisigSignature<AUX = Timestamps> {
 }
 
 impl Timestamps {
-    pub fn created_at(&self) -> &DateTime<Utc> {
-        &self.created_at
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
     }
 
-    pub fn updated_at(&self) -> &DateTime<Utc> {
-        &self.updated_at
+    pub fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
     }
 }

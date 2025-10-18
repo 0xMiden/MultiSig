@@ -1,0 +1,29 @@
+[package]
+edition.workspace = true
+name              = "miden-multisig-coordinator-server"
+publish.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow                            = { workspace = true }
+axum                              = "0.8"
+bon                               = { workspace = true }
+bytes                             = { version = "1", features = ["serde"] }
+chrono                            = { workspace = true }
+config                            = { version = "0.15", default-features = false, features = ["ron"] }
+dissolve-derive                   = { workspace = true }
+itertools                         = "0.14"
+miden-client                      = { workspace = true }
+miden-multisig-coordinator-engine = { workspace = true }
+miden-multisig-coordinator-store  = { workspace = true }
+miden-objects                     = { workspace = true }
+serde                             = { workspace = true, features = ["derive"] }
+thiserror                         = "2"
+tokio                             = { workspace = true, features = ["rt-multi-thread"] }
+tower-http                        = { version = "0.6", features = ["cors"] }
+tracing                           = { workspace = true }
+url                               = { workspace = true, features = ["serde"] }
+uuid                              = { workspace = true, features = ["serde"] }

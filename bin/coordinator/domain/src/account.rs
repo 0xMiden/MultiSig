@@ -33,15 +33,24 @@ pub struct MultisigAccount<APPR = WithoutApprovers, PKC = WithoutPubKeyCommits, 
 }
 
 #[derive(Debug, Clone)]
-pub struct WithApprovers(Vec<AccountIdAddress>);
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct WithApprovers(
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_account_id_address"))]
+    Vec<AccountIdAddress>,
+);
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WithoutApprovers;
 
 #[derive(Debug, Clone)]
-pub struct WithPubKeyCommits(Vec<PublicKey>);
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct WithPubKeyCommits(
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_pub_key_commits"))] Vec<PublicKey>,
+);
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WithoutPubKeyCommits;
 
 #[bon::bon]

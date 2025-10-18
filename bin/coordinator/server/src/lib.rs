@@ -1,0 +1,27 @@
+#![allow(missing_docs)]
+
+pub mod config;
+
+mod error;
+mod payload;
+mod routes;
+
+use std::sync::Arc;
+
+use axum::{Router, routing};
+use bon::Builder;
+use dissolve_derive::Dissolve;
+use miden_multisig_coordinator_engine::{MultisigEngine, Started};
+
+pub fn create_router(app: App) -> Router {
+    Router::new()
+        .route("/api/v1/multisig-account", routing::post(routes::create_multisig_account))
+        .route("/api/v1/multisig-tx/propose", routing::post(routes::propose_multisig_tx))
+        .route("/api/v1/signature/add", routing::post(routes::add_signature))
+        .with_state(app)
+}
+
+#[derive(Clone, Builder, Dissolve)]
+pub struct App {
+    engine: Arc<MultisigEngine<Started>>,
+}

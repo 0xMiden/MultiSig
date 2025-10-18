@@ -8,18 +8,25 @@ missing_docs = "warn"
 unsafe_code  = "forbid"
 
 [workspace]
-members  = ["bin/coordinator/domain", "bin/coordinator/engine", "bin/coordinator/store", "crates/*"]
+members = [
+  "bin/coordinator/domain",
+  "bin/coordinator/engine",
+  "bin/coordinator/server",
+  "bin/coordinator/store",
+  "crates/*",
+]
 resolver = "3"
 
 [workspace.dependencies]
 miden-client                      = "0.11.9"
 miden-multisig-client             = { path = "crates/miden-multisig-client" }
 miden-multisig-coordinator-domain = { path = "bin/coordinator/domain" }
+miden-multisig-coordinator-engine = { path = "bin/coordinator/engine" }
 miden-multisig-coordinator-store  = { path = "bin/coordinator/store" }
 miden-objects                     = "0.11"
 
+anyhow          = "1"
 bon             = { version = "3", default-features = false }
-bytes           = "1"
 chrono          = { version = "0.4", default-features = false }
 dissolve-derive = "0.1"
 rand            = "0.9"

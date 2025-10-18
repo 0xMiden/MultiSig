@@ -64,6 +64,12 @@ pub struct Started {
     handle: JoinHandle<Result<(), MidenRuntimeError>>,
 }
 
+impl<R> MultisigEngine<R> {
+    pub fn network_id(&self) -> NetworkId {
+        self.network_id
+    }
+}
+
 impl MultisigEngine<Stopped> {
     pub fn new(network_id: NetworkId, store: MultisigStore) -> Self {
         Self { network_id, store, runtime: Stopped }

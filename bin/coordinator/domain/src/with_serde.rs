@@ -238,6 +238,66 @@ pub mod vec_account_id_address {
     }
 }
 
+pub mod vec_pub_key_commits {
+    use alloc::{
+        fmt::{self, Formatter},
+        vec::Vec,
+    };
+
+    use miden_client::Word;
+    use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+    use serde::{
+        Deserializer, Serializer,
+        de::{self, SeqAccess, Visitor},
+        ser::SerializeSeq,
+    };
+
+    pub fn serialize<S>(pub_key_commits: &Vec<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut seq = serializer.serialize_seq(pub_key_commits.len().into())?;
+
+        for &pub_key_commit in pub_key_commits {
+            seq.serialize_element(&Word::from(pub_key_commit).as_bytes())?;
+        }
+
+        seq.end()
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<PublicKey>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PubKeyCommitVecVisitor;
+
+        impl<'de> Visitor<'de> for PubKeyCommitVecVisitor {
+            type Value = Vec<PublicKey>;
+
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                formatter.write_str("a sequence of public key commitments")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut pub_key_commits = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+
+                while let Some(bz) = seq.next_element::<[u8; Word::SERIALIZED_SIZE]>()? {
+                    let pub_key_commit =
+                        Word::try_from(bz).map(PublicKey::new).map_err(de::Error::custom)?;
+                    pub_key_commits.push(pub_key_commit);
+                }
+
+                Ok(pub_key_commits)
+            }
+        }
+
+        deserializer.deserialize_seq(PubKeyCommitVecVisitor)
+    }
+}
+
 pub mod word {
     use miden_client::Word;
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
