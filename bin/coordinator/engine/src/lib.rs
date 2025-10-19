@@ -4,6 +4,11 @@ mod error;
 mod miden_runtime;
 mod types;
 
+use crate::types::{
+    request::{GetMultisigAccountRequest, GetMultisigAccountRequestDissolved},
+    response::GetMultisigAccountResponse,
+};
+
 pub use self::{
     error::MultisigEngineError,
     miden_runtime::MidenRuntimeConfig,
@@ -44,10 +49,13 @@ use self::{
         request::{
             AddSignatureRequest, AddSignatureRequestDissolved, CreateMultisigAccountRequest,
             CreateMultisigAccountRequestDissolved, GetConsumableNotesRequest,
-            GetConsumableNotesRequestDissolved, ProposeMultisigTxRequest,
+            GetConsumableNotesRequestDissolved, ListMultisigTxRequest,
+            ListMultisigTxRequestDissolved, ProposeMultisigTxRequest,
             ProposeMultisigTxRequestDissolved,
         },
-        response::{CreateMultisigAccountResponse, ProposeMultisigTxResponse},
+        response::{
+            CreateMultisigAccountResponse, ListMultisigTxResponse, ProposeMultisigTxResponse,
+        },
     },
 };
 
@@ -85,7 +93,7 @@ impl MultisigEngine<Stopped> {
         let handle = miden_runtime::spawn_new(rt, receiver, miden_runtime_config);
 
         MultisigEngine {
-            network_id: self.network_id,
+            network_id: self.network_id(),
             store: self.store,
             runtime: Started { sender, handle },
         }
@@ -120,7 +128,7 @@ impl MultisigEngine<Started> {
 
         let multisig_account = MultisigAccount::builder()
             .address(AccountIdAddress::new(miden_account.id(), AddressInterface::BasicWallet))
-            .network_id(self.network_id)
+            .network_id(self.network_id())
             .kind(AccountStorageMode::Public) // TODO: add support for private multisig accounts
             .threshold(threshold)
             .aux(())
@@ -189,7 +197,7 @@ impl MultisigEngine<Started> {
         })?;
 
         self.store
-            .get_multisig_account(self.network_id, address)
+            .get_multisig_account(self.network_id(), address)
             .await
             .map_err(MultisigEngineErrorKind::from)?
             .ok_or(MultisigEngineErrorKind::not_found("account not found"))?;
@@ -201,7 +209,7 @@ impl MultisigEngine<Started> {
 
         let tx_id = self
             .store
-            .create_multisig_tx(self.network_id, address, &tx_request, &tx_summary)
+            .create_multisig_tx(self.network_id(), address, &tx_request, &tx_summary)
             .await
             .map_err(MultisigEngineErrorKind::from)?;
 
@@ -219,7 +227,7 @@ impl MultisigEngine<Started> {
 
         let threshold_met = self
             .store
-            .add_multisig_tx_signature(&tx_id, self.network_id, approver, &signature)
+            .add_multisig_tx_signature(&tx_id, self.network_id(), approver, &signature)
             .await
             .map_err(MultisigEngineErrorKind::from)?
             .ok_or(MultisigEngineErrorKind::other(
@@ -277,6 +285,47 @@ impl MultisigEngine<Started> {
         }
 
         Ok(None)
+    }
+
+    pub async fn get_multisig_account(
+        &self,
+        request: GetMultisigAccountRequest,
+    ) -> Result<GetMultisigAccountResponse, MultisigEngineError> {
+        let GetMultisigAccountRequestDissolved { multisig_account_id_address } = request.dissolve();
+
+        let multisig_account = self
+            .store
+            .get_multisig_account(self.network_id(), multisig_account_id_address)
+            .await
+            .map_err(MultisigEngineErrorKind::from)?;
+
+        let response = GetMultisigAccountResponse::builder()
+            .maybe_multisig_account(multisig_account)
+            .build();
+
+        Ok(response)
+    }
+
+    // TODO: add pagination support
+    pub async fn list_multisig_tx(
+        &self,
+        request: ListMultisigTxRequest,
+    ) -> Result<ListMultisigTxResponse, MultisigEngineError> {
+        let ListMultisigTxRequestDissolved {
+            multisig_account_id_address,
+            tx_status_filter,
+        } = request.dissolve();
+
+        self.store
+            .get_txs_by_multisig_account_address_with_status_filter(
+                self.network_id(),
+                multisig_account_id_address,
+                tx_status_filter,
+            )
+            .await
+            .map(|txs| ListMultisigTxResponse::builder().txs(txs).build())
+            .map_err(MultisigEngineErrorKind::from)
+            .map_err(From::from)
     }
 
     pub async fn stop_miden_runtime(self) -> Result<MultisigEngine<Stopped>, MultisigEngineError> {

@@ -31,6 +31,7 @@ chrono          = { version = "0.4", default-features = false }
 dissolve-derive = "0.1"
 rand            = "0.9"
 serde           = { version = "1", default-features = false }
+serde_with      = { version = "3", default-features = false }
 thiserror       = { version = "2", default-features = false }
 tokio           = { version = "1.40", default-features = false }
 tracing         = "0.1"

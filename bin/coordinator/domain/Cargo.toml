@@ -8,8 +8,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["serde"]
-serde   = ["chrono/serde", "dep:serde", "uuid/serde"]
+default = []
+serde   = ["chrono/serde", "dep:serde", "dep:serde_with", "uuid/serde"]
 
 [dependencies]
 bon             = { workspace = true }
@@ -18,5 +18,6 @@ dissolve-derive = { workspace = true }
 miden-client    = { workspace = true }
 miden-objects   = { workspace = true }
 serde           = { workspace = true, optional = true, default-features = false, features = ["derive"] }
+serde_with      = { workspace = true, optional = true, default-features = false, features = ["macros"] }
 strum           = { version = "0.27", features = ["derive"] }
 uuid            = { workspace = true }

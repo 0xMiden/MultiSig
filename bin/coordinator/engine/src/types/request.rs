@@ -7,7 +7,7 @@ use core::num::NonZeroU32;
 use bon::Builder;
 use dissolve_derive::Dissolve;
 use miden_client::{account::AccountIdAddress, transaction::TransactionRequest};
-use miden_multisig_coordinator_domain::tx::MultisigTxId;
+use miden_multisig_coordinator_domain::tx::{MultisigTxId, MultisigTxStatus};
 use miden_objects::crypto::dsa::rpo_falcon512::{PublicKey, Signature};
 
 #[derive(Debug, Dissolve)]
@@ -33,6 +33,17 @@ pub struct AddSignatureRequest {
     tx_id: MultisigTxId,
     approver: AccountIdAddress,
     signature: Signature,
+}
+
+#[derive(Debug, Builder, Dissolve)]
+pub struct GetMultisigAccountRequest {
+    multisig_account_id_address: AccountIdAddress,
+}
+
+#[derive(Debug, Builder, Dissolve)]
+pub struct ListMultisigTxRequest {
+    multisig_account_id_address: AccountIdAddress,
+    tx_status_filter: Option<MultisigTxStatus>,
 }
 
 #[bon::bon]

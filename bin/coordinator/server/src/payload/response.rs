@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::payload::{MultisigAccountPayload, MultisigTxPayload};
+
 #[derive(Debug, Builder, Serialize)]
 pub struct CreateMultisigAccountResponsePayload {
     address: String,
@@ -20,4 +22,14 @@ pub struct ProposeMultisigTxResponsePayload {
 #[derive(Debug, Builder, Serialize)]
 pub struct AddSignatureResponsePayload {
     tx_result: Option<Bytes>,
+}
+
+#[derive(Debug, Builder, Serialize)]
+pub struct GetMultisigAccountDetailsResponsePayload {
+    multisig_account: MultisigAccountPayload,
+}
+
+#[derive(Debug, Builder, Serialize)]
+pub struct ListMultisigTxResponsePayload {
+    txs: Vec<MultisigTxPayload>,
 }

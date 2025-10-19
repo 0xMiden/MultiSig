@@ -8,6 +8,7 @@ pub use self::{errors::MultisigStoreError, persistence::pool::establish_pool};
 use core::num::NonZeroU32;
 
 use diesel_async::AsyncConnection;
+use futures::{Stream, StreamExt, TryStreamExt};
 use miden_client::{
     Word,
     account::{AccountIdAddress, Address, NetworkId},
@@ -242,38 +243,49 @@ impl MultisigStore {
         Ok(Some(multisig_account))
     }
 
-    pub async fn get_txs_by_multisig_account_address_with_status_filter<S>(
+    // TODO: add support to filter on multiple `tx_status_filter`
+    pub async fn get_txs_by_multisig_account_address_with_status_filter<TSF>(
         &self,
         network_id: NetworkId,
         address: AccountIdAddress,
-        tx_status_filter: S,
+        tx_status_filter: TSF,
     ) -> Result<Vec<MultisigTx>>
     where
-        Option<MultisigTxStatus>: From<S>,
+        Option<MultisigTxStatus>: From<TSF>,
     {
         let conn = &mut self.get_conn().await?;
 
         let address = Address::AccountId(address).to_bech32(network_id);
 
-        let tx_records_with_sigs_count = match tx_status_filter.into() {
+        fn transform_into_multisig_tx(
+            stream: impl Stream<Item = Result<(TxRecord, U63), StoreError>>,
+        ) -> impl Stream<Item = Result<MultisigTx, MultisigStoreError>> {
+            stream
+                .map_err(MultisigStoreError::from)
+                .map_ok(|(tx_record, sigs_count)| make_multisig_tx(tx_record, sigs_count))
+                .map(Result::flatten)
+        }
+
+        match tx_status_filter.into() {
             Some(status) => {
-                store::fetch_txs_with_signature_count_by_multisig_account_address_and_status(
+                store::stream_txs_with_signature_count_by_multisig_account_address_and_status(
                     conn,
                     &address,
                     status.into(),
                 )
-                .await?
+                .await
+                .map(transform_into_multisig_tx)?
+                .try_collect()
+                .await
             },
             None => {
-                store::fetch_txs_with_signature_count_by_multisig_account_address(conn, &address)
-                    .await?
+                store::stream_txs_with_signature_count_by_multisig_account_address(conn, &address)
+                    .await
+                    .map(transform_into_multisig_tx)?
+                    .try_collect()
+                    .await
             },
-        };
-
-        tx_records_with_sigs_count
-            .into_iter()
-            .map(|(tx_record, sigs_count)| make_multisig_tx(tx_record, sigs_count))
-            .collect()
+        }
     }
 
     pub async fn get_multisig_tx_by_id(&self, id: &MultisigTxId) -> Result<Option<MultisigTx>> {

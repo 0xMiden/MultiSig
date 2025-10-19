@@ -11,7 +11,7 @@ use diesel::{
     upsert,
 };
 use diesel_async::RunQueryDsl;
-use futures::TryStreamExt;
+use futures::{Stream, TryStreamExt};
 use oblux::U63;
 use uuid::Uuid;
 
@@ -40,11 +40,11 @@ pub async fn fetch_mutisig_account_by_address(
         .map_err(From::from)
 }
 
-pub async fn fetch_txs_with_signature_count_by_multisig_account_address(
+pub async fn stream_txs_with_signature_count_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
-) -> Result<Vec<(TxRecord, U63)>> {
-    schema::tx::table
+) -> Result<impl Stream<Item = Result<(TxRecord, U63)>>> {
+    let stream = schema::tx::table
         .left_join(schema::signature::table.on(schema::signature::tx_id.eq(schema::tx::id)))
         .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
         .group_by(schema::tx::all_columns)
@@ -52,17 +52,17 @@ pub async fn fetch_txs_with_signature_count_by_multisig_account_address(
         .load_stream::<(_, i64)>(conn)
         .await?
         .map_ok(|(txr, c)| (txr, U63::from_signed(c).unwrap())) // unwrap is safe because count >= 0
-        .try_collect()
-        .await
-        .map_err(From::from)
+        .map_err(From::from);
+
+    Ok(stream)
 }
 
-pub async fn fetch_txs_with_signature_count_by_multisig_account_address_and_status(
+pub async fn stream_txs_with_signature_count_by_multisig_account_address_and_status(
     conn: &mut DbConn,
     multisig_account_address: &str,
     tx_status: TxStatus,
-) -> Result<Vec<(TxRecord, U63)>> {
-    schema::tx::table
+) -> Result<impl Stream<Item = Result<(TxRecord, U63)>>> {
+    let stream = schema::tx::table
         .left_join(schema::signature::table.on(schema::signature::tx_id.eq(schema::tx::id)))
         .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
         .filter(schema::tx::status.eq(tx_status))
@@ -71,9 +71,9 @@ pub async fn fetch_txs_with_signature_count_by_multisig_account_address_and_stat
         .load_stream::<(_, i64)>(conn)
         .await?
         .map_ok(|(txr, c)| (txr, U63::from_signed(c).unwrap())) // unwrap is safe because count >= 0
-        .try_collect()
-        .await
-        .map_err(From::from)
+        .map_err(From::from);
+
+    Ok(stream)
 }
 
 pub async fn fetch_tx_with_signature_count_by_id(

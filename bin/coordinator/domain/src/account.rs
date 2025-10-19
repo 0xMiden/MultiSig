@@ -3,8 +3,8 @@ use core::num::NonZeroU32;
 use alloc::vec::Vec;
 
 use miden_client::account::{AccountIdAddress, AccountStorageMode, NetworkId};
-
 use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,6 @@ use crate::Timestamps;
 #[cfg(feature = "serde")]
 use crate::with_serde;
 
-#[allow(private_bounds)]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MultisigAccount<APPR = WithoutApprovers, PKC = WithoutPubKeyCommits, AUX = Timestamps> {

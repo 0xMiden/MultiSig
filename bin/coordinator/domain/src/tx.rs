@@ -20,7 +20,7 @@ use crate::Timestamps;
 use crate::with_serde;
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct MultisigTxId(Uuid);
 
 #[derive(Debug, Clone, IntoStaticStr, EnumString, Display)]
@@ -33,7 +33,7 @@ pub enum MultisigTxStatus {
 }
 
 #[derive(Debug, Clone, Builder, Dissolve)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde_with::serde_as)]
 pub struct MultisigTx<AUX = Timestamps> {
     id: MultisigTxId,
 
@@ -43,6 +43,7 @@ pub struct MultisigTx<AUX = Timestamps> {
     #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
     network_id: NetworkId,
 
+    #[cfg_attr(feature = "serde", serde_as(as = "DisplayFromStr"))]
     status: MultisigTxStatus,
 
     #[cfg_attr(feature = "serde", serde(with = "with_serde::transaction_request"))]

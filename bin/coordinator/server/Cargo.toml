@@ -17,10 +17,12 @@ config                            = { version = "0.15", default-features = false
 dissolve-derive                   = { workspace = true }
 itertools                         = "0.14"
 miden-client                      = { workspace = true }
+miden-multisig-coordinator-domain = { workspace = true, features = ["serde"] }
 miden-multisig-coordinator-engine = { workspace = true }
 miden-multisig-coordinator-store  = { workspace = true }
 miden-objects                     = { workspace = true }
 serde                             = { workspace = true, features = ["derive"] }
+serde_with                        = { workspace = true, features = ["macros"] }
 thiserror                         = "2"
 tokio                             = { workspace = true, features = ["rt-multi-thread"] }
 tower-http                        = { version = "0.6", features = ["cors"] }

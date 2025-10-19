@@ -12,7 +12,7 @@ pub(crate) enum AppError {
     #[error("multisig engine error: {0}")]
     MultisigEngine(Box<MultisigEngineError>),
 
-    #[error("invalid network id")]
+    #[error("invalid network id error")]
     InvalidNetworkId,
 
     #[error("invalid account id address: {0}")]
@@ -26,6 +26,12 @@ pub(crate) enum AppError {
 
     #[error("invalid signature error")]
     InvalidSignature,
+
+    #[error("invalid multisig tx status error")]
+    InvalidMultisigTxStatus,
+
+    #[error("multisig account not found error")]
+    MultisigAccountNotFound,
 
     #[error("join error: {0}")]
     JoinError(#[from] JoinError),
@@ -67,7 +73,9 @@ impl IntoResponse for AppError {
             | AppError::InvalidPubKeyCommit
             | AppError::InvalidTransactionRequest
             | AppError::InvalidSignature
+            | AppError::InvalidMultisigTxStatus
             | AppError::RequestError(_) => StatusCode::BAD_REQUEST,
+            AppError::MultisigAccountNotFound => StatusCode::NOT_FOUND,
             AppError::MultisigEngine(_) | AppError::JoinError(_) | AppError::Other(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             },
