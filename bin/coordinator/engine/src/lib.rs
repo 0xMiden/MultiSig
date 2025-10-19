@@ -4,11 +4,6 @@ mod error;
 mod miden_runtime;
 mod types;
 
-use crate::types::{
-    request::{GetMultisigAccountRequest, GetMultisigAccountRequestDissolved},
-    response::GetMultisigAccountResponse,
-};
-
 pub use self::{
     error::MultisigEngineError,
     miden_runtime::MidenRuntimeConfig,
@@ -49,12 +44,14 @@ use self::{
         request::{
             AddSignatureRequest, AddSignatureRequestDissolved, CreateMultisigAccountRequest,
             CreateMultisigAccountRequestDissolved, GetConsumableNotesRequest,
-            GetConsumableNotesRequestDissolved, ListMultisigTxRequest,
+            GetConsumableNotesRequestDissolved, GetMultisigAccountRequest,
+            GetMultisigAccountRequestDissolved, ListMultisigTxRequest,
             ListMultisigTxRequestDissolved, ProposeMultisigTxRequest,
             ProposeMultisigTxRequestDissolved,
         },
         response::{
-            CreateMultisigAccountResponse, ListMultisigTxResponse, ProposeMultisigTxResponse,
+            CreateMultisigAccountResponse, GetMultisigAccountResponse, ListMultisigTxResponse,
+            ProposeMultisigTxResponse,
         },
     },
 };
