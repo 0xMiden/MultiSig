@@ -11,7 +11,7 @@ on:
   push:
     branches: [main, next]
   pull_request:
-    types: [opened, reopened, synchronize] 
+    types: [opened, reopened, synchronize, ready_for_review] 
 
 permissions:
   contents: read
@@ -20,6 +20,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@main
       - uses: taiki-e/install-action@nextest 
