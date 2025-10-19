@@ -1,11 +1,11 @@
 use core::{num::NonZeroUsize, time::Duration};
 
-use config::{ConfigError, Environment};
+use config::{ConfigError, Environment, File, FileFormat};
 use serde::Deserialize;
-use url::Url;
 
 pub fn get_configuration() -> Result<Config, ConfigError> {
     config::Config::builder()
+        .add_source(File::from_str(include_str!("base_config.ron"), FileFormat::Ron))
         .add_source(
             Environment::with_prefix(Config::CONFIG_ENV_PREFIX)
                 .prefix_separator("_")
@@ -24,7 +24,7 @@ pub struct Config {
 
 #[derive(Deserialize)]
 pub struct AppConfig {
-    pub listen: Url,
+    pub listen: String,
     pub network_id_hrp: String,
 }
 
@@ -39,6 +39,8 @@ pub struct MidenConfig {
     pub node_url: String,
     pub store_path: String,
     pub keystore_path: String,
+
+    #[serde(with = "humantime_serde")]
     pub timeout: Duration,
 }
 

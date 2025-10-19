@@ -1,4 +1,4 @@
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, http::StatusCode};
 use itertools::Itertools;
 use miden_client::{
     Word,
@@ -38,6 +38,10 @@ use crate::{
         },
     },
 };
+
+pub async fn health() -> StatusCode {
+    StatusCode::OK
+}
 
 #[tracing::instrument(skip(app))]
 pub async fn create_multisig_account(

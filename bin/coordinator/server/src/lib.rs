@@ -15,6 +15,7 @@ use miden_multisig_coordinator_engine::{MultisigEngine, Started};
 
 pub fn create_router(app: App) -> Router {
     Router::new()
+        .route("/health", routing::get(routes::health))
         .route(
             "/api/v1/multisig-account/create",
             routing::post(routes::create_multisig_account),

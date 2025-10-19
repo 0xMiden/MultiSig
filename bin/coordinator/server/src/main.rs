@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let axum_handle = {
-        let listener = TcpListener::bind(config.app.listen.to_string()).await?;
+        let listener = TcpListener::bind(config.app.listen).await?;
         let router =
             miden_multisig_coordinator_server::create_router(app).layer(CorsLayer::permissive());
 

@@ -1,0 +1,16 @@
+Config(
+    app: AppConfig(
+        listen: "localhost:59059",
+        network_id_hrp: "mtst",
+    ),
+    db: DbConfig(
+        db_url: "postgres://multisig:multisig_password@localhost:5432/multisig",
+        max_conn: 10,
+    ),
+    miden: MidenConfig(
+        node_url: "https://rpc.testnet.miden.io:443",
+        store_path: "./store",
+        keystore_path: "./keystore",
+        timeout: "30s",
+    ),
+)
