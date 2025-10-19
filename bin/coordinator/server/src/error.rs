@@ -39,6 +39,7 @@ pub(crate) enum AppError {
     #[error("request error: {0}")]
     RequestError(#[from] RequestError),
 
+    #[allow(dead_code)]
     #[error("other error: {0}")]
     Other(Cow<'static, str>),
 }
@@ -51,6 +52,7 @@ impl AppError {
         Self::InvalidAccountIdAddress(address.into())
     }
 
+    #[allow(dead_code)]
     pub fn other<E>(err: E) -> Self
     where
         Cow<'static, str>: From<E>,

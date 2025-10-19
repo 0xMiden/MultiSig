@@ -103,7 +103,10 @@ pub async fn propose_multisig_tx(
 ) -> Result<Json<ProposeMultisigTxResponsePayload>, AppError> {
     let AppDissolved { engine } = app.dissolve();
 
-    let ProposeMultisigTxRequestPayloadDissolved { address, tx_request } = payload.dissolve();
+    let ProposeMultisigTxRequestPayloadDissolved {
+        multisig_account_address: address,
+        tx_request,
+    } = payload.dissolve();
 
     let request = {
         let account_id_address = extract_network_id_account_id_address_pair(&address)

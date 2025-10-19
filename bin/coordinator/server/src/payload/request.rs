@@ -14,7 +14,7 @@ pub struct CreateMultisigAccountRequestPayload {
 
 #[derive(Debug, Dissolve, Deserialize)]
 pub struct ProposeMultisigTxRequestPayload {
-    address: String,
+    multisig_account_address: String,
     tx_request: Bytes,
 }
 
