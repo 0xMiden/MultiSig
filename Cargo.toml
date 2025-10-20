@@ -9,20 +9,20 @@ unsafe_code  = "forbid"
 
 [workspace]
 members = [
-  "bin/coordinator/domain",
-  "bin/coordinator/engine",
-  "bin/coordinator/server",
-  "bin/coordinator/store",
-  "crates/*",
+  "bin/coordinator-server",
+  "crates/coordinator/domain",
+  "crates/coordinator/engine",
+  "crates/coordinator/store",
+  "crates/miden-multisig-client",
 ]
 resolver = "3"
 
 [workspace.dependencies]
 miden-client                      = "0.11.9"
 miden-multisig-client             = { path = "crates/miden-multisig-client" }
-miden-multisig-coordinator-domain = { path = "bin/coordinator/domain" }
-miden-multisig-coordinator-engine = { path = "bin/coordinator/engine" }
-miden-multisig-coordinator-store  = { path = "bin/coordinator/store" }
+miden-multisig-coordinator-domain = { path = "crates/coordinator/domain" }
+miden-multisig-coordinator-engine = { path = "crates/coordinator/engine" }
+miden-multisig-coordinator-store  = { path = "crates/coordinator/store" }
 miden-objects                     = "0.11"
 
 anyhow          = "1"
