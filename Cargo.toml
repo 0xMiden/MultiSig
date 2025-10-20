@@ -28,7 +28,7 @@ miden-objects                     = "0.11"
 anyhow          = "1"
 bon             = { version = "3", default-features = false }
 chrono          = { version = "0.4", default-features = false }
-dissolve-derive = "0.1"
+dissolve-derive = "0.1.2"
 rand            = "0.9"
 serde           = { version = "1", default-features = false }
 serde_with      = { version = "3", default-features = false }
