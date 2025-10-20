@@ -36,11 +36,11 @@
 //! ).await?;
 //! ```
 
-mod errors;
+mod error;
 mod persistence;
 
 pub use self::{
-    errors::MultisigStoreError,
+    error::MultisigStoreError,
     persistence::pool::{DbConn, DbPool, establish_pool},
 };
 
@@ -66,7 +66,7 @@ use miden_objects::{
 use oblux::U63;
 
 use self::{
-    errors::Result,
+    error::Result,
     persistence::{
         record::{
             insert::{
