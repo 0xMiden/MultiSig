@@ -1,4 +1,40 @@
-//! This crate defines the interactions with the persistence layer i.e. the database.
+//! Persistence layer for the Miden multisig coordinator.
+//!
+//! This crate provides database storage and retrieval operations for multisig accounts,
+//! transactions, signatures, and approver information. It acts as the data access layer
+//! for the coordinator, handling all interactions with the PostgreSQL database.
+//!
+//! # Architecture
+//!
+//! The store is built on top of Diesel with async PostgreSQL support, providing:
+//! - Connection pooling via deadpool for efficient resource management
+//! - Transaction support for atomic operations
+//! - Type-safe database queries and conversions
+//!
+//! # Main Components
+//!
+//! - [`MultisigStore`] - The primary interface for database operations
+//! - [`DbPool`] - Connection pool type for managing database connections
+//! - [`DbConn`] - Individual database connection from the pool
+//! - [`MultisigStoreError`] - Error types for store operations
+//!
+//! # Usage
+//!
+//! ```ignore
+//! // Establish a connection pool
+//! let pool = establish_pool(database_url, max_connections).await?;
+//!
+//! // Create the store
+//! let store = MultisigStore::new(pool);
+//!
+//! // Store operations
+//! let account = store.get_multisig_account(network_id, address).await?;
+//! let txs = store.get_txs_by_multisig_account_address_with_status_filter(
+//!     network_id,
+//!     address,
+//!     Some(MultisigTxStatus::Pending)
+//! ).await?;
+//! ```
 
 mod errors;
 mod persistence;
@@ -45,19 +81,41 @@ use self::{
     },
 };
 
-/// Represents a connection pool with PostgreSQL database for multisig operations.
+/// The main store interface for multisig coordinator persistence operations.
+///
+/// `MultisigStore` provides high-level methods for interacting with the database,
+/// managing multisig accounts, transactions, signatures, and approvers.
 pub struct MultisigStore {
     pool: DbPool,
 }
 
 impl MultisigStore {
-    /// Returns a new instance of [MultisigStore] with the specified database URL.
+    /// Creates a new `MultisigStore` instance with the given connection pool.
     pub fn new(pool: DbPool) -> Self {
         MultisigStore { pool }
     }
 }
 
 impl MultisigStore {
+    /// Creates a new multisig account in the database.
+    ///
+    /// This method stores the account details along with all associated approvers
+    /// and their public key commitments in a single database transaction.
+    ///
+    /// # Arguments
+    ///
+    /// * `multisig_account` - A fully configured multisig account with approvers and public key commitments.
+    ///
+    /// # Returns
+    ///
+    /// Returns the created account with timestamp metadata on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database transaction fails
+    /// - An account with the same address already exists
+    /// - Any approver data is invalid
     pub async fn create_multisig_account(
         &self,
         multisig_account: MultisigAccount<WithApprovers, WithPubKeyCommits, ()>,
@@ -114,6 +172,21 @@ impl MultisigStore {
             .map_err(MultisigStoreError::Store)
     }
 
+    /// Creates a new multisig transaction proposal.
+    ///
+    /// This method stores a transaction proposal that requires multiple signatures
+    /// before it can be executed. The transaction is initially created with a "pending" status.
+    ///
+    /// # Returns
+    ///
+    /// Returns the unique transaction ID on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The multisig account doesn't exist
+    /// - Serialization of transaction data fails
+    /// - The database operation fails
     pub async fn create_multisig_tx(
         &self,
         network_id: NetworkId,
@@ -140,6 +213,23 @@ impl MultisigStore {
             .map_err(From::from)
     }
 
+    /// Adds a signature from an approver to a multisig transaction.
+    ///
+    /// This method validates that the approver is authorized to sign the transaction,
+    /// stores the signature, and checks if the signature threshold has been met.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(Some(true))` if the signature was added and the threshold is now met
+    /// - `Ok(Some(false))` if the signature was added but more signatures are needed
+    /// - `Ok(None)` if the approver is not authorized to sign this transaction
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction doesn't exist
+    /// - The database transaction fails
+    /// - Signature serialization fails
     pub async fn add_multisig_tx_signature(
         &self,
         tx_id: &MultisigTxId,
@@ -194,6 +284,16 @@ impl MultisigStore {
             .map_err(MultisigStoreError::Store)
     }
 
+    /// Updates the execution status of a multisig transaction.
+    ///
+    /// This method changes the transaction status (e.g., from pending to success or failure)
+    /// after the transaction has been processed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction ID doesn't exist
+    /// - The database update fails
     pub async fn update_multisig_tx_status_by_id(
         &self,
         tx_id: &MultisigTxId,
@@ -208,6 +308,20 @@ impl MultisigStore {
         Ok(())
     }
 
+    /// Retrieves a multisig account by its address.
+    ///
+    /// This method fetches the basic account information (address, network, kind, threshold)
+    /// but does not include the approvers or public key commitments.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(account)` if found, or `None` if the account doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Stored data cannot be deserialized
     pub async fn get_multisig_account(
         &self,
         network_id: NetworkId,
@@ -245,12 +359,25 @@ impl MultisigStore {
         Ok(Some(multisig_account))
     }
 
-    // TODO: add support to filter on multiple `tx_status_filter`
+    /// Retrieves all transactions for a multisig account, optionally filtered by status.
+    ///
+    /// Fetches transactions associated with a specific account address,
+    /// with optional filtering by execution status (pending, success, failure).
+    ///
+    /// # Returns
+    ///
+    /// Returns a list of transactions matching the criteria.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Transaction data cannot be deserialized
     pub async fn get_txs_by_multisig_account_address_with_status_filter<TSF>(
         &self,
         network_id: NetworkId,
         address: AccountIdAddress,
-        tx_status_filter: TSF,
+        tx_status_filter: TSF, // TODO: add support to filter on multiple `tx_status_filter`
     ) -> Result<Vec<MultisigTx>>
     where
         Option<MultisigTxStatus>: From<TSF>,
@@ -290,6 +417,17 @@ impl MultisigStore {
         }
     }
 
+    /// Retrieves a specific multisig transaction by its ID.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(transaction)` if found, or `None` if the transaction doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Transaction data cannot be deserialized
     pub async fn get_multisig_tx_by_id(&self, id: &MultisigTxId) -> Result<Option<MultisigTx>> {
         store::fetch_tx_with_signature_count_by_id(&mut self.get_conn().await?, id.into())
             .await?
@@ -297,6 +435,19 @@ impl MultisigStore {
             .transpose()
     }
 
+    /// Retrieves an approver by their account address.
+    ///
+    /// This method looks up an approver's information including their public key commitment.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Some(approver)` if found, or `None` if the approver doesn't exist.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Approver data cannot be deserialized
     pub async fn get_approver_by_approver_address(
         &self,
         network_id: NetworkId,
@@ -309,6 +460,24 @@ impl MultisigStore {
             .transpose()
     }
 
+    /// Retrieves all signatures for a transaction along with the transaction details.
+    ///
+    /// This method fetches signatures from all approvers for a specific transaction,
+    /// ordered by the approver index. Approvers who haven't signed yet will have `None`
+    /// in their respective position(s).
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of:
+    /// - A list of optional signatures (one per approver, in order)
+    /// - The transaction details
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The transaction doesn't exist
+    /// - Signature data cannot be deserialized
+    /// - The database query fails
     pub async fn get_signatures_of_all_approvers_with_multisig_tx_by_tx_id(
         &self,
         tx_id: &MultisigTxId,

@@ -366,7 +366,7 @@ impl<AUX> MultisigAccount<WithApprovers, WithPubKeyCommits, AUX> {
     /// Dissolves a fully configured account, extracting all data.
     ///
     /// Returns a tuple of:
-    /// 1. A bare account - (no approvers, no public key commitments, `()` as auxillary data)
+    /// 1. A bare account - (no approvers, no public key commitments, `()` as auxiliary data)
     /// 2. The list of approver addresses
     /// 3. The list of public key commitments
     /// 4. The original auxiliary data
