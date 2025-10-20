@@ -3,7 +3,10 @@
 mod errors;
 mod persistence;
 
-pub use self::{errors::MultisigStoreError, persistence::pool::establish_pool};
+pub use self::{
+    errors::MultisigStoreError,
+    persistence::pool::{DbConn, DbPool, establish_pool},
+};
 
 use core::num::NonZeroU32;
 
@@ -29,7 +32,6 @@ use oblux::U63;
 use self::{
     errors::Result,
     persistence::{
-        pool::{DbConn, DbPool},
         record::{
             insert::{
                 NewApproverRecord, NewMultisigAccountRecord, NewSignatureRecord, NewTxRecord,
