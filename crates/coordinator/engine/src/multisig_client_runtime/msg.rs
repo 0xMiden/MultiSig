@@ -16,7 +16,7 @@ use miden_objects::{
 use tokio::sync::oneshot;
 
 #[allow(clippy::large_enum_variant)]
-pub enum MidenMsg {
+pub enum MultisigClientRuntimeMsg {
     CreateMultisigAccount(CreateMultisigAccount),
     GetConsumableNotes(GetConsumableNotes),
     ProposeMultisigTx(ProposeMultisigTx),

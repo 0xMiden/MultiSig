@@ -1,13 +1,13 @@
 //! # Multisig Coordinator Engine
 //!
-//! This crate provides the core orchestration layer for managing Miden multisig accounts and
+//! This crate provides the core orchestration layer for managing multisig accounts and
 //! transactions in a concurrent web server environment.
 //!
 //! ## Architecture Overview
 //!
 //! The [`MultisigEngine`] orchestrates between two key components:
 //!
-//! 1. `MultisigClientRuntime`: Manages the Miden blockchain client
+//! 1. `MultisigClientRuntime`: Manages the blockchain client
 //!    in a dedicated thread (see [`MultisigClientRuntimeConfig`])
 //! 2. **[`MultisigStore`]**: Provides persistent storage for multisig account and transaction data
 //!
@@ -34,7 +34,7 @@
 //!
 //! ## Why a Separate Thread?
 //!
-//! The Miden [`MultisigClient`] is **neither `Send` nor `Sync`** and this creates
+//! The [`MultisigClient`] is **neither `Send` nor `Sync`** and this creates
 //! a fundamental incompatibility with async runtimes:
 //!
 //! ### Problem 1: Cannot use in tokio directly
@@ -60,7 +60,7 @@
 //! dedicated thread using tokio's [`LocalSet`], which allows running `!Send` futures on a single
 //! thread. Communication happens via:
 //!
-//! - **Command channel**: `mpsc::UnboundedSender<MidenMsg>` (to send requests)
+//! - **Command channel**: `mpsc::UnboundedSender<MultisigClientRuntimeMsg>` (to send requests)
 //! - **Response channels**: `oneshot::Sender<T>` (to receive responses)
 //!
 //! ### Result: `MultisigEngine` becomes `Sync`
@@ -156,7 +156,7 @@ use self::{
     multisig_client_runtime::{
         MultisigClientRuntimeError,
         msg::{
-            CreateMultisigAccount, GetConsumableNotes, MidenMsg, ProcessMultisigTx,
+            CreateMultisigAccount, GetConsumableNotes, MultisigClientRuntimeMsg, ProcessMultisigTx,
             ProposeMultisigTx,
         },
     },
@@ -204,7 +204,7 @@ pub struct Stopped;
 /// - All blockchain operations are available
 /// - Communication happens via message passing channels
 pub struct Started {
-    sender: mpsc::UnboundedSender<MidenMsg>,
+    sender: mpsc::UnboundedSender<MultisigClientRuntimeMsg>,
     handle: JoinHandle<Result<(), MultisigClientRuntimeError>>,
 }
 
@@ -272,7 +272,7 @@ impl MultisigEngine<Started> {
                 .sender(sender)
                 .build();
 
-            (MidenMsg::CreateMultisigAccount(msg), receiver)
+            (MultisigClientRuntimeMsg::CreateMultisigAccount(msg), receiver)
         };
 
         self.send_to_multisig_client_runtime(msg).map_err(|_| {
@@ -320,7 +320,7 @@ impl MultisigEngine<Started> {
                 .sender(sender)
                 .build();
 
-            (MidenMsg::GetConsumableNotes(msg), receiver)
+            (MultisigClientRuntimeMsg::GetConsumableNotes(msg), receiver)
         };
 
         self.send_to_multisig_client_runtime(msg).map_err(|_| {
@@ -372,7 +372,7 @@ impl MultisigEngine<Started> {
                 .sender(sender)
                 .build();
 
-            (MidenMsg::ProposeMultisigTx(msg), receiver)
+            (MultisigClientRuntimeMsg::ProposeMultisigTx(msg), receiver)
         };
 
         self.send_to_multisig_client_runtime(msg).map_err(|_| {
@@ -455,7 +455,7 @@ impl MultisigEngine<Started> {
                     .sender(sender)
                     .build();
 
-                (MidenMsg::ProcessMultisigTx(msg), receiver)
+                (MultisigClientRuntimeMsg::ProcessMultisigTx(msg), receiver)
             };
 
             self.send_to_multisig_client_runtime(msg).map_err(|_| {
@@ -549,7 +549,7 @@ impl MultisigEngine<Started> {
     pub async fn stop_multisig_client_runtime(
         self,
     ) -> Result<MultisigEngine<Stopped>, MultisigEngineError> {
-        self.send_to_multisig_client_runtime(MidenMsg::Shutdown)
+        self.send_to_multisig_client_runtime(MultisigClientRuntimeMsg::Shutdown)
             .map_err(|_| MultisigEngineErrorKind::mpsc_sender("failed to send shutdown msg"))?;
 
         self.runtime
@@ -570,7 +570,10 @@ impl MultisigEngine<Started> {
     }
 
     #[allow(clippy::result_large_err)]
-    fn send_to_multisig_client_runtime(&self, msg: MidenMsg) -> Result<(), SendError<MidenMsg>> {
+    fn send_to_multisig_client_runtime(
+        &self,
+        msg: MultisigClientRuntimeMsg,
+    ) -> Result<(), SendError<MultisigClientRuntimeMsg>> {
         self.runtime.sender.send(msg)
     }
 }

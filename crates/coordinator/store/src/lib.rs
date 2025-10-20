@@ -1,4 +1,4 @@
-//! Persistence layer for the Miden multisig coordinator.
+//! Persistence layer for the multisig coordinator.
 //!
 //! This crate provides database storage and retrieval operations for multisig accounts,
 //! transactions, signatures, and approver information. It acts as the data access layer

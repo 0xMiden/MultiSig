@@ -1,7 +1,7 @@
 //! Domain types for the multisig coordinator.
 //!
 //! This crate provides the core domain models for managing multisig accounts and transactions
-//! in the Miden multisig coordinator system. It includes type-safe builders and state tracking
+//! in the multisig coordinator system. It includes type-safe builders and state tracking
 //! for accounts and transactions.
 
 #![no_std]

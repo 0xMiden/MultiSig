@@ -20,10 +20,10 @@
 //! └───────────────────────┘         └───────────────────────────────┘
 //! ```
 //!
-//! 1. A [`MidenMsg`] is sent from an external thread using a [`mpsc::UnboundedSender`]
+//! 1. A [`MultisigClientRuntimeMsg`] is sent from an external thread using a [`mpsc::UnboundedSender`]
 //! 2. The runtime thread receives the message through the [`mpsc::UnboundedReceiver`]
 //! 3. The runtime performs the blockchain operation using the [`MultisigClient`]
-//! 4. The runtime sends the result back via the [`oneshot::Sender`] that was sent in the [`MidenMsg`]
+//! 4. The runtime sends the result back via the [`oneshot::Sender`] that was sent in the [`MultisigClientRuntimeMsg`]
 //!
 //! ## Thread Safety
 //!
@@ -61,8 +61,8 @@ use self::{
     error::Result,
     msg::{
         CreateMultisigAccount, CreateMultisigAccountDissolved, GetConsumableNotes,
-        GetConsumableNotesDissolved, MidenMsg, ProcessMultisigTx, ProcessMultisigTxDissolved,
-        ProposeMultisigTx, ProposeMultisigTxDissolved,
+        GetConsumableNotesDissolved, MultisigClientRuntimeMsg, ProcessMultisigTx,
+        ProcessMultisigTxDissolved, ProposeMultisigTx, ProposeMultisigTxDissolved,
     },
 };
 
@@ -80,7 +80,7 @@ use self::{
 /// # Thread Lifecycle
 ///
 /// The thread runs until:
-/// - A [`MidenMsg::Shutdown`](msg::MidenMsg::Shutdown) message is received
+/// - A [`MultisigClientRuntimeMsg::Shutdown`](msg::MultisigClientRuntimeMsg::Shutdown) message is received
 /// - An unrecoverable error occurs
 /// - The message channel is closed
 ///
@@ -89,7 +89,7 @@ use self::{
 #[tracing::instrument(skip(msg_receiver))]
 pub fn spawn_new(
     rt: Runtime,
-    msg_receiver: mpsc::UnboundedReceiver<MidenMsg>,
+    msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
     config: MultisigClientRuntimeConfig,
 ) -> JoinHandle<Result<()>> {
     thread::spawn(move || {
@@ -119,7 +119,7 @@ pub struct MultisigClientRuntimeConfig {
 
 #[tracing::instrument(skip(msg_receiver))]
 async fn run_multisig_client_runtime(
-    mut msg_receiver: mpsc::UnboundedReceiver<MidenMsg>,
+    mut msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
     MultisigClientRuntimeConfig {
         node_url,
         store_path,
@@ -148,23 +148,23 @@ async fn run_multisig_client_runtime(
 
     while let Some(msg) = msg_receiver.recv().await {
         match msg {
-            MidenMsg::Shutdown => {
+            MultisigClientRuntimeMsg::Shutdown => {
                 tracing::info!("received shutdown msg, stopping multisig client runtime");
                 break;
             },
-            MidenMsg::GetConsumableNotes(msg) => {
+            MultisigClientRuntimeMsg::GetConsumableNotes(msg) => {
                 client.sync_state().await?;
                 handle_get_consumable_notes(&mut client, msg).await?;
             },
-            MidenMsg::CreateMultisigAccount(msg) => {
+            MultisigClientRuntimeMsg::CreateMultisigAccount(msg) => {
                 handle_create_multisig_account(&mut client, msg).await?;
                 client.sync_state().await?;
             },
-            MidenMsg::ProposeMultisigTx(msg) => {
+            MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
                 client.sync_state().await?;
                 handle_propose_multisig_tx(&mut client, msg).await?;
             },
-            MidenMsg::ProcessMultisigTx(msg) => {
+            MultisigClientRuntimeMsg::ProcessMultisigTx(msg) => {
                 handle_process_multisig_tx(&mut client, msg).await?;
                 client.sync_state().await?;
             },

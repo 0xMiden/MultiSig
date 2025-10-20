@@ -45,7 +45,7 @@ pub enum MultisigClientError {
     TxExecutionError(String),
 }
 
-/// A client for interacting with Miden multisig accounts.
+/// A client for interacting with multisig accounts.
 pub struct MultisigClient<AUTH: TransactionAuthenticator + Sync + 'static> {
     client: Client<AUTH>,
 }
