@@ -29,7 +29,7 @@ use miden_client::{
     transaction::TransactionRequestBuilder,
 };
 use miden_multisig_coordinator_engine::{
-    MidenRuntimeConfig, MultisigEngine, Started,
+    MultisigClientRuntimeConfig, MultisigEngine, Started,
     request::{
         AddSignatureRequest, CreateMultisigAccountRequest, GetConsumableNotesRequest,
         ProposeMultisigTxRequest,
@@ -411,14 +411,14 @@ async fn start_testnet_multisig_engine(temp_dir: &Path) -> MultisigEngine<Starte
 
     let engine = MultisigEngine::new(NetworkId::Testnet, multisig_store);
 
-    let config = MidenRuntimeConfig::builder()
+    let config = MultisigClientRuntimeConfig::builder()
         .node_url("https://rpc.testnet.miden.io:443".parse().unwrap())
         .store_path(temp_dir.join("store"))
         .keystore_path(temp_dir.join("keystore"))
         .timeout(Duration::from_secs(10))
         .build();
 
-    engine.start_miden_runtime(Runtime::new().expect("failed to create tokio runtime"), config)
+    engine.start_multisig_client_runtime(Runtime::new().expect("failed to create tokio runtime"), config)
 }
 
 async fn setup_test_db() -> String {

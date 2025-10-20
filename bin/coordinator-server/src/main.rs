@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 
 use miden_client::account::NetworkId;
-use miden_multisig_coordinator_engine::{MidenRuntimeConfig, MultisigEngine};
+use miden_multisig_coordinator_engine::{MultisigClientRuntimeConfig, MultisigEngine};
 use miden_multisig_coordinator_server::{App, config};
 use miden_multisig_coordinator_store::MultisigStore;
 use tokio::{net::TcpListener, runtime::Builder, task};
@@ -19,15 +19,15 @@ async fn main() -> anyhow::Result<()> {
 
         let network_id = NetworkId::new(&config.app.network_id_hrp)?;
         let rt = Builder::new_current_thread().enable_all().build()?;
-        let miden_rt_config = MidenRuntimeConfig::builder()
+        let multisig_client_rt_config = MultisigClientRuntimeConfig::builder()
             .node_url(config.miden.node_url.parse()?)
             .store_path(config.miden.store_path.into())
             .keystore_path(config.miden.keystore_path.into())
             .timeout(config.miden.timeout)
             .build();
 
-        let engine =
-            MultisigEngine::new(network_id, store).start_miden_runtime(rt, miden_rt_config);
+        let engine = MultisigEngine::new(network_id, store)
+            .start_multisig_client_runtime(rt, multisig_client_rt_config);
 
         App::builder().engine(engine.into()).build()
     };

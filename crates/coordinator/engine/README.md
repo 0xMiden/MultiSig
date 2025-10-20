@@ -6,13 +6,13 @@ Core orchestration layer for the multisig coordinator. The engine manages a Mide
 
 The engine uses a type-state pattern with two states:
 
-- `MultisigEngine<Stopped>` - Initial state before the Miden runtime is started
+- `MultisigEngine<Stopped>` - Initial state before the multisig client runtime is started
 - `MultisigEngine<Started>` - Active state with a running Miden client on a dedicated thread
 
-Communication with the Miden runtime happens asynchronously using:
+Communication with the multisig client runtime happens asynchronously using:
 
-- **unbounded MPSC channel** - Sends requests from the engine to the Miden runtime thread
-- **oneshot channels** - Receive responses back from the Miden runtime for each request
+- **unbounded MPSC channel** - Sends requests from the engine to the multisig client runtime thread
+- **oneshot channels** - Receive responses back from the multisig client runtime for each request
 
 The engine coordinates operations between:
 
@@ -24,22 +24,22 @@ The engine coordinates operations between:
 ```rust
 use std::time::Duration;
 
-use miden_multisig_coordinator_engine::{MultisigEngine, MidenRuntimeConfig};
+use miden_multisig_coordinator_engine::{MultisigEngine, MultisigClientRuntimeConfig};
 
 // create engine in stopped state
 let engine: MultisigEngine<Stopped> = MultisigEngine::new(network_id, store);
 
-// configure miden runtime
-let config = MidenRuntimeConfig::builder()
+// configure multisig client runtime
+let config = MultisigClientRuntimeConfig::builder()
     .node_url("https://rpc.testnet.miden.io:443".parse()?)
     .store_path("./store.sqlite3".into())
     .keystore_path("./keystore".into())
     .timeout(Duration::from_secs(30))
     .build();
 
-// start the miden runtime on a dedicated thread
+// start the multisig client runtime on a dedicated thread
 let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-let engine: MultisigEngine<Started> = engine.start_miden_runtime(rt, config);
+let engine: MultisigEngine<Started> = engine.start_multisig_client_runtime(rt, config);
 ```
 
 ## usage examples
@@ -139,13 +139,13 @@ let notes = engine.get_consumable_notes(request).await?;
 ### stopping the engine
 
 ```rust
-// gracefully shutdown the miden runtime and return to stopped state
-let stopped_engine = engine.stop_miden_runtime().await?;
+// gracefully shutdown the multisig client runtime and return to stopped state
+let stopped_engine = engine.stop_multisig_client_runtime().await?;
 ```
 
 ## workflow
 
-1. **Create account** - Engine sends request to Miden runtime to create account, then persists to database.
-2. **Propose transaction** - Engine validates account exists, sends to Miden runtime to generate transaction summary, stores in database with `Pending` status.
+1. **Create account** - Engine sends request to multisig client runtime to create account, then persists to database.
+2. **Propose transaction** - Engine validates account exists, sends to multisig client runtime to generate transaction summary, stores in database with `Pending` status.
 3. **Add signatures** - Engine validates approver, stores signature, checks if threshold is met.
-4. **Process transaction** - When threshold is met, engine retrieves all signatures from the database, sends to Miden runtime for execution, updates status in the database to `Success` or `Failure` depending on the transaction result.
+4. **Process transaction** - When threshold is met, engine retrieves all signatures from the database, sends to multisig client runtime for execution, updates status in the database to `Success` or `Failure` depending on the transaction result.

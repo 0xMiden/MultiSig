@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use miden_client::ClientError;
 use miden_multisig_client::MultisigClientError;
 
-pub type Result<T, E = MidenRuntimeError> = core::result::Result<T, E>;
+pub type Result<T, E = MultisigClientRuntimeError> = core::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
-pub enum MidenRuntimeError {
+pub enum MultisigClientRuntimeError {
     #[error("client error: {0}")]
     Client(#[from] ClientError),
 
@@ -20,7 +20,7 @@ pub enum MidenRuntimeError {
     Other(Cow<'static, str>),
 }
 
-impl MidenRuntimeError {
+impl MultisigClientRuntimeError {
     pub fn other<E>(err: E) -> Self
     where
         Cow<'static, str>: From<E>,

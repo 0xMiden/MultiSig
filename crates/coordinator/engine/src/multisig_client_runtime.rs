@@ -2,7 +2,7 @@ pub mod msg;
 
 mod error;
 
-pub use self::error::MidenRuntimeError;
+pub use self::error::MultisigClientRuntimeError;
 
 use core::time::Duration;
 
@@ -33,17 +33,17 @@ use self::{
 pub fn spawn_new(
     rt: Runtime,
     msg_receiver: mpsc::UnboundedReceiver<MidenMsg>,
-    config: MidenRuntimeConfig,
+    config: MultisigClientRuntimeConfig,
 ) -> JoinHandle<Result<()>> {
     thread::spawn(move || {
         let local = LocalSet::new();
-        let local_runtime = local.run_until(run_miden_runtime(msg_receiver, config));
+        let local_runtime = local.run_until(run_multisig_client_runtime(msg_receiver, config));
         rt.block_on(local_runtime)
     })
 }
 
 #[derive(Debug, Builder)]
-pub struct MidenRuntimeConfig {
+pub struct MultisigClientRuntimeConfig {
     node_url: Url,
     store_path: PathBuf,
     keystore_path: PathBuf,
@@ -51,23 +51,25 @@ pub struct MidenRuntimeConfig {
 }
 
 #[tracing::instrument(skip(msg_receiver))]
-async fn run_miden_runtime(
+async fn run_multisig_client_runtime(
     mut msg_receiver: mpsc::UnboundedReceiver<MidenMsg>,
-    MidenRuntimeConfig {
+    MultisigClientRuntimeConfig {
         node_url,
         store_path,
         keystore_path,
         timeout,
-    }: MidenRuntimeConfig,
+    }: MultisigClientRuntimeConfig,
 ) -> Result<()> {
     let keystore = FilesystemKeyStore::new(keystore_path)
-        .map_err(|e| MidenRuntimeError::other(e.to_string()))?;
+        .map_err(|e| MultisigClientRuntimeError::other(e.to_string()))?;
 
     let endpoint = node_url.as_str().trim_end_matches('/').try_into().map_err(|e| {
-        MidenRuntimeError::other(format!("failed to parse node url {node_url}: {e}"))
+        MultisigClientRuntimeError::other(format!("failed to parse node url {node_url}: {e}"))
     })?;
 
-    let store_path = store_path.to_str().ok_or(MidenRuntimeError::other("invalid store path"))?;
+    let store_path = store_path
+        .to_str()
+        .ok_or(MultisigClientRuntimeError::other("invalid store path"))?;
 
     let mut client = ClientBuilder::new()
         .tonic_rpc_client(&endpoint, Some(timeout.as_millis() as u64))
@@ -80,7 +82,7 @@ async fn run_miden_runtime(
     while let Some(msg) = msg_receiver.recv().await {
         match msg {
             MidenMsg::Shutdown => {
-                tracing::info!("received shutdown msg, stopping miden runtime");
+                tracing::info!("received shutdown msg, stopping multisig client runtime");
                 break;
             },
             MidenMsg::GetConsumableNotes(msg) => {
@@ -102,7 +104,7 @@ async fn run_miden_runtime(
         }
     }
 
-    tracing::info!("sutting down miden runtime");
+    tracing::info!("shutting down multisig client runtime");
 
     Ok(())
 }
@@ -119,7 +121,7 @@ where
 
     let account = client.setup_account(approvers, threshold.get()).await;
 
-    sender.send(account).map_err(|_| MidenRuntimeError::Sender)
+    sender.send(account).map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
 #[tracing::instrument(skip(client))]
@@ -134,7 +136,7 @@ where
 
     let notes = client.get_consumable_notes(account_id).await?;
 
-    sender.send(notes).map_err(|_| MidenRuntimeError::Sender)
+    sender.send(notes).map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
 #[tracing::instrument(skip(client))]
@@ -151,7 +153,7 @@ where
 
     sender
         .send(tx_summary.map_err(From::from))
-        .map_err(|_| MidenRuntimeError::Sender)
+        .map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
 #[tracing::instrument(skip(client))]
@@ -187,5 +189,5 @@ where
 
     sender
         .send(tx_result.map_err(From::from))
-        .map_err(|_| MidenRuntimeError::Sender)
+        .map_err(|_| MultisigClientRuntimeError::Sender)
 }

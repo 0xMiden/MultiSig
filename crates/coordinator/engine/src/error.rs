@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use miden_multisig_coordinator_store::MultisigStoreError;
 use tokio::sync::oneshot;
 
-use crate::miden_runtime::{
-    MidenRuntimeError,
+use crate::multisig_client_runtime::{
+    MultisigClientRuntimeError,
     msg::{ProcessMultisigTxError, ProposeMultisigTxError},
 };
 
@@ -14,8 +14,8 @@ pub struct MultisigEngineError(#[from] MultisigEngineErrorKind);
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum MultisigEngineErrorKind {
-    #[error("miden runtime error: {0}")]
-    MidenRuntime(#[from] MidenRuntimeError),
+    #[error("multisig client runtime error: {0}")]
+    MultisigClientRuntime(#[from] MultisigClientRuntimeError),
 
     #[error("multisig store error: {0}")]
     MultisigStore(#[from] MultisigStoreError),
