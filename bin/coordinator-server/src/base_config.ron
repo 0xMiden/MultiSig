@@ -9,7 +9,7 @@ Config(
     ),
     miden: MidenConfig(
         node_url: "https://rpc.testnet.miden.io:443",
-        store_path: "./store",
+        store_path: "./store.sqlite3",
         keystore_path: "./keystore",
         timeout: "30s",
     ),
