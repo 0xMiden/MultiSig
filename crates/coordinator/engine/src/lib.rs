@@ -1,4 +1,124 @@
-#![allow(missing_docs)]
+//! # Multisig Coordinator Engine
+//!
+//! This crate provides the core orchestration layer for managing Miden multisig accounts and
+//! transactions in a concurrent web server environment.
+//!
+//! ## Architecture Overview
+//!
+//! The [`MultisigEngine`] orchestrates between two key components:
+//!
+//! 1. `MultisigClientRuntime`: Manages the Miden blockchain client
+//!    in a dedicated thread (see [`MultisigClientRuntimeConfig`])
+//! 2. **[`MultisigStore`]**: Provides persistent storage for multisig account and transaction data
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────┐
+//! │                  Web Server (Axum)                  │
+//! │            Arc<MultisigEngine<Started>>             │
+//! │                    (Send + Sync)                    │
+//! └──────────────────────────┬──────────────────────────┘
+//!                            │
+//!            ┌───────────────┴───────────────┐
+//!            │                               │
+//!            ▼                               ▼
+//! ┌──────────────────────┐       ┌─────────────────────┐
+//! │ MultisigStore        │       │ MultisigClient      │
+//! │ (PostgreSQL)         │       │ Runtime Thread      │
+//! │                      │       │                     │
+//! │  - Accounts          │       │ - dedicated thread  │
+//! │  - Approvers         │       │ - LocalSet          │              
+//! │  - Transactions      │       │ - !Send + !Sync     │
+//! │  - Signatures        │       │ - mpsc channels     │
+//! └──────────────────────┘       └─────────────────────┘
+//! ```
+//!
+//! ## Why a Separate Thread?
+//!
+//! The Miden [`MultisigClient`] is **neither `Send` nor `Sync`** and this creates
+//! a fundamental incompatibility with async runtimes:
+//!
+//! ### Problem 1: Cannot use in tokio directly
+//! ```rust,ignore
+//! // This won't compile
+//! async fn handler(client: MultisigClient) {
+//!     // tokio may move this future across threads
+//!     // but MultisigClient is !Send
+//! }
+//! ```
+//!
+//! ### Problem 2: `Arc<MultisigClient>` doesn't help
+//! ```rust,ignore
+//! // This won't compile either
+//! let client = Arc::new(multisig_client);
+//! // Arc<T> is only Send if T: Send + Sync
+//! // Since MultisigClient is !Sync, Arc<MultisigClient> is !Send
+//! ```
+//!
+//! ### Solution: Dedicated Thread + Message Passing
+//!
+//! The `MultisigClientRuntime` runs the `!Send + !Sync` client in a
+//! dedicated thread using tokio's [`LocalSet`], which allows running `!Send` futures on a single
+//! thread. Communication happens via:
+//!
+//! - **Command channel**: `mpsc::UnboundedSender<MidenMsg>` (to send requests)
+//! - **Response channels**: `oneshot::Sender<T>` (to receive responses)
+//!
+//! ### Result: `MultisigEngine` becomes `Sync`
+//!
+//! The [`MultisigEngine<Started>`] type contains:
+//! - `mpsc::UnboundedSender` - which **is** `Sync`
+//! - `MultisigStore` - which **is** `Sync` (uses async PostgreSQL)
+//! - `JoinHandle` - which **is** `Sync`
+//!
+//! Therefore `MultisigEngine<Started>` **is `Send + Sync`**, and `Arc<MultisigEngine<Started>>`
+//! is both **`Send + Sync`** and **`Clone`**, making it usable in web frameworks like
+//! [axum](https://docs.rs/axum).
+//!
+//! ## State Machine
+//!
+//! The [`MultisigEngine`] uses a type-state pattern for lifecycle management:
+//!
+//! ```text
+//! MultisigEngine<Stopped>
+//!    │
+//!    │ .start_multisig_client_runtime(..)
+//!    │
+//!    ▼
+//! MultisigEngine<Started>
+//!    │
+//!    │ - create_multisig_account()
+//!    │ - propose_multisig_tx()
+//!    │ - add_signature()
+//!    │ - get_multisig_account()
+//!    │ - list_multisig_tx()
+//!    │ - get_consumable_notes()
+//!    │
+//!    │ .stop_multisig_client_runtime()
+//!    │
+//!    ▼
+//! MultisigEngine<Stopped>
+//! ```
+//!
+//! ## Operations
+//!
+//! The engine provides the following operations (available in [`MultisigEngine<Started>`] state):
+//!
+//! - **Account Management**:
+//!   - [`create_multisig_account`](MultisigEngine::create_multisig_account) - Create a new
+//!     multisig account
+//!   - [`get_multisig_account`](MultisigEngine::get_multisig_account) - Retrieve account details
+//!
+//! - **Transaction Management**:
+//!   - [`propose_multisig_tx`](MultisigEngine::propose_multisig_tx) - Propose a new transaction
+//!   - [`add_signature`](MultisigEngine::add_signature) - Add an approver's signature
+//!   - [`list_multisig_tx`](MultisigEngine::list_multisig_tx) - List transactions for an account
+//!
+//! - **Notes**:
+//!   - [`get_consumable_notes`](MultisigEngine::get_consumable_notes) - Get consumable notes
+//!
+//! [`MultisigClient`]: miden_multisig_client::MultisigClient
+//! [`MultisigStore`]: miden_multisig_coordinator_store::MultisigStore
+//! [`LocalSet`]: tokio::task::LocalSet
 
 mod error;
 mod multisig_client_runtime;
@@ -56,30 +176,54 @@ use self::{
     },
 };
 
+/// The main orchestration engine for managing multisig accounts and transactions.
+///
+/// This type uses a type-state pattern with runtime state `R` to ensure correct lifecycle
+/// management. The engine can be in one of two states:
+/// - [`Stopped`]: Runtime thread is not running, only construction operations available
+/// - [`Started`]: Runtime thread is running, all operations available
+///
+/// # Generic Parameters
+///
+/// * `R` - The multisig client runtime state, either [`Stopped`] or [`Started`]
 pub struct MultisigEngine<R> {
     network_id: NetworkId,
     store: MultisigStore,
     runtime: R,
 }
 
+/// Marker type indicating the [`MultisigEngine`] is in the stopped state.
+///
+/// In this state, no blockchain operations can be performed.
 pub struct Stopped;
 
+/// Marker type indicating the [`MultisigEngine`] is in the started state.
+///
+/// In this state:
+/// - The multisig client runtime thread is running
+/// - All blockchain operations are available
+/// - Communication happens via message passing channels
 pub struct Started {
     sender: mpsc::UnboundedSender<MidenMsg>,
     handle: JoinHandle<Result<(), MultisigClientRuntimeError>>,
 }
 
 impl<R> MultisigEngine<R> {
+    /// Returns the network ID this engine is configured for.
     pub fn network_id(&self) -> NetworkId {
         self.network_id
     }
 }
 
 impl MultisigEngine<Stopped> {
+    /// Creates a new [`MultisigEngine<Stopped>`].
     pub fn new(network_id: NetworkId, store: MultisigStore) -> Self {
         Self { network_id, store, runtime: Stopped }
     }
 
+    /// Starts the multisig client runtime thread and transitions to the [`Started`] state.
+    ///
+    /// This spawns a dedicated thread that runs the [`MultisigClient`](miden_multisig_client::MultisigClient).
     pub fn start_multisig_client_runtime(
         self,
         rt: Runtime,
@@ -99,6 +243,19 @@ impl MultisigEngine<Stopped> {
 }
 
 impl MultisigEngine<Started> {
+    /// Creates a new multisig account on the blockchain and persists it in the database.
+    ///
+    /// This operation:
+    /// 1. Sends a request to the runtime thread to create the account on-chain
+    /// 2. Stores the account metadata in the persistent store
+    /// 3. Returns the blockchain account and the coordinator's view of the persisted multisig account
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - Communication with the runtime thread fails
+    /// - The blockchain account creation fails
+    /// - Database storage fails
     pub async fn create_multisig_account(
         &self,
         request: CreateMultisigAccountRequest,
@@ -148,6 +305,7 @@ impl MultisigEngine<Started> {
         Ok(response)
     }
 
+    /// Retrieves consumable notes for a multisig account.
     pub async fn get_consumable_notes(
         &self,
         request: GetConsumableNotesRequest,
@@ -172,6 +330,33 @@ impl MultisigEngine<Started> {
         receiver.await.map_err(MultisigEngineErrorKind::from).map_err(From::from)
     }
 
+    /// Proposes a new multisig transaction.
+    ///
+    /// This is the first step in the multisig transaction flow. The transaction is validated
+    /// and a transaction summary is generated, but the transaction is not yet executed.
+    /// Approvers must add their signatures before the transaction can be processed.
+    ///
+    /// # Transaction Flow
+    ///
+    /// ```text
+    /// 1. propose_multisig_tx() ──> Creates transaction with status: Pending
+    ///                              Stores in database
+    /// 2. add_signature()       ──> Approvers add signatures
+    /// 3. add_signature()       ──> When threshold met, auto-processes
+    ///                              Status: Success or Failure
+    /// ```
+    ///
+    /// # Returns
+    ///
+    /// Returns the transaction ID in the database and the transaction summary.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The multisig account doesn't exist
+    /// - Communication with the runtime thread fails
+    /// - Transaction validation fails
+    /// - Database storage fails
     pub async fn propose_multisig_tx(
         &self,
         request: ProposeMultisigTxRequest,
@@ -217,6 +402,22 @@ impl MultisigEngine<Started> {
         Ok(response)
     }
 
+    /// Adds an approver's signature to a pending multisig transaction.
+    ///
+    /// When the signature threshold is met, the transaction is automatically processed
+    /// and submitted to the blockchain.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(TransactionResult))` - Threshold met, transaction processed successfully
+    /// * `Ok(None)` - Signature added, waiting for more signatures
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The approver is not authorized for this transaction
+    /// - The signature is invalid
+    /// - Database operations fail
     pub async fn add_signature(
         &self,
         request: AddSignatureRequest,
@@ -285,6 +486,10 @@ impl MultisigEngine<Started> {
         Ok(None)
     }
 
+    /// Retrieves a multisig account by its address.
+    ///
+    /// Queries the persistent store for multisig account metadata, including threshold,
+    /// approvers, and public key commitments.
     pub async fn get_multisig_account(
         &self,
         request: GetMultisigAccountRequest,
@@ -304,10 +509,13 @@ impl MultisigEngine<Started> {
         Ok(response)
     }
 
-    // TODO: add pagination support
+    /// Lists multisig transactions for a specific account.
+    ///
+    /// Returns transactions associated with the given account address, optionally
+    /// filtered by status (Pending, Success, Failure).
     pub async fn list_multisig_tx(
         &self,
-        request: ListMultisigTxRequest,
+        request: ListMultisigTxRequest, // TODO: add pagination support
     ) -> Result<ListMultisigTxResponse, MultisigEngineError> {
         let ListMultisigTxRequestDissolved {
             multisig_account_id_address,
@@ -326,6 +534,18 @@ impl MultisigEngine<Started> {
             .map_err(From::from)
     }
 
+    /// Stops the multisig client runtime thread and transitions to [`Stopped`] state.
+    ///
+    /// This sends a shutdown message to the runtime thread and waits for it to
+    /// terminate gracefully. Once stopped, the engine can no longer perform
+    /// blockchain operations.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// - The shutdown message cannot be sent
+    /// - The runtime thread panicked or misbehaved
+    /// - The thread join operation fails
     pub async fn stop_multisig_client_runtime(
         self,
     ) -> Result<MultisigEngine<Stopped>, MultisigEngineError> {

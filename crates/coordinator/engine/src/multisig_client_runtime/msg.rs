@@ -53,10 +53,12 @@ pub struct ProcessMultisigTx {
     sender: oneshot::Sender<Result<TransactionResult, ProcessMultisigTxError>>,
 }
 
+/// Error that occurs when proposing a multisig transaction.
 #[derive(Debug, thiserror::Error)]
 #[error("propose multisig tx error: {0}")]
 pub struct ProposeMultisigTxError(#[from] MultisigClientError);
 
+/// Error that occurs when processing a multisig transaction.
 #[derive(Debug, thiserror::Error)]
 #[error("process multisig tx error: {0}")]
 pub struct ProcessMultisigTxError(#[from] MultisigClientError);

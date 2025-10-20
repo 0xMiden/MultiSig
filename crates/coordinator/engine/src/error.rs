@@ -8,6 +8,7 @@ use crate::multisig_client_runtime::{
     msg::{ProcessMultisigTxError, ProposeMultisigTxError},
 };
 
+/// The main error type for multisig engine operations.
 #[derive(Debug, thiserror::Error)]
 #[error("multisig engine error: {0}")]
 pub struct MultisigEngineError(#[from] MultisigEngineErrorKind);

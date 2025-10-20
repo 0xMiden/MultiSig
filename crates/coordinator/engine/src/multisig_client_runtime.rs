@@ -1,3 +1,40 @@
+//! Multisig client runtime for running the `!Send + !Sync` [`MultisigClient`] client.
+//!
+//! This module provides a dedicated thread environment where the [`MultisigClient`]
+//! can operate safely despite not being thread-safe. It uses tokio's [`LocalSet`] to run
+//! the client's async operations on a single thread, while providing a message-passing
+//! interface for external communication.
+//!
+//! ## Architecture
+//!
+//! The runtime operates as follows:
+//!
+//! ```text
+//!  External Thread (Axum)            Runtime Thread (LocalSet)
+//! ┌───────────────────────┐         ┌───────────────────────────────┐
+//! │ MultisigEngine        │         │ MultisigClient (!Send + !Sync)│
+//! │                       │         │                               │
+//! │ mpsc::UnboundedSender ┼─────────│──> mpsc::UnboundedReceiver    │
+//! │                       │         │                               │
+//! │ oneshot::Receiver <───┼─────────┤─── oneshot::Sender            │
+//! └───────────────────────┘         └───────────────────────────────┘
+//! ```
+//!
+//! 1. A [`MidenMsg`] is sent from an external thread using a [`mpsc::UnboundedSender`]
+//! 2. The runtime thread receives the message through the [`mpsc::UnboundedReceiver`]
+//! 3. The runtime performs the blockchain operation using the [`MultisigClient`]
+//! 4. The runtime sends the result back via the [`oneshot::Sender`] that was sent in the [`MidenMsg`]
+//!
+//! ## Thread Safety
+//!
+//! The runtime ensures thread safety by:
+//! - Running the `!Send + !Sync` client on a single dedicated thread
+//! - Using [`LocalSet`] to prevent the tokio runtime from moving tasks across threads
+//! - Communicating only via thread-safe channels (`mpsc` and `oneshot`)
+//!
+//! [`MultisigClient`]: miden_multisig_client::MultisigClient
+//! [`LocalSet`]: tokio::task::LocalSet
+
 pub mod msg;
 
 mod error;
@@ -29,6 +66,26 @@ use self::{
     },
 };
 
+/// Spawns a new multisig client runtime thread.
+///
+/// This function creates a dedicated thread that runs the [`MultisigClient`] using a tokio
+/// [`LocalSet`]. The thread listens for messages on the provided channel and processes
+/// them using the [`MultisigClient`].
+///
+/// # Returns
+///
+/// A [`JoinHandle`] for the spawned thread, which can be used to wait for thread completion
+/// or detect panics.
+///
+/// # Thread Lifecycle
+///
+/// The thread runs until:
+/// - A [`MidenMsg::Shutdown`](msg::MidenMsg::Shutdown) message is received
+/// - An unrecoverable error occurs
+/// - The message channel is closed
+///
+/// [`MultisigClient`]: miden_multisig_client::MultisigClient
+/// [`LocalSet`]: tokio::task::LocalSet
 #[tracing::instrument(skip(msg_receiver))]
 pub fn spawn_new(
     rt: Runtime,
@@ -42,6 +99,16 @@ pub fn spawn_new(
     })
 }
 
+/// Configuration for the multisig client runtime.
+///
+/// Contains all the parameters needed to initialize and connect to the node.
+///
+/// # Fields
+///
+/// * `node_url` - URL of the node to connect to
+/// * `store_path` - Path to the database for multisig client state
+/// * `keystore_path` - Path to the filesystem keystore for cryptographic keys
+/// * `timeout` - Network request timeout duration
 #[derive(Debug, Builder)]
 pub struct MultisigClientRuntimeConfig {
     node_url: Url,
