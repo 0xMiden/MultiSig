@@ -6,8 +6,8 @@
 //!
 //! # Architecture
 //!
-//! The store is built on top of Diesel with async PostgreSQL support, providing:
-//! - Connection pooling via deadpool for efficient resource management
+//! The store is built on top of [diesel](diesel.rs) with async PostgreSQL support, providing:
+//! - Connection pooling via [deadpool](docs.rs/deadpool) for efficient resource management
 //! - Transaction support for atomic operations
 //! - Type-safe database queries and conversions
 //!
@@ -525,7 +525,10 @@ fn make_multisig_tx(tx_record: TxRecord, signature_count: U63) -> Result<Multisi
     } = tx_record.dissolve();
 
     let (network_id, address) =
-        extract_network_id_account_id_address_pair(&multisig_account_address)?;
+        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
+            &multisig_account_address,
+        )
+        .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
     let tx_request = TransactionRequest::read_from_bytes(&tx_request)
         .map_err(|_| MultisigStoreError::InvalidValue)?;
@@ -563,7 +566,9 @@ fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApp
     let ApproverRecordDissolved { address, pub_key_commit, created_at } =
         approver_record.dissolve();
 
-    let (_, address) = extract_network_id_account_id_address_pair(&address)?;
+    let (_, address) =
+        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&address)
+            .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
     let pub_key_commit = Word::read_from_bytes(&pub_key_commit)
         .map(PublicKey::new)
@@ -578,16 +583,4 @@ fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApp
         .build();
 
     Ok(approver)
-}
-
-fn extract_network_id_account_id_address_pair(
-    bech32: &str,
-) -> Result<(NetworkId, AccountIdAddress)> {
-    let (network_id, Address::AccountId(address)) =
-        Address::from_bech32(bech32).map_err(|_| MultisigStoreError::InvalidValue)?
-    else {
-        return Err(MultisigStoreError::Other("address must be account id address".into()));
-    };
-
-    Ok((network_id, address))
 }

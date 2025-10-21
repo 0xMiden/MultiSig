@@ -21,6 +21,7 @@ miden-client                      = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true, features = ["serde"] }
 miden-multisig-coordinator-engine = { workspace = true }
 miden-multisig-coordinator-store  = { workspace = true }
+miden-multisig-coordinator-utils  = { workspace = true }
 miden-objects                     = { workspace = true }
 openssl-sys                       = { version = "0.9", features = ["vendored"] }
 pq-sys                            = { version = "0.7", features = ["bundled"] }

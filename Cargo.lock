@@ -1933,18 +1933,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "miden-falcon-sign-test"
-version = "0.1.0"
-source = "git+https://github.com/rotorship/miden-falcon-sign-test.git#217cd6805eb332043e5a2318deb8805471087212"
-dependencies = [
- "miden-crypto",
- "miden-objects",
- "miden-tx",
- "rand",
- "rand_chacha",
-]
-
-[[package]]
 name = "miden-formatting"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2060,10 +2048,10 @@ dependencies = [
  "diesel_migrations",
  "dissolve-derive",
  "miden-client",
- "miden-falcon-sign-test",
  "miden-multisig-client",
  "miden-multisig-coordinator-domain",
  "miden-multisig-coordinator-store",
+ "miden-multisig-coordinator-utils",
  "miden-objects",
  "openssl-sys",
  "pq-sys",
@@ -2094,6 +2082,7 @@ dependencies = [
  "miden-multisig-coordinator-domain",
  "miden-multisig-coordinator-engine",
  "miden-multisig-coordinator-store",
+ "miden-multisig-coordinator-utils",
  "miden-objects",
  "openssl-sys",
  "pq-sys",
@@ -2118,11 +2107,24 @@ dependencies = [
  "futures",
  "miden-client",
  "miden-multisig-coordinator-domain",
+ "miden-multisig-coordinator-utils",
  "miden-objects",
  "oblux",
  "thiserror 2.0.17",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "miden-multisig-coordinator-utils"
+version = "0.0.1-pre"
+dependencies = [
+ "miden-crypto",
+ "miden-objects",
+ "miden-tx",
+ "rand",
+ "rand_chacha",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2543,9 +2545,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "openssl-src"
-version = "300.5.3+3.5.4"
+version = "300.5.4+3.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc6bad8cd0233b63971e232cc9c5e83039375b8586d2312f31fda85db8f888c2"
+checksum = "a507b3792995dae9b0df8a1c1e3771e8418b7c2d9f0baeba32e6fe8b06c7cb72"
 dependencies = [
  "cc",
 ]
@@ -4347,9 +4349,9 @@ checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.19"
+version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
+checksum = "462eeb75aeb73aea900253ce739c8e18a67423fadf006037cd3ff27e82748a06"
 
 [[package]]
 name = "unicode-linebreak"

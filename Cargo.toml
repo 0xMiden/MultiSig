@@ -13,6 +13,7 @@ members = [
   "crates/coordinator/domain",
   "crates/coordinator/engine",
   "crates/coordinator/store",
+  "crates/coordinator/utils",
   "crates/miden-multisig-client",
 ]
 resolver = "3"
@@ -23,6 +24,7 @@ miden-multisig-client             = { path = "crates/miden-multisig-client" }
 miden-multisig-coordinator-domain = { path = "crates/coordinator/domain" }
 miden-multisig-coordinator-engine = { path = "crates/coordinator/engine" }
 miden-multisig-coordinator-store  = { path = "crates/coordinator/store" }
+miden-multisig-coordinator-utils  = { path = "crates/coordinator/utils" }
 miden-objects                     = "0.11"
 
 anyhow          = "1"

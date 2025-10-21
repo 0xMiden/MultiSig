@@ -13,6 +13,7 @@ dissolve-derive                   = { workspace = true }
 futures                           = { version = "0.3", default-features = false }
 miden-client                      = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true }
+miden-multisig-coordinator-utils  = { workspace = true }
 miden-objects                     = { workspace = true }
 oblux                             = "0.1"
 thiserror                         = { workspace = true }

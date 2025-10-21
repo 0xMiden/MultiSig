@@ -245,7 +245,7 @@ where
 
     let signatures = signatures
         .into_iter()
-        .map(|s| s.map(miden_falcon_sign_test::turn_sig_into_felt_vec))
+        .map(|s| s.map(miden_multisig_coordinator_utils::rpo_falcon512_signature_into_felt_vec))
         .collect();
 
     let tx_result = client

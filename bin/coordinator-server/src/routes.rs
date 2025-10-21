@@ -2,7 +2,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use itertools::Itertools;
 use miden_client::{
     Word,
-    account::{AccountIdAddress, Address, NetworkId},
+    account::Address,
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_engine::{
@@ -59,7 +59,8 @@ pub async fn create_multisig_account(
             let approvers = approvers
                 .iter()
                 .map(AsRef::as_ref)
-                .map(extract_network_id_account_id_address_pair)
+                .map(miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair)
+                .map(|res| res.map_err(From::from))
                 .map_ok(|(network_id, account_id_address)| {
                     engine_network_id
                         .eq(&network_id)
@@ -113,9 +114,12 @@ pub async fn propose_multisig_tx(
     } = payload.dissolve();
 
     let request = {
-        let account_id_address = extract_network_id_account_id_address_pair(&address)
-            .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
-            .ok_or(AppError::InvalidNetworkId)?;
+        let account_id_address =
+            miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&address)
+                .map(|(network_id, address)| {
+                    engine.network_id().eq(&network_id).then_some(address)
+                })?
+                .ok_or(AppError::InvalidNetworkId)?;
 
         let tx_request = Deserializable::read_from_bytes(&tx_request)
             .map_err(|_| AppError::InvalidTransactionRequest)?;
@@ -146,9 +150,12 @@ pub async fn add_signature(
     let AddSignatureRequestPayloadDissolved { tx_id, approver, signature } = payload.dissolve();
 
     let request = {
-        let approver = extract_network_id_account_id_address_pair(&approver)
-            .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
-            .ok_or(AppError::InvalidNetworkId)?;
+        let approver =
+            miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&approver)
+                .map(|(network_id, address)| {
+                    engine.network_id().eq(&network_id).then_some(address)
+                })?
+                .ok_or(AppError::InvalidNetworkId)?;
 
         let signature =
             Deserializable::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?;
@@ -182,9 +189,11 @@ pub async fn get_multisig_account_details(
         payload.dissolve();
 
     let multisig_account_id_address =
-        extract_network_id_account_id_address_pair(&multisig_account_address)
-            .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
-            .ok_or(AppError::InvalidNetworkId)?;
+        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
+            &multisig_account_address,
+        )
+        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+        .ok_or(AppError::InvalidNetworkId)?;
 
     let request = GetMultisigAccountRequest::builder()
         .multisig_account_id_address(multisig_account_id_address)
@@ -214,9 +223,11 @@ pub async fn list_multisig_tx(
     } = payload.dissolve();
 
     let multisig_account_id_address =
-        extract_network_id_account_id_address_pair(&multisig_account_address)
-            .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
-            .ok_or(AppError::InvalidNetworkId)?;
+        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
+            &multisig_account_address,
+        )
+        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+        .ok_or(AppError::InvalidNetworkId)?;
 
     let tx_status_filter = tx_status_filter
         .as_deref()
@@ -237,16 +248,4 @@ pub async fn list_multisig_tx(
         .build();
 
     Ok(Json(response))
-}
-
-fn extract_network_id_account_id_address_pair(
-    bech32: &str,
-) -> Result<(NetworkId, AccountIdAddress), AppError> {
-    let (network_id, Address::AccountId(address)) = Address::from_bech32(bech32)
-        .map_err(|_| AppError::invalid_account_id_address(bech32.to_string()))?
-    else {
-        return Err(AppError::invalid_account_id_address(bech32.to_string()));
-    };
-
-    Ok((network_id, address))
 }

@@ -11,10 +11,10 @@ workspace = true
 bon                               = { workspace = true }
 dissolve-derive                   = { workspace = true }
 miden-client                      = { workspace = true, features = ["sqlite", "tonic"] }
-miden-falcon-sign-test            = { git = "https://github.com/rotorship/miden-falcon-sign-test.git" }
 miden-multisig-client             = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true }
 miden-multisig-coordinator-store  = { workspace = true }
+miden-multisig-coordinator-utils  = { workspace = true }
 miden-objects                     = { workspace = true }
 thiserror                         = { workspace = true }
 tokio                             = { workspace = true, default-features = false, features = ["sync"] }

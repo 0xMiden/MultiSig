@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use miden_multisig_coordinator_engine::{MultisigEngineError, request::RequestError};
+use miden_multisig_coordinator_utils::AccountIdAddressError;
 use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
@@ -45,13 +46,6 @@ pub(crate) enum AppError {
 }
 
 impl AppError {
-    pub fn invalid_account_id_address<A>(address: A) -> Self
-    where
-        Cow<'static, str>: From<A>,
-    {
-        Self::InvalidAccountIdAddress(address.into())
-    }
-
     #[allow(dead_code)]
     pub fn other<E>(err: E) -> Self
     where
@@ -64,6 +58,12 @@ impl AppError {
 impl From<MultisigEngineError> for AppError {
     fn from(err: MultisigEngineError) -> Self {
         Self::MultisigEngine(err.into())
+    }
+}
+
+impl From<AccountIdAddressError> for AppError {
+    fn from(err: AccountIdAddressError) -> Self {
+        Self::InvalidAccountIdAddress(err.to_string().into())
     }
 }
 
