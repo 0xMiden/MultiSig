@@ -116,6 +116,16 @@ impl MultisigStore {
     /// - The database transaction fails
     /// - An account with the same address already exists
     /// - Any approver data is invalid
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            address = %multisig_account.address().id().to_hex(),
+            network_id = %multisig_account.network_id(),
+            kind = %multisig_account.kind(),
+            threshold = multisig_account.threshold(),
+            approver_count = multisig_account.approvers().len(),
+        ),
+    )]
     pub async fn create_multisig_account(
         &self,
         multisig_account: MultisigAccount<WithApprovers, WithPubKeyCommits, ()>,
@@ -187,6 +197,10 @@ impl MultisigStore {
     /// - The multisig account doesn't exist
     /// - Serialization of transaction data fails
     /// - The database operation fails
+    #[tracing::instrument(
+        skip_all,
+        fields(%network_id, account_id_address = account_id_address.id().to_hex()),
+    )]
     pub async fn create_multisig_tx(
         &self,
         network_id: NetworkId,
@@ -230,6 +244,14 @@ impl MultisigStore {
     /// - The transaction doesn't exist
     /// - The database transaction fails
     /// - Signature serialization fails
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            %tx_id,
+            %network_id,
+            approver_account_id_address = %approver_account_id_address.id().to_hex(),
+        ),
+    )]
     pub async fn add_multisig_tx_signature(
         &self,
         tx_id: &MultisigTxId,
@@ -294,6 +316,7 @@ impl MultisigStore {
     /// Returns an error if:
     /// - The transaction ID doesn't exist
     /// - The database update fails
+    #[tracing::instrument(skip_all, fields(%tx_id, %new_status))]
     pub async fn update_multisig_tx_status_by_id(
         &self,
         tx_id: &MultisigTxId,
@@ -322,6 +345,13 @@ impl MultisigStore {
     /// Returns an error if:
     /// - The database query fails
     /// - Stored data cannot be deserialized
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            %network_id,
+            account_id_address = %account_id_address.id().to_hex(),
+        )
+    )]
     pub async fn get_multisig_account(
         &self,
         network_id: NetworkId,
@@ -373,6 +403,13 @@ impl MultisigStore {
     /// Returns an error if:
     /// - The database query fails
     /// - Transaction data cannot be deserialized
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            %network_id,
+            address = %address.id().to_hex(),
+        ),
+    )]
     pub async fn get_txs_by_multisig_account_address_with_status_filter<TSF>(
         &self,
         network_id: NetworkId,
@@ -428,6 +465,7 @@ impl MultisigStore {
     /// Returns an error if:
     /// - The database query fails
     /// - Transaction data cannot be deserialized
+    #[tracing::instrument(skip_all, fields(%id))]
     pub async fn get_multisig_tx_by_id(&self, id: &MultisigTxId) -> Result<Option<MultisigTx>> {
         store::fetch_tx_with_signature_count_by_id(&mut self.get_conn().await?, id.into())
             .await?
@@ -448,6 +486,13 @@ impl MultisigStore {
     /// Returns an error if:
     /// - The database query fails
     /// - Approver data cannot be deserialized
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            %network_id,
+            approver_account_id_address = %approver_account_id_address.id().to_hex(),
+        )
+    )]
     pub async fn get_approver_by_approver_address(
         &self,
         network_id: NetworkId,
@@ -478,6 +523,7 @@ impl MultisigStore {
     /// - The transaction doesn't exist
     /// - Signature data cannot be deserialized
     /// - The database query fails
+    #[tracing::instrument(skip_all, fields(%tx_id))]
     pub async fn get_signatures_of_all_approvers_with_multisig_tx_by_tx_id(
         &self,
         tx_id: &MultisigTxId,

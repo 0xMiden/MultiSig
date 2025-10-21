@@ -6,10 +6,15 @@ use miden_multisig_coordinator_server::{App, config};
 use miden_multisig_coordinator_store::MultisigStore;
 use tokio::{net::TcpListener, runtime::Builder, task};
 use tower_http::cors::CorsLayer;
+use tracing::{Subscriber, subscriber};
+use tracing_subscriber::{EnvFilter, Registry, fmt::format::FmtSpan, layer::SubscriberExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = task::spawn_blocking(config::get_configuration).await??;
+
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    subscriber::set_global_default(make_tracing_subscriber(env_filter))?;
 
     let app = {
         let store =
@@ -33,9 +38,12 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let axum_handle = {
-        let listener = TcpListener::bind(config.app.listen).await?;
         let router =
             miden_multisig_coordinator_server::create_router(app).layer(CorsLayer::permissive());
+
+        let listener = TcpListener::bind(&config.app.listen)
+            .await
+            .inspect(|_| tracing::info!("server listening at {}", config.app.listen))?;
 
         tokio::spawn(async { axum::serve(listener, router).await })
     };
@@ -43,4 +51,15 @@ async fn main() -> anyhow::Result<()> {
     axum_handle.await??;
 
     Ok(())
+}
+
+fn make_tracing_subscriber(env_filter: EnvFilter) -> impl Subscriber {
+    Registry::default()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(false)
+                .with_line_number(true)
+                .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
+        )
+        .with(env_filter)
 }

@@ -40,11 +40,12 @@ use crate::{
     },
 };
 
+#[tracing::instrument]
 pub async fn health() -> StatusCode {
     StatusCode::OK
 }
 
-#[tracing::instrument(skip(app))]
+#[tracing::instrument(skip_all)]
 pub async fn create_multisig_account(
     State(app): State<App>,
     Json(payload): Json<CreateMultisigAccountRequestPayload>,
@@ -103,6 +104,7 @@ pub async fn create_multisig_account(
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn propose_multisig_tx(
     State(app): State<App>,
     Json(payload): Json<ProposeMultisigTxRequestPayload>,
@@ -142,6 +144,7 @@ pub async fn propose_multisig_tx(
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn add_signature(
     State(app): State<App>,
     Json(payload): Json<AddSignatureRequestPayload>,
@@ -180,6 +183,7 @@ pub async fn add_signature(
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn list_consumable_notes(
     State(app): State<App>,
     Json(payload): Json<ListConsumableNotesRequestPayload>,
@@ -215,6 +219,7 @@ pub async fn list_consumable_notes(
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn get_multisig_account_details(
     State(app): State<App>,
     Json(payload): Json<GetMultisigAccountDetailsRequestPayload>,
@@ -247,6 +252,7 @@ pub async fn get_multisig_account_details(
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn list_multisig_tx(
     State(app): State<App>,
     Json(payload): Json<ListMultisigTxRequestPayload>,

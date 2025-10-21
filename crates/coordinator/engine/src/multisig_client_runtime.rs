@@ -88,7 +88,7 @@ use self::{
 ///
 /// [`MultisigClient`]: miden_multisig_client::MultisigClient
 /// [`LocalSet`]: tokio::task::LocalSet
-#[tracing::instrument(skip(msg_receiver))]
+#[tracing::instrument(skip(rt, msg_receiver))]
 pub fn spawn_new(
     rt: Runtime,
     msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
@@ -178,7 +178,7 @@ async fn run_multisig_client_runtime(
     Ok(())
 }
 
-#[tracing::instrument(skip(client))]
+#[tracing::instrument(skip_all)]
 async fn handle_create_multisig_account<AUTH>(
     client: &mut MultisigClient<AUTH>,
     msg: CreateMultisigAccount,
@@ -193,7 +193,7 @@ where
     sender.send(account).map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
-#[tracing::instrument(skip(client))]
+#[tracing::instrument(skip_all)]
 async fn handle_get_consumable_notes<AUTH>(
     client: &mut MultisigClient<AUTH>,
     msg: GetConsumableNotes,
@@ -208,7 +208,7 @@ where
     sender.send(notes).map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
-#[tracing::instrument(skip(client))]
+#[tracing::instrument(skip_all)]
 async fn handle_propose_multisig_tx<AUTH>(
     client: &mut MultisigClient<AUTH>,
     msg: ProposeMultisigTx,
@@ -225,7 +225,7 @@ where
         .map_err(|_| MultisigClientRuntimeError::Sender)
 }
 
-#[tracing::instrument(skip(client))]
+#[tracing::instrument(skip_all)]
 async fn handle_process_multisig_tx<AUTH>(
     client: &mut MultisigClient<AUTH>,
     msg: ProcessMultisigTx,

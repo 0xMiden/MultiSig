@@ -226,6 +226,7 @@ impl MultisigEngine<Stopped> {
     /// Starts the multisig client runtime thread and transitions to the [`Started`] state.
     ///
     /// This spawns a dedicated thread that runs the [`MultisigClient`](miden_multisig_client::MultisigClient).
+    #[tracing::instrument(skip_all)]
     pub fn start_multisig_client_runtime(
         self,
         rt: Runtime,
@@ -258,6 +259,7 @@ impl MultisigEngine<Started> {
     /// - Communication with the runtime thread fails
     /// - The blockchain account creation fails
     /// - Database storage fails
+    #[tracing::instrument(skip_all)]
     pub async fn create_multisig_account(
         &self,
         request: CreateMultisigAccountRequest,
@@ -308,6 +310,7 @@ impl MultisigEngine<Started> {
     }
 
     /// Retrieves consumable notes for a multisig account.
+    #[tracing::instrument(skip_all)]
     pub async fn get_consumable_notes(
         &self,
         request: GetConsumableNotesRequest,
@@ -359,6 +362,7 @@ impl MultisigEngine<Started> {
     /// - Communication with the runtime thread fails
     /// - Transaction validation fails
     /// - Database storage fails
+    #[tracing::instrument(skip_all)]
     pub async fn propose_multisig_tx(
         &self,
         request: ProposeMultisigTxRequest,
@@ -420,6 +424,7 @@ impl MultisigEngine<Started> {
     /// - The approver is not authorized for this transaction
     /// - The signature is invalid
     /// - Database operations fail
+    #[tracing::instrument(skip_all)]
     pub async fn add_signature(
         &self,
         request: AddSignatureRequest,
@@ -492,6 +497,7 @@ impl MultisigEngine<Started> {
     ///
     /// Queries the persistent store for multisig account metadata, including threshold,
     /// approvers, and public key commitments.
+    #[tracing::instrument(skip_all)]
     pub async fn get_multisig_account(
         &self,
         request: GetMultisigAccountRequest,
@@ -515,6 +521,7 @@ impl MultisigEngine<Started> {
     ///
     /// Returns transactions associated with the given account address, optionally
     /// filtered by status (Pending, Success, Failure).
+    #[tracing::instrument(skip_all)]
     pub async fn list_multisig_tx(
         &self,
         request: ListMultisigTxRequest, // TODO: add pagination support
@@ -548,6 +555,7 @@ impl MultisigEngine<Started> {
     /// - The shutdown message cannot be sent
     /// - The runtime thread panicked or misbehaved
     /// - The thread join operation fails
+    #[tracing::instrument(skip_all)]
     pub async fn stop_multisig_client_runtime(
         self,
     ) -> Result<MultisigEngine<Stopped>, MultisigEngineError> {

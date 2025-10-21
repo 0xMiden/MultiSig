@@ -1,6 +1,6 @@
 //! Multisig transaction domain models and status tracking.
 
-use core::num::NonZeroU32;
+use core::{fmt, num::NonZeroU32};
 
 use bon::Builder;
 use dissolve_derive::Dissolve;
@@ -111,5 +111,12 @@ impl From<&MultisigTxId> for Uuid {
     /// Converts a reference to `MultisigTxId` into a UUID.
     fn from(MultisigTxId(uuid): &MultisigTxId) -> Self {
         *uuid
+    }
+}
+
+impl fmt::Display for MultisigTxId {
+    /// Formats the `MultisigTxId` as its underlying UUID string representation.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
