@@ -180,7 +180,7 @@ pub async fn add_signature(
     Ok(Json(response))
 }
 
-pub async fn get_consumable_notes(
+pub async fn list_consumable_notes(
     State(app): State<App>,
     Json(payload): Json<ListConsumableNotesRequestPayload>,
 ) -> Result<Json<ListConsumableNotesResponsePayload>, AppError> {
@@ -207,7 +207,7 @@ pub async fn get_consumable_notes(
         .get_consumable_notes(request)
         .await?
         .into_iter()
-        .map(|(note_record, _)| note_record.id().to_hex())
+        .map(|(input_note_record, _)| input_note_record.id().to_hex())
         .collect();
 
     let response = ListConsumableNotesResponsePayload::builder().note_ids(note_ids).build();

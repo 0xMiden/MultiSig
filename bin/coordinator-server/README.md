@@ -169,7 +169,7 @@ Note: `tx_result` is either `null` if threshold is not yet met, or contains the 
 
 ---
 
-### get consumable notes
+### list consumable notes
 
 Retrieves consumable notes' note-ids for an account tracked by the coordinator.
 

@@ -22,7 +22,7 @@ pub fn create_router(app: App) -> Router {
         )
         .route("/api/v1/multisig-tx/propose", routing::post(routes::propose_multisig_tx))
         .route("/api/v1/signature/add", routing::post(routes::add_signature))
-        .route("/api/v1/consumable-notes/list", routing::post(routes::get_consumable_notes))
+        .route("/api/v1/consumable-notes/list", routing::post(routes::list_consumable_notes))
         .route(
             "/api/v1/multisig-account/details",
             routing::post(routes::get_multisig_account_details),
