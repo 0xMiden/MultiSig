@@ -26,6 +26,11 @@ pub struct AddSignatureRequestPayload {
 }
 
 #[derive(Debug, Dissolve, Deserialize)]
+pub struct ListConsumableNotesRequestPayload {
+    address: Option<String>,
+}
+
+#[derive(Debug, Dissolve, Deserialize)]
 pub struct GetMultisigAccountDetailsRequestPayload {
     multisig_account_address: String,
 }

@@ -169,6 +169,42 @@ Note: `tx_result` is either `null` if threshold is not yet met, or contains the 
 
 ---
 
+### get consumable notes
+
+Retrieves consumable notes' note-ids for an account tracked by the coordinator.
+
+**Endpoint:** `POST /api/v1/consumable-notes/list`
+
+```bash
+# get consumable notes for a specific account
+curl -X POST http://localhost:59059/api/v1/consumable-notes/list \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": "mtst1xyz..."
+  }'
+
+# get all consumable notes (across all accounts)
+curl -X POST http://localhost:59059/api/v1/consumable-notes/list \
+  -H "Content-Type: application/json" \
+  -d '{
+    "address": null
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "note_ids": [
+    "0xabc123...",
+    "0xdef456...",
+    "0x789ghi..."
+  ]
+}
+```
+
+---
+
 ### get multisig account details
 
 Retrieves details of a multisig account.

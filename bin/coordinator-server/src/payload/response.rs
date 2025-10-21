@@ -25,6 +25,11 @@ pub struct AddSignatureResponsePayload {
 }
 
 #[derive(Debug, Builder, Serialize)]
+pub struct ListConsumableNotesResponsePayload {
+    note_ids: Vec<String>,
+}
+
+#[derive(Debug, Builder, Serialize)]
 pub struct GetMultisigAccountDetailsResponsePayload {
     multisig_account: MultisigAccountPayload,
 }

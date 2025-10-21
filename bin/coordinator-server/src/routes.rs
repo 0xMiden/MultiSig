@@ -7,8 +7,8 @@ use miden_client::{
 };
 use miden_multisig_coordinator_engine::{
     request::{
-        AddSignatureRequest, CreateMultisigAccountRequest, GetMultisigAccountRequest,
-        ListMultisigTxRequest, ProposeMultisigTxRequest, RequestError,
+        AddSignatureRequest, CreateMultisigAccountRequest, GetConsumableNotesRequest,
+        GetMultisigAccountRequest, ListMultisigTxRequest, ProposeMultisigTxRequest, RequestError,
     },
     response::{
         CreateMultisigAccountResponse, CreateMultisigAccountResponseDissolved,
@@ -27,14 +27,15 @@ use crate::{
             AddSignatureRequestPayload, AddSignatureRequestPayloadDissolved,
             CreateMultisigAccountRequestPayload, CreateMultisigAccountRequestPayloadDissolved,
             GetMultisigAccountDetailsRequestPayload,
-            GetMultisigAccountDetailsRequestPayloadDissolved, ListMultisigTxRequestPayload,
+            GetMultisigAccountDetailsRequestPayloadDissolved, ListConsumableNotesRequestPayload,
+            ListConsumableNotesRequestPayloadDissolved, ListMultisigTxRequestPayload,
             ListMultisigTxRequestPayloadDissolved, ProposeMultisigTxRequestPayload,
             ProposeMultisigTxRequestPayloadDissolved,
         },
         response::{
             AddSignatureResponsePayload, CreateMultisigAccountResponsePayload,
-            GetMultisigAccountDetailsResponsePayload, ListMultisigTxResponsePayload,
-            ProposeMultisigTxResponsePayload,
+            GetMultisigAccountDetailsResponsePayload, ListConsumableNotesResponsePayload,
+            ListMultisigTxResponsePayload, ProposeMultisigTxResponsePayload,
         },
     },
 };
@@ -175,6 +176,41 @@ pub async fn add_signature(
         .map(From::from);
 
     let response = AddSignatureResponsePayload::builder().maybe_tx_result(tx_result).build();
+
+    Ok(Json(response))
+}
+
+pub async fn get_consumable_notes(
+    State(app): State<App>,
+    Json(payload): Json<ListConsumableNotesRequestPayload>,
+) -> Result<Json<ListConsumableNotesResponsePayload>, AppError> {
+    let AppDissolved { engine } = app.dissolve();
+
+    let ListConsumableNotesRequestPayloadDissolved { address } = payload.dissolve();
+
+    let account_id_address = address
+        .as_deref()
+        .map(miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair)
+        .transpose()?
+        .map(|(network_id, address)| {
+            engine
+                .network_id()
+                .eq(&network_id)
+                .then_some(address)
+                .ok_or(AppError::InvalidNetworkId)
+        })
+        .transpose()?;
+
+    let request = GetConsumableNotesRequest::builder().maybe_address(account_id_address).build();
+
+    let note_ids = engine
+        .get_consumable_notes(request)
+        .await?
+        .into_iter()
+        .map(|(note_record, _)| note_record.id().to_hex())
+        .collect();
+
+    let response = ListConsumableNotesResponsePayload::builder().note_ids(note_ids).build();
 
     Ok(Json(response))
 }
