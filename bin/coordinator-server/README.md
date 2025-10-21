@@ -58,6 +58,10 @@ export MIDENMULTISIG_MIDEN__KEYSTORE_PATH="./keystore"
 export MIDENMULTISIG_MIDEN__TIMEOUT="60s"
 ```
 
+## database setup
+
+Before starting the server, ensure database migrations have been run. See the [database migrations section](../../crates/coordinator/store/README.md#database-migrations) for detailed instructions.
+
 ## running the server
 
 ```bash

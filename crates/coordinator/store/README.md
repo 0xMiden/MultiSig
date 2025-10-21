@@ -1,12 +1,32 @@
 # store
 
-Persistence layer for multisig coordinator using PostgreSQL and [Diesel ORM](diesel.rs).
+Persistence layer for multisig coordinator using PostgreSQL and [diesel](diesel.rs).
+
+## database migrations
+
+Use [diesel-cli](https://diesel.rs) to manage database migrations.
+
+### installing diesel-cli
+
+For PostgreSQL-only installation:
+
+```bash
+cargo install diesel_cli --no-default-features --features postgres
+```
+
+For more details, see <https://diesel.rs/guides/getting-started#installing-diesel-cli>
+
+### running migrations
+
+To apply all pending migrations:
+
+```bash
+diesel migration run --database-url="postgres://multisig:multisig_password@localhost:5432/multisig"
+```
 
 ## establishing connection pool
 
 ```rust
-use core::num::NonZeroUsize;
-
 let pool = miden_multisig_coordinator_store::establish_pool("postgresql://localhost/multisig", 10.try_into()?).await?;
 
 let store = MultisigStore::new(pool);
@@ -23,7 +43,7 @@ let account = MultisigAccount::builder()
     .address(account_id_address)
     .network_id(network_id)
     .kind(AccountStorageMode::Public)
-    .threshold(NonZeroU32::new(2).unwrap())
+    .threshold(2.try_into()?)
     .aux(())
     .build()
     .with_approvers(approver_addresses)?
