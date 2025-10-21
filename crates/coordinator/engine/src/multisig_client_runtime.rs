@@ -20,10 +20,12 @@
 //! └───────────────────────┘         └───────────────────────────────┘
 //! ```
 //!
-//! 1. A [`MultisigClientRuntimeMsg`] is sent from an external thread using a [`mpsc::UnboundedSender`]
-//! 2. The runtime thread receives the message through the [`mpsc::UnboundedReceiver`]
-//! 3. The runtime performs the blockchain operation using the [`MultisigClient`]
-//! 4. The runtime sends the result back via the [`oneshot::Sender`] that was sent in the [`MultisigClientRuntimeMsg`]
+//! 1. A [`MultisigClientRuntimeMsg`] is sent from an external thread using a
+//!    [`mpsc::UnboundedSender`].
+//! 2. The runtime thread receives the message through the [`mpsc::UnboundedReceiver`].
+//! 3. The runtime performs the blockchain operation using the [`MultisigClient`].
+//! 4. The runtime sends the result back via the [`oneshot::Sender`] that was sent in the
+//!    [`MultisigClientRuntimeMsg`].
 //!
 //! ## Thread Safety
 //!
@@ -80,7 +82,7 @@ use self::{
 /// # Thread Lifecycle
 ///
 /// The thread runs until:
-/// - A [`MultisigClientRuntimeMsg::Shutdown`](msg::MultisigClientRuntimeMsg::Shutdown) message is received
+/// - A [`MultisigClientRuntimeMsg::Shutdown`](MultisigClientRuntimeMsg::Shutdown) message is received
 /// - An unrecoverable error occurs
 /// - The message channel is closed
 ///

@@ -9,7 +9,7 @@
 //!
 //! 1. `MultisigClientRuntime`: Manages the blockchain client
 //!    in a dedicated thread (see [`MultisigClientRuntimeConfig`])
-//! 2. **[`MultisigStore`]**: Provides persistent storage for multisig account and transaction data
+//! 2. [`MultisigStore`]: Provides persistent storage for multisig account and transaction data
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────┐
@@ -34,24 +34,24 @@
 //!
 //! ## Why a Separate Thread?
 //!
-//! The [`MultisigClient`] is **neither `Send` nor `Sync`** and this creates
-//! a fundamental incompatibility with async runtimes:
+//! The [`MultisigClient`] is **neither `Send` nor `Sync`** and this creates a fundamental
+//! incompatibility with async runtimes:
 //!
 //! ### Problem 1: Cannot use in tokio directly
 //! ```rust,ignore
 //! // This won't compile
 //! async fn handler(client: MultisigClient) {
-//!     // tokio may move this future across threads
-//!     // but MultisigClient is !Send
+//!     // tokio may move this future across threads but MultisigClient is !Send
 //! }
 //! ```
 //!
 //! ### Problem 2: `Arc<MultisigClient>` doesn't help
 //! ```rust,ignore
 //! // This won't compile either
-//! let client = Arc::new(multisig_client);
-//! // Arc<T> is only Send if T: Send + Sync
 //! // Since MultisigClient is !Sync, Arc<MultisigClient> is !Send
+//! async fn handler(client: Arc<MultisigClient>) { // Arc<T> is only Send if T: Send + Sync
+//!     // tokio may move this future across threads but Arc<MultisigClient> is !Send
+//! }
 //! ```
 //!
 //! ### Solution: Dedicated Thread + Message Passing
@@ -66,12 +66,12 @@
 //! ### Result: `MultisigEngine` becomes `Sync`
 //!
 //! The [`MultisigEngine<Started>`] type contains:
-//! - `mpsc::UnboundedSender` - which **is** `Sync`
-//! - `MultisigStore` - which **is** `Sync` (uses async PostgreSQL)
-//! - `JoinHandle` - which **is** `Sync`
+//! - `mpsc::UnboundedSender` which is `Send + Sync`
+//! - `MultisigStore` which is `Send + Sync` (uses [diesel-async](https://docs.rs/diesel-async))
+//! - `JoinHandle` which is `Send + Sync`
 //!
-//! Therefore `MultisigEngine<Started>` **is `Send + Sync`**, and `Arc<MultisigEngine<Started>>`
-//! is both **`Send + Sync`** and **`Clone`**, making it usable in web frameworks like
+//! Therefore `MultisigEngine<Started>` is `Send + Sync`, and `Arc<MultisigEngine<Started>>`
+//! is both `Send + Sync` and `Clone`, making it usable in web frameworks like
 //! [axum](https://docs.rs/axum).
 //!
 //! ## State Machine
@@ -92,6 +92,8 @@
 //!    │ - get_multisig_account()
 //!    │ - list_multisig_tx()
 //!    │ - get_consumable_notes()
+//!    │
+//!    │
 //!    │
 //!    │ .stop_multisig_client_runtime()
 //!    │
