@@ -119,7 +119,7 @@ pub struct MultisigClientRuntimeConfig {
     timeout: Duration,
 }
 
-#[tracing::instrument(skip(msg_receiver))]
+#[tracing::instrument(skip_all)]
 async fn run_multisig_client_runtime(
     mut msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
     MultisigClientRuntimeConfig {
@@ -156,18 +156,18 @@ async fn run_multisig_client_runtime(
             },
             MultisigClientRuntimeMsg::GetConsumableNotes(msg) => {
                 client.sync_state().await?;
-                handle_get_consumable_notes(&mut client, msg).await?;
+                let _ = handle_get_consumable_notes(&mut client, msg).await;
             },
             MultisigClientRuntimeMsg::CreateMultisigAccount(msg) => {
-                handle_create_multisig_account(&mut client, msg).await?;
+                let _ = handle_create_multisig_account(&mut client, msg).await;
                 client.sync_state().await?;
             },
             MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
                 client.sync_state().await?;
-                handle_propose_multisig_tx(&mut client, msg).await?;
+                let _ = handle_propose_multisig_tx(&mut client, msg).await;
             },
             MultisigClientRuntimeMsg::ProcessMultisigTx(msg) => {
-                handle_process_multisig_tx(&mut client, msg).await?;
+                let _ = handle_process_multisig_tx(&mut client, msg).await;
                 client.sync_state().await?;
             },
         }
@@ -190,7 +190,9 @@ where
 
     let account = client.setup_account(approvers, threshold.get()).await;
 
-    sender.send(account).map_err(|_| MultisigClientRuntimeError::Sender)
+    let _ = sender.send(account);
+
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -205,7 +207,9 @@ where
 
     let notes = client.get_consumable_notes(account_id).await?;
 
-    sender.send(notes).map_err(|_| MultisigClientRuntimeError::Sender)
+    let _ = sender.send(notes);
+
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -220,9 +224,9 @@ where
 
     let tx_summary = client.propose_multisig_transaction(account_id, tx_request).await;
 
-    sender
-        .send(tx_summary.map_err(From::from))
-        .map_err(|_| MultisigClientRuntimeError::Sender)
+    let _ = sender.send(tx_summary.map_err(From::from));
+
+    Ok(())
 }
 
 #[tracing::instrument(skip_all)]
@@ -256,7 +260,7 @@ where
         client.submit_transaction(tx_result.clone()).await?;
     }
 
-    sender
-        .send(tx_result.map_err(From::from))
-        .map_err(|_| MultisigClientRuntimeError::Sender)
+    let _ = sender.send(tx_result.map_err(From::from));
+
+    Ok(())
 }
