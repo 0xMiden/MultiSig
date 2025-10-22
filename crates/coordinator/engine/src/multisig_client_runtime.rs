@@ -156,18 +156,18 @@ async fn run_multisig_client_runtime(
             },
             MultisigClientRuntimeMsg::GetConsumableNotes(msg) => {
                 client.sync_state().await?;
-                let _ = handle_get_consumable_notes(&mut client, msg).await;
+                let _ = handle_get_consumable_notes(&client, msg).await;
             },
             MultisigClientRuntimeMsg::CreateMultisigAccount(msg) => {
-                let _ = handle_create_multisig_account(&mut client, msg).await;
+                handle_create_multisig_account(&mut client, msg).await?;
                 client.sync_state().await?;
             },
             MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
                 client.sync_state().await?;
-                let _ = handle_propose_multisig_tx(&mut client, msg).await;
+                handle_propose_multisig_tx(&mut client, msg).await?;
             },
             MultisigClientRuntimeMsg::ProcessMultisigTx(msg) => {
-                let _ = handle_process_multisig_tx(&mut client, msg).await;
+                handle_process_multisig_tx(&mut client, msg).await?;
                 client.sync_state().await?;
             },
         }
@@ -197,7 +197,7 @@ where
 
 #[tracing::instrument(skip_all)]
 async fn handle_get_consumable_notes<AUTH>(
-    client: &mut MultisigClient<AUTH>,
+    client: &MultisigClient<AUTH>,
     msg: GetConsumableNotes,
 ) -> Result<()>
 where
