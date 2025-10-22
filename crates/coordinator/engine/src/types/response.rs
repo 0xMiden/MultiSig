@@ -3,6 +3,7 @@
 use dissolve_derive::Dissolve;
 use miden_client::account::Account;
 use miden_multisig_coordinator_domain::{
+    MultisigApprover,
     account::MultisigAccount,
     tx::{MultisigTx, MultisigTxId},
 };
@@ -37,6 +38,13 @@ pub struct GetMultisigAccountResponse {
     multisig_account: Option<MultisigAccount>,
 }
 
+/// Response from listing approvers for a multisig account.
+#[derive(Debug, Dissolve)]
+pub struct ListMultisigApproverResponse {
+    /// List of approvers matching the query criteria
+    approvers: Vec<MultisigApprover>,
+}
+
 /// Response from listing multisig transactions.
 #[derive(Debug, Dissolve)]
 pub struct ListMultisigTxResponse {
@@ -65,6 +73,14 @@ impl GetMultisigAccountResponse {
     #[builder]
     pub(crate) fn new(multisig_account: Option<MultisigAccount>) -> Self {
         Self { multisig_account }
+    }
+}
+
+#[bon::bon]
+impl ListMultisigApproverResponse {
+    #[builder]
+    pub(crate) fn new(approvers: Vec<MultisigApprover>) -> Self {
+        Self { approvers }
     }
 }
 

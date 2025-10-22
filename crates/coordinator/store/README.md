@@ -80,6 +80,15 @@ let threshold_met = store.add_multisig_tx_signature(
 let account = store.get_multisig_account(network_id, account_address).await?;
 ```
 
+### get approvers by multisig account
+
+```rust
+let approvers = store.get_approvers_by_multisig_account_address(
+    network_id,
+    multisig_account_address,
+).await?;
+```
+
 ### get transactions by account with status filter
 
 ```rust

@@ -126,6 +126,11 @@ mod error;
 mod multisig_client_runtime;
 mod types;
 
+use crate::types::{
+    request::{ListMultisigApproverRequest, ListMultisigApproverRequestDissolved},
+    response::ListMultisigApproverResponse,
+};
+
 pub use self::{
     error::MultisigEngineError,
     multisig_client_runtime::MultisigClientRuntimeConfig,
@@ -517,7 +522,30 @@ impl MultisigEngine<Started> {
         Ok(response)
     }
 
-    /// Lists multisig transactions for a specific account.
+    /// Lists all approvers for a specific multisig account.
+    ///
+    /// Retrieves the list of approvers associated with the given multisig account address,
+    /// including their addresses and public key commitments.
+    #[tracing::instrument(skip_all)]
+    pub async fn list_multisig_approvers(
+        &self,
+        request: ListMultisigApproverRequest,
+    ) -> Result<ListMultisigApproverResponse, MultisigEngineError> {
+        let ListMultisigApproverRequestDissolved { multisig_account_id_address } =
+            request.dissolve();
+
+        self.store
+            .get_approvers_by_multisig_account_address(
+                self.network_id(),
+                multisig_account_id_address,
+            )
+            .await
+            .map(|approvers| ListMultisigApproverResponse::builder().approvers(approvers).build())
+            .map_err(MultisigEngineErrorKind::from)
+            .map_err(From::from)
+    }
+
+    /// Lists multisig transactions for a specific multisig account.
     ///
     /// Returns transactions associated with the given account address, optionally
     /// filtered by status (Pending, Success, Failure).

@@ -6,8 +6,9 @@ use core::num::NonZeroU32;
 use bon::Builder;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use miden_client::{account::Address, utils::Serializable};
+use miden_client::{Word, account::Address, utils::Serializable};
 use miden_multisig_coordinator_domain::{
+    MultisigApprover, MultisigApproverDissolved,
     account::MultisigAccount,
     tx::{MultisigTx, MultisigTxDissolved, MultisigTxStatus},
 };
@@ -19,6 +20,14 @@ pub struct MultisigAccountPayload {
     address: String,
     kind: String,
     threshold: NonZeroU32,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Builder, Serialize)]
+pub struct MultisigApproverPayload {
+    address: String,
+    pub_key_commit: Bytes,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
@@ -51,6 +60,20 @@ impl From<MultisigAccount> for MultisigAccountPayload {
             .threshold(account.threshold())
             .created_at(account.aux().created_at())
             .updated_at(account.aux().updated_at())
+            .build()
+    }
+}
+
+impl From<MultisigApprover> for MultisigApproverPayload {
+    fn from(approver: MultisigApprover) -> Self {
+        let MultisigApproverDissolved { address, network_id, pub_key_commit, aux } =
+            approver.dissolve();
+
+        Self::builder()
+            .address(Address::AccountId(address).to_bech32(network_id))
+            .pub_key_commit(Word::from(pub_key_commit).to_bytes().into())
+            .created_at(aux.created_at())
+            .updated_at(aux.updated_at())
             .build()
     }
 }

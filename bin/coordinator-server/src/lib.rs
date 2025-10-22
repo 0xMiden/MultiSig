@@ -175,6 +175,40 @@ use miden_multisig_coordinator_engine::{MultisigEngine, Started};
 ///
 /// ---
 ///
+/// ## List Approvers
+///
+/// **`POST /api/v1/multisig-account/approver/list`** - Lists all approvers for a specific multisig account.
+///
+/// ```bash
+/// curl -X POST http://localhost:59059/api/v1/multisig-account/approver/list \
+///   -H "Content-Type: application/json" \
+///   -d '{
+///     "multisig_account_address": "mtst1xyz..."
+///   }'
+/// ```
+///
+/// Response:
+/// ```json
+/// {
+///   "approvers": [
+///     {
+///       "address": "mtst1abc...",
+///       "pub_key_commit": "<base64_encoded_public_key_1>"
+///     },
+///     {
+///       "address": "mtst1def...",
+///       "pub_key_commit": "<base64_encoded_public_key_2>"
+///     },
+///     {
+///       "address": "mtst1ghi...",
+///       "pub_key_commit": "<base64_encoded_public_key_3>"
+///     }
+///   ]
+/// }
+/// ```
+///
+/// ---
+///
 /// ## List Transactions
 ///
 /// **`POST /api/v1/multisig-tx/list`** - Lists all transactions for a multisig account,
@@ -231,6 +265,10 @@ pub fn create_router(app: App) -> Router {
         .route(
             "/api/v1/multisig-account/details",
             routing::post(routes::get_multisig_account_details),
+        )
+        .route(
+            "/api/v1/multisig-account/approver/list",
+            routing::post(routes::list_multisig_approvers),
         )
         .route("/api/v1/multisig-tx/list", routing::post(routes::list_multisig_tx))
         .with_state(app)

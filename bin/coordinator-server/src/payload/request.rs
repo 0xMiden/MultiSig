@@ -36,6 +36,11 @@ pub struct GetMultisigAccountDetailsRequestPayload {
 }
 
 #[derive(Debug, Dissolve, Deserialize)]
+pub struct ListMultisigApproverRequestPayload {
+    multisig_account_address: String,
+}
+
+#[derive(Debug, Dissolve, Deserialize)]
 pub struct ListMultisigTxRequestPayload {
     multisig_account_address: String,
     tx_status_filter: Option<String>,

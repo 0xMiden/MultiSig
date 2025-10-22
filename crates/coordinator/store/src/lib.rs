@@ -389,6 +389,25 @@ impl MultisigStore {
         Ok(Some(multisig_account))
     }
 
+    pub async fn get_approvers_by_multisig_account_address(
+        &self,
+        network_id: NetworkId,
+        multisig_account_id_address: AccountIdAddress,
+    ) -> Result<Vec<MultisigApprover>> {
+        let conn = &mut self.get_conn().await?;
+
+        let multisig_account_address =
+            Address::AccountId(multisig_account_id_address).to_bech32(network_id);
+
+        store::stream_approvers_by_multisig_account_address(conn, &multisig_account_address)
+            .await?
+            .map_ok(make_multisig_approver)
+            .map_err(From::from)
+            .map(Result::flatten)
+            .try_collect()
+            .await
+    }
+
     /// Retrieves all transactions for a multisig account, optionally filtered by status.
     ///
     /// Fetches transactions associated with a specific account address,
@@ -612,7 +631,7 @@ fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApp
     let ApproverRecordDissolved { address, pub_key_commit, created_at } =
         approver_record.dissolve();
 
-    let (_, address) =
+    let (network_id, address) =
         miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&address)
             .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
@@ -624,6 +643,7 @@ fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApp
 
     let approver = MultisigApprover::builder()
         .address(address)
+        .network_id(network_id)
         .pub_key_commit(pub_key_commit)
         .aux(timestamps)
         .build();

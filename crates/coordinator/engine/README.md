@@ -109,6 +109,19 @@ if let Some(account) = maybe_account {
 }
 ```
 
+### list approvers
+
+```rust
+use miden_multisig_coordinator_engine::request::ListMultisigApproverRequest;
+
+let request = ListMultisigApproverRequest::builder()
+    .multisig_account_id_address(multisig_account_address)
+    .build();
+
+let response = engine.list_multisig_approvers(request).await?;
+let approvers = response.dissolve();
+```
+
 ### list transactions
 
 ```rust

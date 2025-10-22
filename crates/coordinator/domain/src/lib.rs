@@ -17,7 +17,7 @@ mod with_serde;
 use bon::Builder;
 use chrono::{DateTime, Utc};
 use dissolve_derive::Dissolve;
-use miden_client::account::AccountIdAddress;
+use miden_client::account::{AccountIdAddress, NetworkId};
 use miden_objects::crypto::dsa::rpo_falcon512::{PublicKey, Signature};
 
 #[cfg(feature = "serde")]
@@ -52,6 +52,10 @@ pub struct MultisigApprover<AUX = Timestamps> {
     /// The account address of the approver.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
     address: AccountIdAddress,
+
+    /// The network this account belongs to.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
+    network_id: NetworkId,
 
     /// The public key commitment used for signature verification.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::pub_key_commit"))]

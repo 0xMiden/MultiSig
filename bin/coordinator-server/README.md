@@ -239,6 +239,43 @@ curl -X POST http://localhost:59059/api/v1/multisig-account/details \
 
 ---
 
+### list approvers
+
+Lists all approvers for a specific multisig account.
+
+**Endpoint:** `POST /api/v1/multisig-account/approver/list`
+
+```bash
+curl -X POST http://localhost:59059/api/v1/multisig-account/approver/list \
+  -H "Content-Type: application/json" \
+  -d '{
+    "multisig_account_address": "mtst1xyz..."
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "approvers": [
+    {
+      "address": "mtst1abc...",
+      "pub_key_commit": "<base64_encoded_public_key_1>"
+    },
+    {
+      "address": "mtst1def...",
+      "pub_key_commit": "<base64_encoded_public_key_2>"
+    },
+    {
+      "address": "mtst1ghi...",
+      "pub_key_commit": "<base64_encoded_public_key_3>"
+    }
+  ]
+}
+```
+
+---
+
 ### list transactions
 
 Lists all transactions for a multisig account, optionally filtered by status.
