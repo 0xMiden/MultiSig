@@ -163,6 +163,7 @@ async fn run_multisig_client_runtime(
                 client.sync_state().await?;
             },
             MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
+                client.get_consumable_notes(None).await?;
                 client.sync_state().await?;
                 handle_propose_multisig_tx(&mut client, msg).await?;
             },
