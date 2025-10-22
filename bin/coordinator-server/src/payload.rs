@@ -52,6 +52,12 @@ pub struct MultisigTxPayload {
     updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Builder, Serialize)]
+pub struct NoteIdPayload {
+    note_id: String,
+    note_id_file_bytes: Bytes,
+}
+
 impl From<MultisigAccount> for MultisigAccountPayload {
     fn from(account: MultisigAccount) -> Self {
         Self::builder()
