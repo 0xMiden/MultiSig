@@ -54,6 +54,7 @@ use std::{
 use bon::Builder;
 use miden_client::{
     auth::TransactionAuthenticator, builder::ClientBuilder, keystore::FilesystemKeyStore,
+    note::NoteFile,
 };
 use miden_multisig_client::MultisigClient;
 use tokio::{runtime::Runtime, sync::mpsc, task::LocalSet};
@@ -222,6 +223,12 @@ where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
     let ProposeMultisigTxDissolved { account_id, tx_request, sender } = msg.dissolve();
+
+    for note_id in tx_request.get_input_note_ids() {
+        client.import_note(NoteFile::NoteId(note_id)).await?;
+    }
+
+    client.sync_state().await?;
 
     let tx_summary = client.propose_multisig_transaction(account_id, tx_request).await;
 
