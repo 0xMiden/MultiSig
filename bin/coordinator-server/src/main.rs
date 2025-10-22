@@ -1,4 +1,23 @@
-#![allow(missing_docs)]
+//! # Configuration
+//!
+//! The server is configured through:
+//! - Environment variables prefixed with `MIDENMULTISIG_`
+//!
+//! # Example
+//!
+//! ```bash
+//! # Set environment variables
+//! export MIDENMULTISIG_APP__LISTEN="0.0.0.0:59059"
+//! export MIDENMULTISIG_APP__NETWORK_ID_HRP="mtst"
+//! export MIDENMULTISIG_DB__DB_URL="postgres://user:pass@localhost/multisig"
+//!
+//! # Run the server
+//! cargo run --bin miden-multisig-coordinator-server
+//! ```
+//!
+//! # Logging
+//!
+//! Logging is controlled via the `RUST_LOG` environment variable. Defaults to `info` level.
 
 use miden_client::account::NetworkId;
 use miden_multisig_coordinator_engine::{MultisigClientRuntimeConfig, MultisigEngine};

@@ -54,7 +54,6 @@ pub enum MultisigTxStatus {
 /// # Type Parameters
 ///
 /// * `AUX` - Auxiliary data type, defaults to [`Timestamps`] for tracking metadata.
-#[allow(missing_docs)]
 #[derive(Debug, Clone, Builder, Dissolve)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde_with::serde_as)]
 pub struct MultisigTx<AUX = Timestamps> {

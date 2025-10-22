@@ -29,7 +29,6 @@ use self::tx::MultisigTxId;
 ///
 /// This struct is commonly used as auxiliary data (`AUX`) in other domain types
 /// to track when entities were created and last updated.
-#[allow(missing_docs)]
 #[derive(Debug, Clone, Builder, Dissolve)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Timestamps {
