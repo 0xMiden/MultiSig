@@ -200,9 +200,18 @@ curl -X POST http://localhost:59059/api/v1/consumable-notes/list \
 ```json
 {
   "note_ids": [
-    "0xabc123...",
-    "0xdef456...",
-    "0x789ghi..."
+    {
+      "note_id": "0xabc123...",
+      "note_id_file_bytes": "<base64_encoded_note_file>"
+    },
+    {
+      "note_id": "0xdef456...",
+      "note_id_file_bytes": "<base64_encoded_note_file>"
+    },
+    {
+      "note_id": "0x789ghi...",
+      "note_id_file_bytes": "<base64_encoded_note_file>"
+    }
   ]
 }
 ```
