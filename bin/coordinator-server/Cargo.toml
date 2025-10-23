@@ -11,7 +11,6 @@ workspace = true
 anyhow                            = { workspace = true }
 axum                              = "0.8"
 bon                               = { workspace = true }
-bytes                             = { version = "1", features = ["serde"] }
 chrono                            = { workspace = true }
 config                            = { version = "0.15", default-features = false, features = ["ron"] }
 dissolve-derive                   = { workspace = true }
@@ -26,7 +25,7 @@ miden-objects                     = { workspace = true }
 openssl-sys                       = { version = "0.9", features = ["vendored"] }
 pq-sys                            = { version = "0.7", features = ["bundled"] }
 serde                             = { workspace = true, features = ["derive"] }
-serde_with                        = { workspace = true, features = ["macros"] }
+serde_with                        = { workspace = true, features = ["base64", "macros"] }
 thiserror                         = "2"
 tokio                             = { workspace = true, features = ["rt-multi-thread"] }
 tower-http                        = { version = "0.6", features = ["cors"] }

@@ -4,7 +4,6 @@ pub mod response;
 use core::num::NonZeroU32;
 
 use bon::Builder;
-use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use miden_client::{Word, account::Address, utils::Serializable};
 use miden_multisig_coordinator_domain::{
@@ -13,6 +12,7 @@ use miden_multisig_coordinator_domain::{
     tx::{MultisigTx, MultisigTxDissolved, MultisigTxStatus},
 };
 use serde::Serialize;
+use serde_with::{DisplayFromStr, base64::Base64};
 use uuid::Uuid;
 
 #[derive(Debug, Builder, Serialize)]
@@ -24,16 +24,20 @@ pub struct MultisigAccountPayload {
     updated_at: DateTime<Utc>,
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Builder, Serialize)]
 pub struct MultisigApproverPayload {
     address: String,
-    pub_key_commit: Bytes,
+
+    #[serde_as(as = "Base64")]
+    pub_key_commit: Vec<u8>,
+
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Builder, Serialize)]
 #[serde_with::serde_as]
+#[derive(Debug, Builder, Serialize)]
 pub struct MultisigTxPayload {
     id: Uuid,
     multisig_account_address: String,
@@ -41,9 +45,14 @@ pub struct MultisigTxPayload {
     #[serde_as(as = "DisplayFromStr")]
     status: MultisigTxStatus,
 
-    tx_request: Bytes,
-    tx_summary: Bytes,
-    tx_summary_commit: Bytes,
+    #[serde_as(as = "Base64")]
+    tx_request: Vec<u8>,
+
+    #[serde_as(as = "Base64")]
+    tx_summary: Vec<u8>,
+
+    #[serde_as(as = "Base64")]
+    tx_summary_commit: Vec<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     signature_count: Option<NonZeroU32>,
@@ -52,10 +61,13 @@ pub struct MultisigTxPayload {
     updated_at: DateTime<Utc>,
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Builder, Serialize)]
 pub struct NoteIdPayload {
     note_id: String,
-    note_id_file_bytes: Bytes,
+
+    #[serde_as(as = "Base64")]
+    note_id_file_bytes: Vec<u8>,
 }
 
 impl From<MultisigAccount> for MultisigAccountPayload {
@@ -77,7 +89,7 @@ impl From<MultisigApprover> for MultisigApproverPayload {
 
         Self::builder()
             .address(Address::AccountId(address).to_bech32(network_id))
-            .pub_key_commit(Word::from(pub_key_commit).to_bytes().into())
+            .pub_key_commit(Word::from(pub_key_commit).to_bytes())
             .created_at(aux.created_at())
             .updated_at(aux.updated_at())
             .build()
@@ -102,9 +114,9 @@ impl From<MultisigTx> for MultisigTxPayload {
             .id(id.into())
             .multisig_account_address(Address::AccountId(address).to_bech32(network_id))
             .status(status)
-            .tx_request(tx_request.to_bytes().into())
-            .tx_summary(tx_summary.to_bytes().into())
-            .tx_summary_commit(tx_summary_commit.to_bytes().into())
+            .tx_request(tx_request.to_bytes())
+            .tx_summary(tx_summary.to_bytes())
+            .tx_summary_commit(tx_summary_commit.to_bytes())
             .maybe_signature_count(signature_count)
             .created_at(aux.created_at())
             .updated_at(aux.updated_at())

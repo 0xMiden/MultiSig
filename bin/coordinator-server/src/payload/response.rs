@@ -1,7 +1,7 @@
 use bon::Builder;
-use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde_with::base64::Base64;
 use uuid::Uuid;
 
 use crate::payload::{
@@ -15,15 +15,20 @@ pub struct CreateMultisigAccountResponsePayload {
     updated_at: DateTime<Utc>,
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Builder, Serialize)]
 pub struct ProposeMultisigTxResponsePayload {
     tx_id: Uuid,
-    tx_summary: Bytes,
+
+    #[serde_as(as = "Base64")]
+    tx_summary: Vec<u8>,
 }
 
+#[serde_with::serde_as]
 #[derive(Debug, Builder, Serialize)]
 pub struct AddSignatureResponsePayload {
-    tx_result: Option<Bytes>,
+    #[serde_as(as = "Option<Base64>")]
+    tx_result: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Builder, Serialize)]

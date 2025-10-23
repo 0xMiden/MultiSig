@@ -144,7 +144,7 @@ pub async fn propose_multisig_tx(
 
     let response = ProposeMultisigTxResponsePayload::builder()
         .tx_id(tx_id.into())
-        .tx_summary(tx_summary.to_bytes().into())
+        .tx_summary(tx_summary.to_bytes())
         .build();
 
     Ok(Json(response))
@@ -177,12 +177,7 @@ pub async fn add_signature(
             .build()
     };
 
-    let tx_result = engine
-        .add_signature(request)
-        .await?
-        .as_ref()
-        .map(Serializable::to_bytes)
-        .map(From::from);
+    let tx_result = engine.add_signature(request).await?.as_ref().map(Serializable::to_bytes);
 
     let response = AddSignatureResponsePayload::builder().maybe_tx_result(tx_result).build();
 
@@ -220,7 +215,7 @@ pub async fn list_consumable_notes(
         .map(|(input_note_record, _)| {
             NoteIdPayload::builder()
                 .note_id(input_note_record.id().to_hex())
-                .note_id_file_bytes(NoteFile::NoteId(input_note_record.id()).to_bytes().into())
+                .note_id_file_bytes(NoteFile::NoteId(input_note_record.id()).to_bytes())
                 .build()
         })
         .collect();
