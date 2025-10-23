@@ -148,6 +148,7 @@ async fn run_multisig_client_runtime(
         .await
         .map(MultisigClient::new)?;
 
+    // TODO: convey the error in a better way to the caller
     while let Some(msg) = msg_receiver.recv().await {
         match msg {
             MultisigClientRuntimeMsg::Shutdown => {
@@ -155,20 +156,20 @@ async fn run_multisig_client_runtime(
                 break;
             },
             MultisigClientRuntimeMsg::GetConsumableNotes(msg) => {
-                client.sync_state().await?;
+                let _ = client.sync_state().await;
                 let _ = handle_get_consumable_notes(&client, msg).await;
             },
             MultisigClientRuntimeMsg::CreateMultisigAccount(msg) => {
-                handle_create_multisig_account(&mut client, msg).await?;
-                client.sync_state().await?;
+                let _ = handle_create_multisig_account(&mut client, msg).await;
+                let _ = client.sync_state().await;
             },
             MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
-                client.sync_state().await?;
-                handle_propose_multisig_tx(&mut client, msg).await?;
+                let _ = client.sync_state().await;
+                let _ = handle_propose_multisig_tx(&mut client, msg).await;
             },
             MultisigClientRuntimeMsg::ProcessMultisigTx(msg) => {
-                handle_process_multisig_tx(&mut client, msg).await?;
-                client.sync_state().await?;
+                let _ = handle_process_multisig_tx(&mut client, msg).await;
+                let _ = client.sync_state().await;
             },
         }
     }
