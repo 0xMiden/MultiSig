@@ -104,13 +104,13 @@ install-tools: ## Installs development tools required by the Makefile (typos, ne
 .PHONY: run-coordinator
 docker-run-coordinator: ## Build and start the multisig coordinator server with PostgreSQL DB using docker-compose
 	@echo "Building docker images..."
-	docker-compose build
+	docker compose build
 	@echo "Starting multisig coordinator server and postgres database..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Multisig coordinator server is running at http://localhost:59059"
 
 .PHONY: stop-coordinator
 docker-stop-coordinator: ## Stop and remove the multisig coordinator server and postgres containers
 	@echo "Stopping multisig coordinator server and postgres database..."
-	docker-compose down
+	docker compose down
 	@echo "Multisig coordinator server stopped"
