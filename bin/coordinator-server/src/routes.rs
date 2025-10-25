@@ -3,7 +3,6 @@ use itertools::Itertools;
 use miden_client::{
     Word,
     account::Address,
-    note::NoteFile,
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_engine::{
@@ -26,7 +25,6 @@ use crate::{
     App, AppDissolved,
     error::AppError,
     payload::{
-        NoteIdPayload,
         request::{
             AddSignatureRequestPayload, AddSignatureRequestPayloadDissolved,
             CreateMultisigAccountRequestPayload, CreateMultisigAccountRequestPayloadDissolved,
@@ -212,12 +210,7 @@ pub async fn list_consumable_notes(
         .get_consumable_notes(request)
         .await?
         .into_iter()
-        .map(|(input_note_record, _)| {
-            NoteIdPayload::builder()
-                .note_id(input_note_record.id().to_hex())
-                .note_id_file_bytes(NoteFile::NoteId(input_note_record.id()).to_bytes())
-                .build()
-        })
+        .map(|(input_note_record, _)| input_note_record.id().into())
         .collect();
 
     let response = ListConsumableNotesResponsePayload::builder().note_ids(note_ids).build();

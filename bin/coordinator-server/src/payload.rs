@@ -5,7 +5,12 @@ use core::num::NonZeroU32;
 
 use bon::Builder;
 use chrono::{DateTime, Utc};
-use miden_client::{Word, account::Address, utils::Serializable};
+use miden_client::{
+    Word,
+    account::Address,
+    note::{NoteFile, NoteId},
+    utils::Serializable,
+};
 use miden_multisig_coordinator_domain::{
     MultisigApprover, MultisigApproverDissolved,
     account::MultisigAccount,
@@ -53,6 +58,9 @@ pub struct MultisigTxPayload {
 
     #[serde_as(as = "Base64")]
     tx_summary_commit: Vec<u8>,
+
+    // TODO: remove this when `getInputNoteIds` avaialabe for `TransactionRequest` in web-sdk
+    input_note_ids: Vec<NoteIdPayload>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     signature_count: Option<NonZeroU32>,
@@ -117,9 +125,19 @@ impl From<MultisigTx> for MultisigTxPayload {
             .tx_request(tx_request.to_bytes())
             .tx_summary(tx_summary.to_bytes())
             .tx_summary_commit(tx_summary_commit.to_bytes())
+            .input_note_ids(tx_request.get_input_note_ids().into_iter().map(From::from).collect())
             .maybe_signature_count(signature_count)
             .created_at(aux.created_at())
             .updated_at(aux.updated_at())
+            .build()
+    }
+}
+
+impl From<NoteId> for NoteIdPayload {
+    fn from(note_id: NoteId) -> Self {
+        Self::builder()
+            .note_id(note_id.to_hex())
+            .note_id_file_bytes(NoteFile::NoteId(note_id).to_bytes())
             .build()
     }
 }

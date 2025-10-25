@@ -321,6 +321,12 @@ curl -X POST http://localhost:59059/api/v1/multisig-tx/list \
       "tx_request": "<base64_encoded_transaction_request>",
       "tx_summary": "<base64_encoded_transaction_summary>",
       "tx_summary_commit": "<base64_encoded_transaction_summary_commitment>",
+      "input_note_ids": [
+        {
+          "note_id": "0xabc123...",
+          "note_id_file_bytes": "<base64_encoded_note_file>"
+        }
+      ],
       "signature_count": 1,
       "created_at": "2025-10-19T12:00:00Z",
       "updated_at": "2025-10-19T12:00:00Z"
