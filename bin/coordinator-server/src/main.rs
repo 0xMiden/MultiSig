@@ -51,7 +51,8 @@ async fn main() -> anyhow::Result<()> {
             .build();
 
         let engine = MultisigEngine::new(network_id, store)
-            .start_multisig_client_runtime(rt, multisig_client_rt_config);
+            .start_multisig_client_runtime(rt, multisig_client_rt_config)
+            .await?;
 
         App::builder().engine(engine.into()).build()
     };

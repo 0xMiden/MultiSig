@@ -40,6 +40,18 @@ pub async fn fetch_mutisig_account_by_address(
         .map_err(From::from)
 }
 
+pub async fn stream_multisig_accounts(
+    conn: &mut DbConn,
+) -> Result<impl Stream<Item = Result<MultisigAccountRecord>>> {
+    let stream = schema::multisig_account::table
+        .select(schema::multisig_account::all_columns)
+        .load_stream(conn)
+        .await?
+        .map_err(From::from);
+
+    Ok(stream)
+}
+
 pub async fn stream_txs_with_signature_count_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -95,7 +107,7 @@ pub async fn fetch_tx_with_signature_count_by_id(
 pub async fn stream_approvers_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
-) -> Result<impl Stream<Item = Result<ApproverRecord>>> {
+) -> Result<impl Stream<Item = Result<ApproverRecord>> + use<>> {
     let stream = schema::multisig_account_approver_mapping::table
         .inner_join(
             schema::approver::table.on(schema::approver::address

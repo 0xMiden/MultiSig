@@ -156,6 +156,7 @@ use tokio::{
         mpsc::{self, error::SendError},
         oneshot,
     },
+    task,
 };
 
 use self::{
@@ -232,21 +233,39 @@ impl MultisigEngine<Stopped> {
     ///
     /// This spawns a dedicated thread that runs the [`MultisigClient`](miden_multisig_client::MultisigClient).
     #[tracing::instrument(skip_all)]
-    pub fn start_multisig_client_runtime(
+    pub async fn start_multisig_client_runtime(
         self,
         rt: Runtime,
         multisig_client_runtime_config: MultisigClientRuntimeConfig,
-    ) -> MultisigEngine<Started> {
+    ) -> Result<MultisigEngine<Started>, MultisigEngineError> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let handle =
-            multisig_client_runtime::spawn_new(rt, receiver, multisig_client_runtime_config);
+        let multisig_accounts = self
+            .store
+            .get_all_multisig_accounts()
+            .await
+            .map_err(MultisigEngineErrorKind::from)?;
 
-        MultisigEngine {
+        let addresses: Vec<_> = task::spawn_blocking(move || {
+            multisig_accounts.iter().map(MultisigAccount::address).collect()
+        })
+        .await
+        .map_err(|e| MultisigEngineErrorKind::other(e.to_string()))?;
+
+        let handle = multisig_client_runtime::spawn_new(
+            rt,
+            receiver,
+            addresses.into_iter(),
+            multisig_client_runtime_config,
+        );
+
+        let engine = MultisigEngine {
             network_id: self.network_id(),
             store: self.store,
             runtime: Started { sender, handle },
-        }
+        };
+
+        Ok(engine)
     }
 }
 

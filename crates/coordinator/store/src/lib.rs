@@ -59,6 +59,7 @@ use miden_multisig_coordinator_domain::{
     account::{MultisigAccount, WithApprovers, WithPubKeyCommits},
     tx::{MultisigTx, MultisigTxId, MultisigTxStatus},
 };
+use miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair;
 use miden_objects::{
     crypto::dsa::rpo_falcon512::{PublicKey, Signature},
     transaction::TransactionSummary,
@@ -389,6 +390,18 @@ impl MultisigStore {
         Ok(Some(multisig_account))
     }
 
+    #[tracing::instrument(skip_all)]
+    pub async fn get_all_multisig_accounts(&self) -> Result<Vec<MultisigAccount>> {
+        store::stream_multisig_accounts(&mut self.get_conn().await?)
+            .await?
+            .map_ok(make_multisig_account)
+            .map_err(From::from)
+            .map(Result::flatten)
+            .try_collect()
+            .await
+    }
+
+    #[tracing::instrument(skip_all)]
     pub async fn get_approvers_by_multisig_account_address(
         &self,
         network_id: NetworkId,
@@ -576,6 +589,34 @@ impl MultisigStore {
     async fn get_conn(&self) -> Result<DbConn> {
         self.pool.get().await.map_err(|_| MultisigStoreError::Pool)
     }
+}
+
+fn make_multisig_account(
+    multisig_account_record: MultisigAccountRecord,
+) -> Result<MultisigAccount> {
+    let MultisigAccountRecordDissolved { address, kind, threshold, created_at } =
+        multisig_account_record.dissolve();
+
+    let (network_id, account_id_address) = extract_network_id_account_id_address_pair(&address)
+        .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
+
+    let threshold = threshold
+        .try_into()
+        .map(NonZeroU32::new)
+        .map_err(|_| MultisigStoreError::InvalidValue)?
+        .ok_or(MultisigStoreError::InvalidValue)?;
+
+    let timestamps = Timestamps::builder().created_at(created_at).updated_at(created_at).build();
+
+    let multisig_account = MultisigAccount::builder()
+        .address(account_id_address)
+        .network_id(network_id)
+        .kind(kind.into_inner())
+        .threshold(threshold)
+        .aux(timestamps)
+        .build();
+
+    Ok(multisig_account)
 }
 
 fn make_multisig_tx(tx_record: TxRecord, signature_count: U63) -> Result<MultisigTx> {

@@ -418,10 +418,13 @@ async fn start_testnet_multisig_engine(temp_dir: &Path) -> MultisigEngine<Starte
         .timeout(Duration::from_secs(10))
         .build();
 
-    engine.start_multisig_client_runtime(
-        Runtime::new().expect("failed to create tokio runtime"),
-        config,
-    )
+    engine
+        .start_multisig_client_runtime(
+            Runtime::new().expect("failed to create tokio runtime"),
+            config,
+        )
+        .await
+        .unwrap()
 }
 
 async fn setup_test_db() -> String {

@@ -53,7 +53,8 @@ use std::{
 
 use bon::Builder;
 use miden_client::{
-    auth::TransactionAuthenticator, builder::ClientBuilder, keystore::FilesystemKeyStore,
+    account::AccountIdAddress, auth::TransactionAuthenticator, builder::ClientBuilder,
+    keystore::FilesystemKeyStore,
 };
 use miden_multisig_client::MultisigClient;
 use tokio::{runtime::Runtime, sync::mpsc, task::LocalSet};
@@ -88,15 +89,20 @@ use self::{
 ///
 /// [`MultisigClient`]: miden_multisig_client::MultisigClient
 /// [`LocalSet`]: tokio::task::LocalSet
-#[tracing::instrument(skip(rt, msg_receiver))]
-pub fn spawn_new(
+#[tracing::instrument(skip_all, fields(?config))]
+pub fn spawn_new<A>(
     rt: Runtime,
     msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
+    tracking_multisig_accounts: A,
     config: MultisigClientRuntimeConfig,
-) -> JoinHandle<Result<()>> {
+) -> JoinHandle<Result<()>>
+where
+    A: Iterator<Item = AccountIdAddress> + Send + 'static,
+{
     thread::spawn(move || {
         let local = LocalSet::new();
-        let local_runtime = local.run_until(run_multisig_client_runtime(msg_receiver, config));
+        let fut = run_multisig_client_runtime(msg_receiver, tracking_multisig_accounts, config);
+        let local_runtime = local.run_until(fut);
         rt.block_on(local_runtime)
     })
 }
@@ -120,15 +126,19 @@ pub struct MultisigClientRuntimeConfig {
 }
 
 #[tracing::instrument(skip_all)]
-async fn run_multisig_client_runtime(
+async fn run_multisig_client_runtime<A>(
     mut msg_receiver: mpsc::UnboundedReceiver<MultisigClientRuntimeMsg>,
+    tracking_multisig_accounts: A,
     MultisigClientRuntimeConfig {
         node_url,
         store_path,
         keystore_path,
         timeout,
     }: MultisigClientRuntimeConfig,
-) -> Result<()> {
+) -> Result<()>
+where
+    A: Iterator<Item = AccountIdAddress>,
+{
     let keystore = FilesystemKeyStore::new(keystore_path)
         .map_err(|e| MultisigClientRuntimeError::other(e.to_string()))?;
 
@@ -147,6 +157,10 @@ async fn run_multisig_client_runtime(
         .build()
         .await
         .map(MultisigClient::new)?;
+
+    for account_id_address in tracking_multisig_accounts {
+        let _ = client.import_account_by_id(account_id_address.id()).await;
+    }
 
     // TODO: convey the error in a better way to the caller
     while let Some(msg) = msg_receiver.recv().await {
