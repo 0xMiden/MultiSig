@@ -61,6 +61,7 @@ pub async fn stream_txs_with_signature_count_by_multisig_account_address(
         .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
         .group_by(schema::tx::all_columns)
         .select((schema::tx::all_columns, dsl::count(schema::signature::tx_id.nullable())))
+        .order_by(schema::tx::created_at.desc())
         .load_stream::<(_, i64)>(conn)
         .await?
         .map_ok(|(txr, c)| (txr, U63::from_signed(c).unwrap())) // unwrap is safe because count >= 0
@@ -80,6 +81,7 @@ pub async fn stream_txs_with_signature_count_by_multisig_account_address_and_sta
         .filter(schema::tx::status.eq(tx_status))
         .group_by(schema::tx::all_columns)
         .select((schema::tx::all_columns, dsl::count(schema::signature::tx_id.nullable())))
+        .order_by(schema::tx::created_at.desc())
         .load_stream::<(_, i64)>(conn)
         .await?
         .map_ok(|(txr, c)| (txr, U63::from_signed(c).unwrap())) // unwrap is safe because count >= 0
