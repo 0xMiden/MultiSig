@@ -285,6 +285,34 @@ curl -X POST http://localhost:59059/api/v1/multisig-account/approver/list \
 
 ---
 
+### get transaction statistics
+
+Retrieves transaction statistics for a multisig account.
+
+**Endpoint:** `POST /api/v1/multisig-tx/stats`
+
+```bash
+curl -X POST http://localhost:59059/api/v1/multisig-tx/stats \
+  -H "Content-Type: application/json" \
+  -d '{
+    "multisig_account_address": "mtst1xyz..."
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "tx_stats": {
+    "total": 42,
+    "last_month": 15,
+    "total_success": 38
+  }
+}
+```
+
+---
+
 ### list transactions
 
 Lists all transactions for a multisig account, optionally filtered by status.

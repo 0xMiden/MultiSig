@@ -57,7 +57,7 @@ use miden_client::{
 use miden_multisig_coordinator_domain::{
     MultisigApprover, Timestamps,
     account::{MultisigAccount, WithApprovers, WithPubKeyCommits},
-    tx::{MultisigTx, MultisigTxId, MultisigTxStatus},
+    tx::{MultisigTx, MultisigTxId, MultisigTxStats, MultisigTxStatus},
 };
 use miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair;
 use miden_objects::{
@@ -503,6 +503,20 @@ impl MultisigStore {
             .await?
             .map(|(tx_record, sigs_count)| make_multisig_tx(tx_record, sigs_count))
             .transpose()
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get_multisig_tx_stats_by_multisig_account_address(
+        &self,
+        network_id: NetworkId,
+        multisig_account_id_address: AccountIdAddress,
+    ) -> Result<MultisigTxStats> {
+        let conn = &mut self.get_conn().await?;
+        let address = Address::AccountId(multisig_account_id_address).to_bech32(network_id);
+
+        store::fetch_tx_stats_by_multisig_account_address(conn, &address)
+            .await
+            .map_err(From::from)
     }
 
     /// Retrieves an approver by their account address.

@@ -2,7 +2,7 @@ mod error;
 
 pub use self::error::StoreError;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Months, Utc};
 use diesel::{
     AggregateExpressionMethods, BoolExpressionMethods, ExpressionMethods, JoinOnDsl,
     NullableExpressionMethods, QueryDsl, dsl,
@@ -12,6 +12,7 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use futures::{Stream, TryStreamExt};
+use miden_multisig_coordinator_domain::tx::{MultisigTxStats, MultisigTxStatus};
 use oblux::U63;
 use uuid::Uuid;
 
@@ -103,6 +104,31 @@ pub async fn fetch_tx_with_signature_count_by_id(
         .await
         .map(|(txr, c)| (txr, U63::from_signed(c).unwrap())) // unwrap is safe because count >= 0
         .optional()
+        .map_err(From::from)
+}
+
+pub async fn fetch_tx_stats_by_multisig_account_address(
+    conn: &mut DbConn,
+    multisig_account_address: &str,
+) -> Result<MultisigTxStats> {
+    schema::tx::table
+        .filter(schema::tx::multisig_account_address.eq(multisig_account_address))
+        .select((
+            dsl::count(schema::tx::id),
+            dsl::count(schema::tx::id)
+                .aggregate_filter(schema::tx::created_at.ge(Utc::now() - Months::new(1))),
+            dsl::count(schema::tx::id)
+                .aggregate_filter(schema::tx::status.eq(TxStatus::from(MultisigTxStatus::Success))),
+        ))
+        .first::<(i64, i64, i64)>(conn)
+        .await
+        .map(|(total, last_month, total_success)| {
+            MultisigTxStats::builder()
+                .total(total as u64)
+                .last_month(last_month as u64)
+                .total_success(total_success as u64)
+                .build() // casting i64 to u64 is safe as count >= 0
+        })
         .map_err(From::from)
 }
 

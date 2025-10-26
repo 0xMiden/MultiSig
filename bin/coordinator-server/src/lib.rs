@@ -218,6 +218,31 @@ use miden_multisig_coordinator_engine::{MultisigEngine, Started};
 ///
 /// ---
 ///
+/// ## Get Transaction Statistics
+///
+/// **`POST /api/v1/multisig-tx/stats`** - Retrieves transaction statistics for a multisig account.
+///
+/// ```bash
+/// curl -X POST http://localhost:59059/api/v1/multisig-tx/stats \
+///   -H "Content-Type: application/json" \
+///   -d '{
+///     "multisig_account_address": "mtst1xyz..."
+///   }'
+/// ```
+///
+/// Response:
+/// ```json
+/// {
+///   "tx_stats": {
+///     "total": 42,
+///     "last_month": 15,
+///     "total_success": 38
+///   }
+/// }
+/// ```
+///
+/// ---
+///
 /// ## List Transactions
 ///
 /// **`POST /api/v1/multisig-tx/list`** - Lists all transactions for a multisig account,
@@ -285,6 +310,7 @@ pub fn create_router(app: App) -> Router {
             "/api/v1/multisig-account/approver/list",
             routing::post(routes::list_multisig_approvers),
         )
+        .route("/api/v1/multisig-tx/stats", routing::post(routes::get_multisig_tx_stats))
         .route("/api/v1/multisig-tx/list", routing::post(routes::list_multisig_tx))
         .with_state(app)
 }

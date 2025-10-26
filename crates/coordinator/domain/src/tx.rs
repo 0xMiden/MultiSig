@@ -92,6 +92,20 @@ pub struct MultisigTx<AUX = Timestamps> {
     aux: AUX,
 }
 
+/// Statistics for multisig transactions.
+#[derive(Debug, Clone, Builder, Dissolve)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MultisigTxStats {
+    /// The total number of transactions.
+    total: u64,
+
+    /// The number of transactions created since one month ago.
+    last_month: u64,
+
+    /// The total number of successfully executed transactions.
+    total_success: u64,
+}
+
 impl From<Uuid> for MultisigTxId {
     /// Converts a UUID into a `MultisigTxId`.
     fn from(uuid: Uuid) -> Self {

@@ -8,14 +8,14 @@ use miden_client::{
 use miden_multisig_coordinator_engine::{
     request::{
         AddSignatureRequest, CreateMultisigAccountRequest, GetConsumableNotesRequest,
-        GetMultisigAccountRequest, ListMultisigApproverRequest, ListMultisigTxRequest,
-        ProposeMultisigTxRequest, RequestError,
+        GetMultisigAccountRequest, GetMultisigTxStatsRequest, ListMultisigApproverRequest,
+        ListMultisigTxRequest, ProposeMultisigTxRequest, RequestError,
     },
     response::{
         CreateMultisigAccountResponse, CreateMultisigAccountResponseDissolved,
-        GetMultisigAccountResponseDissolved, ListMultisigApproverResponseDissolved,
-        ListMultisigTxResponse, ListMultisigTxResponseDissolved,
-        ProposeMultisigTxResponseDissolved,
+        GetMultisigAccountResponseDissolved, GetMultisigTxStatsResponseDissolved,
+        ListMultisigApproverResponseDissolved, ListMultisigTxResponse,
+        ListMultisigTxResponseDissolved, ProposeMultisigTxResponseDissolved,
     },
 };
 use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
@@ -29,7 +29,8 @@ use crate::{
             AddSignatureRequestPayload, AddSignatureRequestPayloadDissolved,
             CreateMultisigAccountRequestPayload, CreateMultisigAccountRequestPayloadDissolved,
             GetMultisigAccountDetailsRequestPayload,
-            GetMultisigAccountDetailsRequestPayloadDissolved, ListConsumableNotesRequestPayload,
+            GetMultisigAccountDetailsRequestPayloadDissolved, GetMultisigTxStatsRequestPayload,
+            GetMultisigTxStatsRequestPayloadDissolved, ListConsumableNotesRequestPayload,
             ListConsumableNotesRequestPayloadDissolved, ListMultisigApproverRequestPayload,
             ListMultisigApproverRequestPayloadDissolved, ListMultisigTxRequestPayload,
             ListMultisigTxRequestPayloadDissolved, ProposeMultisigTxRequestPayload,
@@ -37,9 +38,9 @@ use crate::{
         },
         response::{
             AddSignatureResponsePayload, CreateMultisigAccountResponsePayload,
-            GetMultisigAccountDetailsResponsePayload, ListConsumableNotesResponsePayload,
-            ListMultisigApproverResponsePayload, ListMultisigTxResponsePayload,
-            ProposeMultisigTxResponsePayload,
+            GetMultisigAccountDetailsResponsePayload, GetMultisigTxStatsResponsePayload,
+            ListConsumableNotesResponsePayload, ListMultisigApproverResponsePayload,
+            ListMultisigTxResponsePayload, ProposeMultisigTxResponsePayload,
         },
     },
 };
@@ -278,6 +279,33 @@ pub async fn list_multisig_approvers(
     let response = ListMultisigApproverResponsePayload::builder()
         .approvers(approvers.into_iter().map(From::from).collect())
         .build();
+
+    Ok(Json(response))
+}
+
+pub async fn get_multisig_tx_stats(
+    State(app): State<App>,
+    Json(payload): Json<GetMultisigTxStatsRequestPayload>,
+) -> Result<Json<GetMultisigTxStatsResponsePayload>, AppError> {
+    let AppDissolved { engine } = app.dissolve();
+
+    let GetMultisigTxStatsRequestPayloadDissolved { multisig_account_address } = payload.dissolve();
+
+    let multisig_account_id_address =
+        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
+            &multisig_account_address,
+        )
+        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+        .ok_or(AppError::InvalidNetworkId)?;
+
+    let request = GetMultisigTxStatsRequest::builder()
+        .multisig_account_id_address(multisig_account_id_address)
+        .build();
+
+    let GetMultisigTxStatsResponseDissolved { tx_stats } =
+        engine.get_multisig_tx_stats(request).await?.dissolve();
+
+    let response = GetMultisigTxStatsResponsePayload::builder().tx_stats(tx_stats).build();
 
     Ok(Json(response))
 }

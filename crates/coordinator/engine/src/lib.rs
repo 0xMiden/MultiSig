@@ -127,8 +127,11 @@ mod multisig_client_runtime;
 mod types;
 
 use crate::types::{
-    request::{ListMultisigApproverRequest, ListMultisigApproverRequestDissolved},
-    response::ListMultisigApproverResponse,
+    request::{
+        GetMultisigTxStatsRequest, GetMultisigTxStatsRequestDissolved, ListMultisigApproverRequest,
+        ListMultisigApproverRequestDissolved,
+    },
+    response::{GetMultisigTxStatsResponse, ListMultisigApproverResponse},
 };
 
 pub use self::{
@@ -537,6 +540,30 @@ impl MultisigEngine<Started> {
         let response = GetMultisigAccountResponse::builder()
             .maybe_multisig_account(multisig_account)
             .build();
+
+        Ok(response)
+    }
+
+    /// Retrieves transaction statistics for a specific multisig account.
+    ///
+    /// Returns aggregated statistics including total transactions, transactions since one month ago,
+    /// and the total number of successful transactions for the given multisig account.
+    pub async fn get_multisig_tx_stats(
+        &self,
+        request: GetMultisigTxStatsRequest,
+    ) -> Result<GetMultisigTxStatsResponse, MultisigEngineError> {
+        let GetMultisigTxStatsRequestDissolved { multisig_account_id_address } = request.dissolve();
+
+        let tx_stats = self
+            .store
+            .get_multisig_tx_stats_by_multisig_account_address(
+                self.network_id(),
+                multisig_account_id_address,
+            )
+            .await
+            .map_err(MultisigEngineErrorKind::from)?;
+
+        let response = GetMultisigTxStatsResponse::builder().tx_stats(tx_stats).build();
 
         Ok(response)
     }

@@ -5,7 +5,7 @@ use miden_client::account::Account;
 use miden_multisig_coordinator_domain::{
     MultisigApprover,
     account::MultisigAccount,
-    tx::{MultisigTx, MultisigTxId},
+    tx::{MultisigTx, MultisigTxId, MultisigTxStats},
 };
 use miden_objects::transaction::TransactionSummary;
 
@@ -45,6 +45,13 @@ pub struct ListMultisigApproverResponse {
     approvers: Vec<MultisigApprover>,
 }
 
+/// Response containing transaction statistics for a multisig account.
+#[derive(Debug, Dissolve)]
+pub struct GetMultisigTxStatsResponse {
+    /// The transaction statistics
+    tx_stats: MultisigTxStats,
+}
+
 /// Response from listing multisig transactions.
 #[derive(Debug, Dissolve)]
 pub struct ListMultisigTxResponse {
@@ -81,6 +88,14 @@ impl ListMultisigApproverResponse {
     #[builder]
     pub(crate) fn new(approvers: Vec<MultisigApprover>) -> Self {
         Self { approvers }
+    }
+}
+
+#[bon::bon]
+impl GetMultisigTxStatsResponse {
+    #[builder]
+    pub(crate) fn new(tx_stats: MultisigTxStats) -> Self {
+        Self { tx_stats }
     }
 }
 

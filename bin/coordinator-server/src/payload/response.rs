@@ -1,5 +1,6 @@
 use bon::Builder;
 use chrono::{DateTime, Utc};
+use miden_multisig_coordinator_domain::tx::MultisigTxStats;
 use serde::Serialize;
 use serde_with::base64::Base64;
 use uuid::Uuid;
@@ -44,6 +45,11 @@ pub struct GetMultisigAccountDetailsResponsePayload {
 #[derive(Debug, Builder, Serialize)]
 pub struct ListMultisigApproverResponsePayload {
     approvers: Vec<MultisigApproverPayload>,
+}
+
+#[derive(Debug, Builder, Serialize)]
+pub struct GetMultisigTxStatsResponsePayload {
+    tx_stats: MultisigTxStats,
 }
 
 #[derive(Debug, Builder, Serialize)]

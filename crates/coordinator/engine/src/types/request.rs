@@ -75,6 +75,13 @@ pub struct ListMultisigApproverRequest {
     multisig_account_id_address: AccountIdAddress,
 }
 
+/// Request to retrieve transaction statistics for a multisig account.
+#[derive(Debug, Builder, Dissolve)]
+pub struct GetMultisigTxStatsRequest {
+    /// The multisig account address to query
+    multisig_account_id_address: AccountIdAddress,
+}
+
 /// Request to list transactions for a multisig account.
 #[derive(Debug, Builder, Dissolve)]
 pub struct ListMultisigTxRequest {
