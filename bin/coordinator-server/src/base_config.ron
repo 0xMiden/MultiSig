@@ -2,6 +2,7 @@ Config(
     app: AppConfig(
         listen: "localhost:59059",
         network_id_hrp: "mtst",
+        cors_allowed_origins: ["*"],
     ),
     db: DbConfig(
         db_url: "postgres://multisig:multisig_password@localhost:5432/multisig",

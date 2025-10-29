@@ -24,6 +24,7 @@ Config(
     app: AppConfig(
         listen: "localhost:59059",
         network_id_hrp: "mtst",
+        cors_allowed_origins: ["*"],
     ),
     db: DbConfig(
         db_url: "postgres://multisig:multisig_password@localhost:5432/multisig",
@@ -38,6 +39,16 @@ Config(
 )
 ```
 
+#### CORS Configuration
+
+The `cors_allowed_origins` field controls which origins can make cross-origin requests to the server:
+
+- **Empty array `[]`**: CORS is disabled
+- **Specific origins**: Only listed origins are allowed, e.g., `["http://localhost:3000", "https://example.com"]`
+- **Wildcard `["*"]`**: All origins are allowed (permissive mode, default for development)
+
+By default, the base configuration uses `["*"]` to allow all CORS requests for local development convenience. For production deployments, it's recommended to override this with specific allowed origins.
+
 ### environment variable overrides
 
 Use double underscores (`__`) to override nested configuration fields:
@@ -46,6 +57,9 @@ Use double underscores (`__`) to override nested configuration fields:
 # override app config
 export MIDENMULTISIG_APP__LISTEN="0.0.0.0:8080"
 export MIDENMULTISIG_APP__NETWORK_ID_HRP="mtst"
+
+# configure CORS allowed origins for specific origins
+export MIDENMULTISIG_APP__CORS_ALLOWED_ORIGINS='["http://localhost:3000", "http://example.com"]'
 
 # override database config
 export MIDENMULTISIG_DB__DB_URL="postgres://user:pass@db-host:5432/multisig"

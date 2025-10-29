@@ -50,6 +50,10 @@ pub struct AppConfig {
 
     /// The human-readable part (HRP) for network IDs in bech32 addresses (e.g., "mtst")
     pub network_id_hrp: String,
+
+    /// CORS allowed origins (e.g., ["http://localhost:3000", "https://example.com"])
+    /// Use ["*"] to allow all origins
+    pub cors_allowed_origins: Vec<String>,
 }
 
 /// Database configuration settings.

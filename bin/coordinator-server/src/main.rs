@@ -1,24 +1,82 @@
 //! # Configuration
 //!
 //! The server is configured through:
-//! - Environment variables prefixed with `MIDENMULTISIG_`
+//! - Base configuration file (`base_config.ron`)
+//! - Environment variables prefixed with `MIDENMULTISIG_` (override base config)
 //!
-//! # Example
+//! ## Base Configuration
+//!
+//! The default configuration is loaded from `base_config.ron`:
+//!
+//! ```ron
+//! Config(
+//!     app: AppConfig(
+//!         listen: "localhost:59059",
+//!         network_id_hrp: "mtst",
+//!         cors_allowed_origins: ["*"],
+//!     ),
+//!     db: DbConfig(
+//!         db_url: "postgres://multisig:multisig_password@localhost:5432/multisig",
+//!         max_conn: 10,
+//!     ),
+//!     miden: MidenConfig(
+//!         node_url: "https://rpc.testnet.miden.io:443",
+//!         store_path: "./store.sqlite3",
+//!         keystore_path: "./keystore",
+//!         timeout: "30s",
+//!     ),
+//! )
+//! ```
+//!
+//! ## Environment Variable Overrides
+//!
+//! Use double underscores (`__`) to override nested configuration fields:
 //!
 //! ```bash
-//! # Set environment variables
+//! # Override app config
 //! export MIDENMULTISIG_APP__LISTEN="0.0.0.0:59059"
 //! export MIDENMULTISIG_APP__NETWORK_ID_HRP="mtst"
+//!
+//! # Configure CORS allowed origins
+//! # For specific origins (recommended)
+//! export MIDENMULTISIG_APP__CORS_ALLOWED_ORIGINS='["http://localhost:3000", "http://localhost:3001"]'
+//!
+//! # Override database config
 //! export MIDENMULTISIG_DB__DB_URL="postgres://user:pass@localhost/multisig"
+//! export MIDENMULTISIG_DB__MAX_CONN="20"
+//!
+//! # Override miden config
+//! export MIDENMULTISIG_MIDEN__NODE_URL="https://rpc.testnet.miden.io:443"
+//! export MIDENMULTISIG_MIDEN__STORE_PATH="./store.sqlite3"
+//! export MIDENMULTISIG_MIDEN__KEYSTORE_PATH="./keystore"
+//! export MIDENMULTISIG_MIDEN__TIMEOUT="60s"
 //!
 //! # Run the server
 //! cargo run --bin miden-multisig-coordinator-server
 //! ```
 //!
+//! ## CORS Configuration
+//!
+//! The `cors_allowed_origins` field controls cross-origin resource sharing:
+//! - **Empty array `[]`**: CORS is disabled
+//! - **Specific origins**: Only listed origins are allowed (recommended for production)
+//! - **Wildcard `["*"]`**: All origins are allowed (permissive mode, default for development)
+//!
+//! By default, the base configuration uses `["*"]` to allow all CORS requests for local development
+//! convenience. For production deployments, it's recommended to override this with specific allowed origins.
+//!
+//! When specific origins are configured, the server allows:
+//! - Methods: GET, POST, PUT, DELETE, OPTIONS
+//! - Headers: Content-Type, Authorization
+//! - Credentials: Enabled
+//!
 //! # Logging
 //!
 //! Logging is controlled via the `RUST_LOG` environment variable. Defaults to `info` level.
 
+use core::str::FromStr;
+
+use axum::http::{HeaderValue, Method, header};
 use miden_client::account::NetworkId;
 use miden_multisig_coordinator_engine::{MultisigClientRuntimeConfig, MultisigEngine};
 use miden_multisig_coordinator_server::{App, config};
@@ -58,8 +116,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let axum_handle = {
-        let router =
-            miden_multisig_coordinator_server::create_router(app).layer(CorsLayer::permissive());
+        let router = miden_multisig_coordinator_server::create_router(app);
+        let cors = create_cors_layer(&config.app.cors_allowed_origins)?;
+        let router = router.layer(cors);
 
         let listener = TcpListener::bind(&config.app.listen)
             .await
@@ -71,6 +130,29 @@ async fn main() -> anyhow::Result<()> {
     axum_handle.await??;
 
     Ok(())
+}
+
+fn create_cors_layer<S>(allowed_origins: &[S]) -> anyhow::Result<CorsLayer>
+where
+    S: AsRef<str>,
+{
+    if allowed_origins.iter().map(AsRef::as_ref).any(|s| s == "*") {
+        return Ok(CorsLayer::permissive());
+    }
+
+    let origins: Vec<HeaderValue> = allowed_origins
+        .iter()
+        .map(AsRef::as_ref)
+        .map(FromStr::from_str)
+        .collect::<Result<_, _>>()?;
+
+    let cors = CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_credentials(true);
+
+    Ok(cors)
 }
 
 fn make_tracing_subscriber(env_filter: EnvFilter) -> impl Subscriber {
