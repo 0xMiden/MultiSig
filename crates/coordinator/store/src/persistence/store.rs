@@ -29,6 +29,7 @@ use super::{
 
 use self::error::Result;
 
+#[tracing::instrument(skip_all)]
 pub async fn fetch_mutisig_account_by_address(
     conn: &mut DbConn,
     address: &str,
@@ -41,6 +42,7 @@ pub async fn fetch_mutisig_account_by_address(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn stream_multisig_accounts(
     conn: &mut DbConn,
 ) -> Result<impl Stream<Item = Result<MultisigAccountRecord>>> {
@@ -53,6 +55,7 @@ pub async fn stream_multisig_accounts(
     Ok(stream)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn stream_txs_with_signature_count_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -71,6 +74,7 @@ pub async fn stream_txs_with_signature_count_by_multisig_account_address(
     Ok(stream)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn stream_txs_with_signature_count_by_multisig_account_address_and_status(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -91,6 +95,7 @@ pub async fn stream_txs_with_signature_count_by_multisig_account_address_and_sta
     Ok(stream)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn fetch_tx_with_signature_count_by_id(
     conn: &mut DbConn,
     id: Uuid,
@@ -107,6 +112,7 @@ pub async fn fetch_tx_with_signature_count_by_id(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn fetch_tx_stats_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -132,6 +138,7 @@ pub async fn fetch_tx_stats_by_multisig_account_address(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn stream_approvers_by_multisig_account_address(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -154,6 +161,7 @@ pub async fn stream_approvers_by_multisig_account_address(
     Ok(stream)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn fetch_approver_by_approver_address(
     conn: &mut DbConn,
     approver_account_address: &str,
@@ -167,6 +175,7 @@ pub async fn fetch_approver_by_approver_address(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn fetch_all_signature_bytes_with_tx_by_tx_id_in_order_of_approvers(
     conn: &mut DbConn,
     tx_id: Uuid,
@@ -199,6 +208,7 @@ pub async fn fetch_all_signature_bytes_with_tx_by_tx_id_in_order_of_approvers(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn save_new_tx(conn: &mut DbConn, new_tx: NewTxRecord<'_>) -> Result<Uuid> {
     diesel::insert_into(schema::tx::table)
         .values(new_tx)
@@ -208,6 +218,7 @@ pub async fn save_new_tx(conn: &mut DbConn, new_tx: NewTxRecord<'_>) -> Result<U
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn update_status_by_tx_id(
     conn: &mut DbConn,
     tx_id: Uuid,
@@ -223,6 +234,7 @@ pub async fn update_status_by_tx_id(
     Ok(affected == 1)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn validate_approver_address_by_tx_id(
     conn: &mut DbConn,
     tx_id: Uuid,
@@ -244,6 +256,7 @@ pub async fn validate_approver_address_by_tx_id(
     .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn save_new_multisig_account(
     conn: &mut DbConn,
     new_contract: NewMultisigAccountRecord<'_>,
@@ -256,6 +269,7 @@ pub async fn save_new_multisig_account(
         .map_err(From::from)
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn save_new_signature(
     conn: &mut DbConn,
     new_signature: NewSignatureRecord<'_>,
@@ -268,6 +282,7 @@ pub async fn save_new_signature(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn save_new_multisig_account_approver_mapping(
     conn: &mut DbConn,
     multisig_account_address: &str,
@@ -287,6 +302,7 @@ pub async fn save_new_multisig_account_approver_mapping(
     Ok(())
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn upsert_approver(conn: &mut DbConn, new_approver: NewApproverRecord<'_>) -> Result<()> {
     diesel::insert_into(schema::approver::table)
         .values(new_approver)
