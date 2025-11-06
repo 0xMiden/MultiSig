@@ -108,28 +108,6 @@ pub mod pub_key_commit {
     }
 }
 
-pub mod signature {
-    use miden_client::utils::{Deserializable, Serializable};
-    use miden_objects::crypto::dsa::rpo_falcon512::Signature;
-    use serde::{Deserialize, Deserializer, Serializer, de::Error};
-
-    pub fn serialize<S>(signature: &Signature, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_bytes(&signature.to_bytes())
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Signature, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        <&[u8]>::deserialize(deserializer)
-            .map(Deserializable::read_from_bytes)?
-            .map_err(D::Error::custom)
-    }
-}
-
 pub mod transaction_request {
     use miden_client::{
         transaction::TransactionRequest,

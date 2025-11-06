@@ -12,8 +12,7 @@ use miden_client::{
     utils::Serializable,
 };
 use miden_multisig_coordinator_domain::{
-    MultisigApprover, MultisigApproverDissolved,
-    account::MultisigAccount,
+    account::{MultisigAccount, MultisigApprover, MultisigApproverDissolved},
     tx::{MultisigTx, MultisigTxDissolved, MultisigTxStatus},
 };
 use serde::Serialize;

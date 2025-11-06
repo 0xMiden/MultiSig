@@ -17,13 +17,9 @@ mod with_serde;
 use bon::Builder;
 use chrono::{DateTime, Utc};
 use dissolve_derive::Dissolve;
-use miden_client::account::{AccountIdAddress, NetworkId};
-use miden_objects::crypto::dsa::rpo_falcon512::{PublicKey, Signature};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-use self::tx::MultisigTxId;
 
 /// Timestamp metadata for tracking entity creation and modification times.
 ///
@@ -36,59 +32,6 @@ pub struct Timestamps {
     created_at: DateTime<Utc>,
     /// The timestamp when the entity was last updated.
     updated_at: DateTime<Utc>,
-}
-
-/// An approver authorized to sign multisig transactions.
-///
-/// Each approver is identified by their account address and has an associated
-/// public key commitment used for signature verification.
-///
-/// # Type Parameters
-///
-/// * `AUX` - Auxiliary data type, defaults to [`Timestamps`] for tracking metadata.
-#[derive(Debug, Clone, Builder, Dissolve)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultisigApprover<AUX = Timestamps> {
-    /// The account address of the approver.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
-    address: AccountIdAddress,
-
-    /// The network this account belongs to.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
-    network_id: NetworkId,
-
-    /// The public key commitment used for signature verification.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::pub_key_commit"))]
-    pub_key_commit: PublicKey,
-
-    /// Auxiliary metadata associated with this approver.
-    aux: AUX,
-}
-
-/// A signature from an approver for a multisig transaction.
-///
-/// Each signature is associated with a specific transaction and approver,
-/// containing the cryptographic signature used to authorize the transaction.
-///
-/// # Type Parameters
-///
-/// * `AUX` - Auxiliary data type, defaults to [`Timestamps`] for tracking metadata.
-#[derive(Debug, Clone, Builder, Dissolve)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct MultisigSignature<AUX = Timestamps> {
-    /// The ID of the transaction being signed.
-    tx_id: MultisigTxId,
-
-    /// The account address of the approver providing this signature.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
-    approver: AccountIdAddress,
-
-    /// The cryptographic signature.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::signature"))]
-    signature: Signature,
-
-    /// Auxiliary metadata associated with this signature.
-    aux: AUX,
 }
 
 impl Timestamps {

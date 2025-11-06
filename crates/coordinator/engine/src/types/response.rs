@@ -3,8 +3,7 @@
 use dissolve_derive::Dissolve;
 use miden_client::account::Account;
 use miden_multisig_coordinator_domain::{
-    MultisigApprover,
-    account::MultisigAccount,
+    account::{MultisigAccount, MultisigApprover},
     tx::{MultisigTx, MultisigTxId, MultisigTxStats},
 };
 use miden_objects::transaction::TransactionSummary;

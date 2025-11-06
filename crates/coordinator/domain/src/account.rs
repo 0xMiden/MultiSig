@@ -4,6 +4,8 @@ use core::num::NonZeroU32;
 
 use alloc::vec::Vec;
 
+use bon::Builder;
+use dissolve_derive::Dissolve;
 use miden_client::account::{AccountIdAddress, AccountStorageMode, NetworkId};
 use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
 
@@ -14,6 +16,33 @@ use crate::Timestamps;
 
 #[cfg(feature = "serde")]
 use crate::with_serde;
+
+/// An approver authorized to sign multisig transactions.
+///
+/// Each approver is identified by their account address and has an associated
+/// public key commitment used for signature verification.
+///
+/// # Type Parameters
+///
+/// * `AUX` - Auxiliary data type, defaults to [`Timestamps`] for tracking metadata.
+#[derive(Debug, Clone, Builder, Dissolve)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct MultisigApprover<AUX = Timestamps> {
+    /// The account address of the approver.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
+    address: AccountIdAddress,
+
+    /// The network this account belongs to.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
+    network_id: NetworkId,
+
+    /// The public key commitment used for signature verification.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::pub_key_commit"))]
+    pub_key_commit: PublicKey,
+
+    /// Auxiliary metadata associated with this approver.
+    aux: AUX,
+}
 
 /// A multisig account with type-state pattern for tracking approvers and public key commitments.
 ///

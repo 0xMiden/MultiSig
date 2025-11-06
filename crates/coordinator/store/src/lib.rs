@@ -55,8 +55,8 @@ use miden_client::{
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_domain::{
-    MultisigApprover, Timestamps,
-    account::{MultisigAccount, WithApprovers, WithPubKeyCommits},
+    Timestamps,
+    account::{MultisigAccount, MultisigApprover, WithApprovers, WithPubKeyCommits},
     tx::{MultisigTx, MultisigTxId, MultisigTxStats, MultisigTxStatus},
 };
 use miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair;
