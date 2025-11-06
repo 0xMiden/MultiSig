@@ -140,7 +140,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Enter existing multisig multisig address
+                  Enter existing multisig account address
                 </div>
               </div>
 
