@@ -222,7 +222,7 @@ export const getConsumableNotesThunk = createAsyncThunk(
       const address = localStorage.getItem('currentWalletId');
 
       if (!address) {
-        throw new Error('No wallet address found in localStorage');
+        throw new Error('No account address found in localStorage');
       }
 
       const response = await getConsumableNotes(address);

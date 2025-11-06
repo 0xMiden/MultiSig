@@ -45,7 +45,7 @@ const Settings = () => {
             SETTINGS
           </span>
           <span className="text-[16px] font-dmmono font-[500] text-[#0000007A]">
-            Configure wallet preferences and security
+            Configure multisig account preferences and security
           </span>
         </div>
 
@@ -56,9 +56,8 @@ const Settings = () => {
             className="absolute top-0 left-0 h-[56px] bg-[#FF5500] rounded-sm shadow-sm transition-transform duration-300 ease-in-out"
             style={{
               width: `${100 / tabs.length}%`,
-              transform: `translateX(${
-                tabs.findIndex((tab) => tab.id === activeTab) * 100
-              }%)`,
+              transform: `translateX(${tabs.findIndex((tab) => tab.id === activeTab) * 100
+                }%)`,
             }}
           />
 
@@ -68,16 +67,14 @@ const Settings = () => {
               onClick={() => {
                 setActiveTab(tab.id);
               }}
-              className={`flex items-center  h-[56px] justify-center cursor-pointer text-[16px] font-dmmono font-[500] transition-all duration-300 relative z-10 select-none ${
-                activeTab === tab.id
+              className={`flex items-center  h-[56px] justify-center cursor-pointer text-[16px] font-dmmono font-[500] transition-all duration-300 relative z-10 select-none ${activeTab === tab.id
                   ? "text-white font-semibold"
                   : "text-black hover:text-gray-700"
-              }`}
+                }`}
             >
               <span
-                className={`transition-colors duration-150 ${
-                  activeTab === tab.id ? "text-white" : "text-black"
-                }`}
+                className={`transition-colors duration-150 ${activeTab === tab.id ? "text-white" : "text-black"
+                  }`}
               >
                 {tab.label}
               </span>

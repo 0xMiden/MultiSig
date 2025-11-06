@@ -51,10 +51,10 @@ const Page = () => {
               CREATE NEW ACCOUNT
             </div>
             <div className="text-[10px] md:text-[12px] font-[400] text-[rgba(0,0,0,0.7)]">
-              Set up a new multisig account with custom threshold
+              Create a new multisig account with a custom signature threshold
             </div>
             <div className="text-[10px] md:text-[12px] text-[rgba(0,0,0,1)] font-[500]">
-              SET UP STEPS
+              SETUP STEPS
             </div>
 
             <div className="flex flex-col space-y-4 flex-1">
@@ -77,7 +77,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Add signer addresses (wallet addresses or ENS names)
+                  Add signer addresses
                 </div>
               </div>
 
@@ -88,7 +88,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Deploy wallet smart contract on Miden network
+                  Deploy multisig account smart contract on Miden network
                 </div>
               </div>
 
@@ -99,7 +99,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Share wallet address with other signers for verification
+                  Share account address with other signers
                 </div>
               </div>
             </div>
@@ -125,8 +125,7 @@ const Page = () => {
               LOAD EXISTING ACCOUNT
             </div>
             <div className="text-[10px] md:text-[12px] font-[400] text-[rgba(0,0,0,0.7)]">
-              Connect to an existing multi-signature wallet using your address
-              or private key
+              Connect to an existing multi-signature account using the multisig account address
             </div>
             <div className="text-[10px] md:text-[12px] text-[rgba(0,0,0,1)] font-[500]">
               SETUP STEPS
@@ -141,7 +140,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Enter existing multisig wallet address
+                  Enter existing multisig multisig address
                 </div>
               </div>
 
@@ -163,7 +162,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Verify you&apos;re authorized as a signer
+                  Verify you&apos;re authorized as a signer to sign transactions
                 </div>
               </div>
 
@@ -174,7 +173,7 @@ const Page = () => {
                   </span>
                 </div>
                 <div className="text-[10px] font-dmmono font-[400] tracking-[-2%]">
-                  Access wallet dashboard and transaction history
+                  Access account dashboard and transaction history
                 </div>
               </div>
             </div>
@@ -195,29 +194,49 @@ const Page = () => {
           </div>
         </div>
         <div className="text-center text-[14px] md:text-[16px] uppercase font-[400] font-dmmono pb-[20px] md:pb-0">
-          POWERED BY INICIO LABS AND THE MIDEN NETWORK
+          POWERED BY INICIO LABS & MIDEN
         </div>
         {/* Footer */}
         <div className="flex md:h-[60px] w-full flex-row items-center justify-between px-6 mt-auto pb-2 md:pb-0">
-          <div className="flex flex-row space-x-1 items-center">
+          <a
+            href="https://miden.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-row space-x-1 items-center cursor-pointer hover:opacity-80 transition-opacity"
+          >
             <div className="relative w-[13px] h-[13px]">
               <Image src={Svg.logo} alt="logo" fill objectFit="contain" />
             </div>
             <div className="font-dmmono text-[13px] md:text-[15px] font-[500] tracking-[-3%] uppercase">
               miden
             </div>
-          </div>
+          </a>
 
           <div className="flex flex-row items-center space-x-4">
-            <div className="relative w-[14px] h-[14px]">
+            <a
+              href="https://x.com/0xMiden"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative w-[14px] h-[14px] cursor-pointer hover:opacity-80 transition-opacity"
+            >
               <Image src={Svg.X} alt="X" fill objectFit="contain" />
-            </div>
-            <div className="relative w-[14px] h-[14px]">
+            </a>
+            <a
+              href="https://t.me/BuildOnMiden"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative w-[14px] h-[14px] cursor-pointer hover:opacity-80 transition-opacity"
+            >
               <Image src={Svg.tgIcon} alt="tg" fill objectFit="contain" />
-            </div>
-            <div className="relative w-[14px] h-[14px]">
+            </a>
+            <a
+              href="https://github.com/0xMiden/MultiSig"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative w-[14px] h-[14px] cursor-pointer hover:opacity-80 transition-opacity"
+            >
               <Image src={Svg.githubIcon} alt="github" fill objectFit="contain" />
-            </div>
+            </a>
           </div>
         </div>
       </div>

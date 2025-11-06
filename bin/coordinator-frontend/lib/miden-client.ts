@@ -57,7 +57,7 @@ export class MidenDemo {
         try {
             console.log("\nCreating a new wallet...");
 
-            // Set up wallet parameters
+            // Setup wallet parameters
             const accountStorageMode = AccountStorageMode.private();
             const mutable = true;
 

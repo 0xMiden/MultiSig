@@ -237,7 +237,7 @@ const CreateNewAccount = () => {
                     ACCOUNT CONFIGURATION
                   </div>
                   <div className="font-dmmono font-[400] text-[#000000] opacity-[40%] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px]">
-                    Set up your account name and security settings
+                    Set account name and security settings
                   </div>
                 </div>
 
@@ -363,7 +363,7 @@ const CreateNewAccount = () => {
                     ADD SIGNERS
                   </div>
                   <div className="font-dmmono font-[400] text-[#000000]  lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] ">
-                    Add wallet addresses that will be authorized to sign
+                    Add account addresses that will be authorized to sign
                     transactions
                   </div>
                 </div>
@@ -511,12 +511,12 @@ const CreateNewAccount = () => {
                     REVIEW CONFIGURATION
                   </div>
                   <div className="font-dmmono font-[400] text-[#000000]  lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px]">
-                    Please review your wallet settings before deployment
+                    Please review your account settings before deployment
                   </div>
 
                   <div className="w-full flex flex-row justify-between mt-4">
                     <div className="font-dmmono font-[500] text-[rgba(0,0,0,1)]  lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px]">
-                      Wallet Name
+                      Account Name
                     </div>
                     <div className="font-dmmono font-[500] lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] text-[rgba(0,0,0,0.55)] ">
                       {formData.walletName || "Not specified"}
@@ -609,7 +609,7 @@ const CreateNewAccount = () => {
                     CREATE ACCOUNT
                   </div>
                   <div className="font-dmmono font-[400] text-[#000000]  lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px]">
-                    Deploy your multi-signature wallet to the blockchain
+                    Deploy your multi-signature account to the blockchain
                   </div>
                   <div className="w-full h-[123px] border-[0.5px] border-[rgba(46,161,80,1)] flex flex-col items-center justify-center bg-[rgba(238,253,243,1)] my-10">
                     <div className="relative w-[48px] h-[48px] my-2">
@@ -673,13 +673,6 @@ const CreateNewAccount = () => {
             </button>
           </div>
           {/* button section ends here  */}
-
-          {/* bottom text for step 2 */}
-          {currentStep === 2 && (
-            <div className="lg:text-[14px] font-dmmono font-[500] md:text-[13px] sm:text-[12px] text-[11px] mx-auto w-full text-center">
-              The number of signers can be changed later on in the settings
-            </div>
-          )}
         </div>
       </div>
     </>

@@ -44,8 +44,8 @@ const LoadExistingWallet = () => {
                 localStorage.setItem("currentWalletId", bech32_new);
                 router.push("/dashboard/home");
             } catch (error) {
-                console.error("Error converting wallet address:", error);
-                alert("Invalid wallet address. Please enter a valid address.");
+                console.error("Error converting account address:", error);
+                alert("Invalid account address. Please enter a valid address.");
             }
         } else {
             alert("Please enter both wallet name and address.");
@@ -81,7 +81,7 @@ const LoadExistingWallet = () => {
                                 type="text"
                                 value={accountName}
                                 onChange={(e) => setWalletName(e.target.value)}
-                                placeholder="Enter wallet name"
+                                placeholder="Enter account name"
                                 className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px]"
                             />
 
@@ -92,7 +92,7 @@ const LoadExistingWallet = () => {
                                 type="text"
                                 value={accountAddress}
                                 onChange={(e) => setWalletAddress(e.target.value)}
-                                placeholder="Enter wallet address"
+                                placeholder="Enter account address"
                                 className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px]"
                             />
                         </div>
