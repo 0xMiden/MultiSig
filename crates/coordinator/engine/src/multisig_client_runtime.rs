@@ -104,6 +104,7 @@ where
         let fut = run_multisig_client_runtime(msg_receiver, tracking_multisig_accounts, config);
         let local_runtime = local.run_until(fut);
         rt.block_on(local_runtime)
+            .inspect_err(|e| tracing::error!("failed to run multisig client runtime: {e}"))
     })
 }
 
@@ -157,6 +158,8 @@ where
         .build()
         .await
         .map(MultisigClient::new)?;
+
+    client.sync_state().await?;
 
     for account_id in tracking_multisig_accounts.map(|address| address.id()) {
         let _ = client

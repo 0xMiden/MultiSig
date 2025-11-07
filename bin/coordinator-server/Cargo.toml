@@ -28,7 +28,7 @@ serde                             = { workspace = true, features = ["derive"] }
 serde_with                        = { workspace = true, features = ["base64", "macros"] }
 thiserror                         = "2"
 tokio                             = { workspace = true, features = ["rt-multi-thread"] }
-tower-http                        = { version = "0.6", features = ["cors"] }
+tower-http                        = { version = "0.6", features = ["cors", "trace"] }
 tracing                           = { workspace = true }
 tracing-subscriber                = { version = "0.3", features = ["env-filter"] }
 uuid                              = { workspace = true, features = ["serde"] }

@@ -73,6 +73,21 @@
 //! # Logging
 //!
 //! Logging is controlled via the `RUST_LOG` environment variable. Defaults to `info` level.
+//!
+//! The server logs:
+//! - **HTTP requests**: Method, path, status code, and duration for all incoming requests
+//! - **Client errors (4xx)**: Logged at `WARN` level with error details
+//! - **Server errors (5xx)**: Logged at `ERROR` level with error details
+//! - **Not found (404)**: Logged at `INFO` level
+//!
+//! Example log output:
+//! ```text
+//! INFO server listening at localhost:59059
+//! INFO request{method=POST path=/api/v1/multisig-tx/propose}
+//! INFO request{method=POST path=/api/v1/multisig-tx/propose}: close time.busy=245ms time.idle=12.4µs
+//! WARN client error: invalid account id address: ...
+//! ERROR server error: multisig engine error: ...
+//! ```
 
 use core::str::FromStr;
 
@@ -82,7 +97,7 @@ use miden_multisig_coordinator_engine::{MultisigClientRuntimeConfig, MultisigEng
 use miden_multisig_coordinator_server::{App, config};
 use miden_multisig_coordinator_store::MultisigStore;
 use tokio::{net::TcpListener, runtime::Builder, task};
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{Subscriber, subscriber};
 use tracing_subscriber::{EnvFilter, Registry, fmt::format::FmtSpan, layer::SubscriberExt};
 
@@ -118,7 +133,7 @@ async fn main() -> anyhow::Result<()> {
     let axum_handle = {
         let router = miden_multisig_coordinator_server::create_router(app);
         let cors = create_cors_layer(&config.app.cors_allowed_origins)?;
-        let router = router.layer(cors);
+        let router = router.layer(TraceLayer::new_for_http()).layer(cors);
 
         let listener = TcpListener::bind(&config.app.listen)
             .await

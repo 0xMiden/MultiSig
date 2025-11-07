@@ -76,9 +76,16 @@ impl IntoResponse for AppError {
             | AppError::InvalidTransactionRequest
             | AppError::InvalidSignature
             | AppError::InvalidMultisigTxStatus
-            | AppError::RequestError(_) => StatusCode::BAD_REQUEST,
-            AppError::MultisigAccountNotFound => StatusCode::NOT_FOUND,
+            | AppError::RequestError(_) => {
+                tracing::warn!("client error: {}", self);
+                StatusCode::BAD_REQUEST
+            },
+            AppError::MultisigAccountNotFound => {
+                tracing::info!("multisig account not found");
+                StatusCode::NOT_FOUND
+            },
             AppError::MultisigEngine(_) | AppError::JoinError(_) | AppError::Other(_) => {
+                tracing::error!("server error: {}", self);
                 StatusCode::INTERNAL_SERVER_ERROR
             },
         };
