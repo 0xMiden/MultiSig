@@ -158,8 +158,11 @@ where
         .await
         .map(MultisigClient::new)?;
 
-    for account_id_address in tracking_multisig_accounts {
-        let _ = client.import_account_by_id(account_id_address.id()).await;
+    for account_id in tracking_multisig_accounts.map(|address| address.id()) {
+        let _ = client
+            .import_account_by_id(account_id)
+            .await
+            .inspect_err(|e| tracing::error!("failed to track multisig account {account_id}: {e}"));
     }
 
     // TODO: convey the error in a better way to the caller
@@ -170,20 +173,24 @@ where
                 break;
             },
             MultisigClientRuntimeMsg::GetConsumableNotes(msg) => {
-                let _ = client.sync_state().await;
-                let _ = handle_get_consumable_notes(&client, msg).await;
+                let _ = handle_get_consumable_notes(&mut client, msg)
+                    .await
+                    .inspect_err(|e| tracing::error!("failed to handle get consumable notes: {e}"));
             },
             MultisigClientRuntimeMsg::CreateMultisigAccount(msg) => {
-                let _ = handle_create_multisig_account(&mut client, msg).await;
-                let _ = client.sync_state().await;
+                let _ = handle_create_multisig_account(&mut client, msg).await.inspect_err(|e| {
+                    tracing::error!("failed to handle create multisig account: {e}")
+                });
             },
             MultisigClientRuntimeMsg::ProposeMultisigTx(msg) => {
-                let _ = client.sync_state().await;
-                let _ = handle_propose_multisig_tx(&mut client, msg).await;
+                let _ = handle_propose_multisig_tx(&mut client, msg)
+                    .await
+                    .inspect_err(|e| tracing::error!("failed to handle propose multisig tx: {e}"));
             },
             MultisigClientRuntimeMsg::ProcessMultisigTx(msg) => {
-                let _ = handle_process_multisig_tx(&mut client, msg).await;
-                let _ = client.sync_state().await;
+                let _ = handle_process_multisig_tx(&mut client, msg)
+                    .await
+                    .inspect_err(|e| tracing::error!("failed to handle process multisig tx: {e}"));
             },
         }
     }
@@ -201,28 +208,36 @@ async fn handle_create_multisig_account<AUTH>(
 where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
+    client.sync_state().await?;
+
     let CreateMultisigAccountDissolved { threshold, approvers, sender } = msg.dissolve();
 
     let account = client.setup_account(approvers, threshold.get()).await;
 
-    let _ = sender.send(account);
+    let _ = sender
+        .send(account)
+        .inspect_err(|_| tracing::error!("oneshot sender failed to send new multisig account"));
 
     Ok(())
 }
 
 #[tracing::instrument(skip_all)]
 async fn handle_get_consumable_notes<AUTH>(
-    client: &MultisigClient<AUTH>,
+    client: &mut MultisigClient<AUTH>,
     msg: GetConsumableNotes,
 ) -> Result<()>
 where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
+    client.sync_state().await?;
+
     let GetConsumableNotesDissolved { account_id, sender } = msg.dissolve();
 
     let notes = client.get_consumable_notes(account_id).await?;
 
-    let _ = sender.send(notes);
+    let _ = sender
+        .send(notes)
+        .inspect_err(|_| tracing::error!("oneshot sender failed to send list of consumable notes"));
 
     Ok(())
 }
@@ -235,11 +250,15 @@ async fn handle_propose_multisig_tx<AUTH>(
 where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
+    client.sync_state().await?;
+
     let ProposeMultisigTxDissolved { account_id, tx_request, sender } = msg.dissolve();
 
     let tx_summary = client.propose_multisig_transaction(account_id, tx_request).await;
 
-    let _ = sender.send(tx_summary.map_err(From::from));
+    let _ = sender
+        .send(tx_summary.map_err(From::from))
+        .inspect_err(|_| tracing::error!("oneshot sender failed to send tx summary"));
 
     Ok(())
 }
@@ -252,6 +271,8 @@ async fn handle_process_multisig_tx<AUTH>(
 where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
+    client.sync_state().await?;
+
     let ProcessMultisigTxDissolved {
         account_id,
         tx_request,
@@ -275,7 +296,9 @@ where
         client.submit_transaction(tx_result.clone()).await?;
     }
 
-    let _ = sender.send(tx_result.map_err(From::from));
+    let _ = sender
+        .send(tx_result.map_err(From::from))
+        .inspect_err(|_| tracing::error!("oneshot sender failed to send tx result"));
 
     Ok(())
 }
