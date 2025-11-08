@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMidenSdk } from './useMidenSdk';
-import { useMidenClient } from './useMidenClient';
+import { useMidenClient } from '../contexts/MidenClientContext';
 import { AccountId, NetworkId, AccountInterface } from '@demox-labs/miden-sdk';
 import { FungibleAsset } from '@/types';
 
 export const useFungibleAssets = () => {
   const { Miden } = useMidenSdk();
-  const { demo, isInitialized } = useMidenClient();
+  const { handle, isInitialized } = useMidenClient();
   const [fungibleAssets, setFungibleAssets] = useState<FungibleAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,12 +17,12 @@ export const useFungibleAssets = () => {
       setError(null);
 
       const currentWalletId = localStorage.getItem("currentWalletId");
-      if (!currentWalletId || !Miden || !demo || !isInitialized) {
+      if (!currentWalletId || !Miden || !handle || !isInitialized) {
         setIsLoading(false);
         return;
       }
 
-      const webClient = demo.getWebClient();
+      const webClient = handle.getWebClient();
       if (!webClient) {
         setIsLoading(false);
         return;
@@ -58,7 +58,7 @@ export const useFungibleAssets = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [Miden, demo, isInitialized]);
+  }, [Miden, handle, isInitialized]);
 
   // Load fungible assets on component mount
   useEffect(() => {

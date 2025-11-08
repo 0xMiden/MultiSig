@@ -10,6 +10,7 @@ import {
   PrivateDataPermission,
 } from '@demox-labs/miden-wallet-adapter';
 import { MidenSdkProvider } from '../hooks/useMidenSdk';
+import { MidenClientProvider } from '../contexts/MidenClientContext';
 
 // Import styles
 import '@demox-labs/miden-wallet-adapter/styles.css';
@@ -32,26 +33,30 @@ export function Providers({ children }: { children: React.ReactNode }) {
   if (!mounted) {
     return (
       <Provider store={store}>
-        <MidenSdkProvider>
-          {children}
-        </MidenSdkProvider>
+        <MidenClientProvider>
+          <MidenSdkProvider>
+            {children}
+          </MidenSdkProvider>
+        </MidenClientProvider>
       </Provider>
     );
   }
 
   return (
     <Provider store={store}>
-      <WalletProvider
-        wallets={wallets}
-        privateDataPermission={PrivateDataPermission.UponRequest}
-        autoConnect={true}
-      >
-        <WalletModalProvider>
-          <MidenSdkProvider>
-            {children}
-          </MidenSdkProvider>
-        </WalletModalProvider>
-      </WalletProvider>
+      <MidenClientProvider>
+        <WalletProvider
+          wallets={wallets}
+          privateDataPermission={PrivateDataPermission.UponRequest}
+          autoConnect={true}
+        >
+          <WalletModalProvider>
+            <MidenSdkProvider>
+              {children}
+            </MidenSdkProvider>
+          </WalletModalProvider>
+        </WalletProvider>
+      </MidenClientProvider>
     </Provider>
   );
 }

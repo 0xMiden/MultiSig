@@ -6,7 +6,7 @@ import media from "../../../../public/media";
 import { useAppSelector } from "@/store/hooks";
 import { DecodedTransaction, RecentTransactionsProps } from "@/types";
 import { TransactionRequest } from "@demox-labs/miden-sdk";
-import { useMidenClient } from "../../../hooks/useMidenClient";
+import { useMidenClient } from "../../../contexts/MidenClientContext";
 
 const getTransactionType = (
   txRequestBase64: string | undefined
@@ -112,8 +112,8 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   const { allTransactions, loading: transactionsLoading } = useAppSelector(
     (state) => state.transaction
   );
-  const { demo } = useMidenClient();
-  const webClient = demo?.getWebClient();
+  const { handle } = useMidenClient();
+  const webClient = handle?.getWebClient();
 
   const [displayTransactions, setDisplayTransactions] = useState<DecodedTransaction[]>([]);
   const [amountsLoading, setAmountsLoading] = useState(false);
@@ -134,7 +134,15 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
     let isMounted = true;
 
     const decodeAllTransactions = async () => {
+      console.log('RecentTransactions: decoding transactions', {
+        transactionsCount: allTransactions?.length || 0,
+        hasWebClient: !!webClient,
+        transactionsLoading,
+        initialLoad
+      });
+
       if (!allTransactions || allTransactions.length === 0) {
+        console.log('RecentTransactions: No transactions to decode');
         if (isMounted) {
           setDisplayTransactions([]);
         }
@@ -195,10 +203,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
         }
 
         if (isMounted) {
+          console.log('RecentTransactions: Setting decoded transactions', { count: decoded.length });
           setDisplayTransactions(decoded);
         }
       } catch (error) {
-        console.error("Error decoding transactions:", error);
+        console.error("RecentTransactions: Error decoding transactions:", error);
         if (isMounted) {
           setDisplayTransactions([]);
         }
@@ -219,6 +228,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   const handleViewAll = () => {
     router.push('/dashboard/transactions');
   };
+
+  console.log('RecentTransactions: Rendering', {
+    displayTransactionsCount: displayTransactions.length,
+    transactionsLoading,
+    initialLoad,
+    allTransactionsCount: allTransactions?.length || 0
+  });
 
   return (
     <div className="flex flex-col gap-2 w-full border p-4">

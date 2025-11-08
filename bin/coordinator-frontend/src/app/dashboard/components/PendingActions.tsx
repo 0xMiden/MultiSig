@@ -7,11 +7,8 @@ import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import PendingTransactionDetails from "@/interactions/PendingTransactionDetails";
 import { AnimatePresence, motion } from "framer-motion";
 import { TransactionRequest, TransactionSummary, SigningInputs } from "@demox-labs/miden-sdk";
-import { useMidenClient } from "../../../hooks/useMidenClient";
-import {
-  fetchPendingTransactions,
-  fetchConfirmedTransactions,
-} from "../../../services/transactionApi";
+import { useMidenClient } from "../../../contexts/MidenClientContext";
+import { fetchPendingTransactions, fetchConfirmedTransactions} from "../../../services/transactionApi";
 import { addSignatureThunk } from "../../../services/signatureApi";
 import { useWallet } from "@demox-labs/miden-wallet-adapter";
 import { PendingActionsProps, DecodedTransaction, WebClient, Uint8ArrayConstructor } from "@/types";
@@ -109,13 +106,13 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
 const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight = false }) => {
   const router = useRouter();
   const { wallet, accountId, connected, signBytes } = useWallet();
-  const { demo, isInitialized } = useMidenClient();
+  const { handle, isInitialized } = useMidenClient();
   const dispatch = useAppDispatch();
   const { pendingTransactions, loading: transactionsLoading } = useAppSelector(
     (state) => state.transaction
   );
 
-  const webClient = demo?.getWebClient();
+  const webClient = handle?.getWebClient();
   const [decodedPendingTransactions, setDecodedPendingTransactions] = useState<DecodedTransaction[]>([]);
   const [initialLoad, setInitialLoad] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -192,9 +189,9 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           })
         ).unwrap();
 
-        if (demo && isInitialized) {
+        if (handle && isInitialized) {
           try {
-            await demo.syncState();
+            await handle.syncState();
           } catch (syncError) {
             console.error("Error syncing state after signature:", syncError);
           }
@@ -241,7 +238,15 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
   // Decode pending transactions with amounts
   useEffect(() => {
     const decodePendingTransactions = async () => {
+      console.log('PendingActions: decoding transactions', {
+        transactionsCount: pendingTransactions?.length || 0,
+        hasWebClient: !!webClient,
+        transactionsLoading,
+        initialLoad
+      });
+
       if (!pendingTransactions || pendingTransactions.length === 0) {
+        console.log('PendingActions: No transactions to decode');
         setDecodedPendingTransactions([]);
         return;
       }
@@ -306,15 +311,24 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           } as any);
         }
 
+        console.log('PendingActions: Setting decoded transactions', { count: decoded.length });
         setDecodedPendingTransactions(decoded);
       } catch (error) {
-        console.error("Error decoding pending transactions:", error);
+        console.error("PendingActions: Error decoding transactions:", error);
         setDecodedPendingTransactions([]);
       }
     };
 
     decodePendingTransactions();
   }, [pendingTransactions, webClient]);
+
+  // Debug log for render
+  console.log('PendingActions: Rendering', {
+    decodedTransactionsCount: decodedPendingTransactions.length,
+    transactionsLoading,
+    initialLoad,
+    pendingTransactionsCount: pendingTransactions?.length || 0
+  });
 
   const [isPendingTransactionDetailsOpen, setIsPendingTransactionDetailsOpen] =
     useState(false);

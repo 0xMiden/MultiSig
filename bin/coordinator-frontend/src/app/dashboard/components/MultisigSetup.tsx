@@ -5,7 +5,7 @@ import { MidenWebClientHandle } from '../../../../lib/miden-client';
 import { SecretKey } from '@demox-labs/miden-sdk';
 
 interface MultisigSetupProps {
-  midenDemo: MidenWebClientHandle | null;
+  midenHandle: MidenWebClientHandle | null;
 }
 
 interface MultisigSetupResult {
@@ -14,7 +14,7 @@ interface MultisigSetupResult {
   [key: string]: unknown;
 }
 
-export default function MultisigSetup({ midenDemo }: MultisigSetupProps) {
+export default function MultisigSetup({ midenHandle }: MultisigSetupProps) {
   const [publicKeys, setPublicKeys] = useState<string[]>(['', '', '']);
   const [threshold, setThreshold] = useState<number>(2);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function MultisigSetup({ midenDemo }: MultisigSetupProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!midenDemo) {
+    if (!midenHandle) {
       setError('Miden client not initialized');
       return;
     }
@@ -80,7 +80,7 @@ export default function MultisigSetup({ midenDemo }: MultisigSetupProps) {
     setResult(null);
 
     try {
-      const webClient = midenDemo.getWebClient();
+      const webClient = midenHandle.getWebClient();
       if (!webClient) {
         throw new Error('Web client not available');
       }

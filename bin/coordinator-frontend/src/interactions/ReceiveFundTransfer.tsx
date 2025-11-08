@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useMidenClient } from "@/hooks/useMidenClient";
+import { useMidenClient } from "@/contexts/MidenClientContext";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/store";
 import { proposeTransactionWithTxBzThunk, fetchPendingTransactions, fetchConfirmedTransactions, getConsumableNotesThunk } from "../services/transactionApi";
@@ -59,7 +59,7 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
 };
 
 const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => void; onAssetsUpdated?: () => Promise<void> }) => {
-  const { demo, isInitialized } = useMidenClient();
+  const { handle, isInitialized } = useMidenClient();
   const dispatch = useDispatch<AppDispatch>();
   const { consumableNotes, loading } = useSelector((state: any) => state.transaction);
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
@@ -67,18 +67,14 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
   const [noteAmounts, setNoteAmounts] = useState<{ [noteId: string]: number }>({});
   const [amountsLoading, setAmountsLoading] = useState(false);
 
-  // Get WebClient from the demo instance
-  const webClient = demo?.getWebClient();
+  const webClient = handle.getWebClient();
 
-  // Get note_ids array from the nested structure
   const noteIds = consumableNotes?.note_ids || [];
 
-  // Call the thunk to fetch consumable notes
   useEffect(() => {
     dispatch(getConsumableNotesThunk());
   }, [dispatch]);
 
-  // Calculate amounts for each note
   useEffect(() => {
     const calculateAmounts = async () => {
       if (!webClient || noteIds.length === 0) {
@@ -88,7 +84,6 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
       setAmountsLoading(true);
       const amounts: { [noteId: string]: number } = {};
 
-      // Process notes sequentially
       for (const note of noteIds) {
         const noteId = note.note_id || '';
         const noteIdFileBytes = note.note_id_file_bytes || '';
@@ -126,7 +121,7 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
       return;
     }
 
-    if (!isInitialized) {
+    if (!handle || !isInitialized) {
       alert("Miden client not initialized");
       return;
     }

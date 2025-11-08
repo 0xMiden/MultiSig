@@ -37,10 +37,15 @@ const Page: React.FC = () => {
 
   useEffect(() => {
     const walletId = localStorage.getItem("currentWalletId");
+    console.log('Dashboard: Fetching transactions for walletId:', walletId);
     if (walletId) {
       // Force fetch on every mount to ensure fresh data on page refresh
-      dispatch(fetchPendingTransactions({ accountId: walletId }));
-      dispatch(fetchConfirmedTransactions({ accountId: walletId }));
+      dispatch(fetchPendingTransactions({ accountId: walletId })).then((result) => {
+        console.log('Dashboard: fetchPendingTransactions complete', result);
+      });
+      dispatch(fetchConfirmedTransactions({ accountId: walletId })).then((result) => {
+        console.log('Dashboard: fetchConfirmedTransactions complete', result);
+      });
     }
   }, []);
 

@@ -7,7 +7,7 @@ import { setCurrentTransactionId } from "@/store/slices/transactionSlice";
 import media from "../../public/media";
 import Image from "next/image";
 import { useMidenSdk } from "../hooks/useMidenSdk";
-import { useMidenClient } from "../hooks/useMidenClient";
+import { useMidenClient } from "../contexts/MidenClientContext";
 import { useWalletData } from "../hooks/useWalletData";
 import { AccountId, Address, NoteType, AccountInterface, NetworkId } from "@demox-labs/miden-sdk";
 import { proposeTransactionWithTxBzThunk, fetchPendingTransactions } from "../services/transactionApi";
@@ -16,7 +16,7 @@ import { InitiateFundTransferProps } from "@/types";
 const InitiateFundTransfer = ({ onCancel, fungibleAssets, isLoading: isLoadingAssets, onOpen }: InitiateFundTransferProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const { Miden } = useMidenSdk();
-  const { demo, isInitialized } = useMidenClient();
+  const { handle, isInitialized } = useMidenClient();
   const { walletData, loading: walletLoading } = useWalletData();
 
   // Form state
@@ -44,14 +44,12 @@ const InitiateFundTransfer = ({ onCancel, fungibleAssets, isLoading: isLoadingAs
     }
   }, [onOpen]);
 
-  // Set selected faucet ID when assets are loaded
   useEffect(() => {
     if (fungibleAssets.length > 0 && !selectedFaucetId) {
       setSelectedFaucetId(fungibleAssets[0].faucetId);
     }
   }, [fungibleAssets, selectedFaucetId]);
 
-  // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -85,7 +83,6 @@ const InitiateFundTransfer = ({ onCancel, fungibleAssets, isLoading: isLoadingAs
 
   const testInitiateFundTransfer = async () => {
     try {
-      // 1. Get sender account from localStorage
       const currentWalletId = localStorage.getItem("currentWalletId");
       if (!currentWalletId) {
         throw new Error("No wallet ID found in localStorage");
@@ -94,7 +91,6 @@ const InitiateFundTransfer = ({ onCancel, fungibleAssets, isLoading: isLoadingAs
       const senderAddress = Address.fromBech32(currentWalletId);
       const senderAccountId = senderAddress.accountId();
 
-      // 2. Get target account from recipient address
       const targetBech32 = formData.recipientAddress;
       if (!targetBech32) {
         throw new Error("No recipient address provided");
@@ -103,34 +99,31 @@ const InitiateFundTransfer = ({ onCancel, fungibleAssets, isLoading: isLoadingAs
       const targetAddress = Address.fromBech32(targetBech32);
       const targetAccountId = targetAddress.accountId();
 
-      // 3. Use selected faucet id from dropdown
       if (!selectedFaucetId) {
         throw new Error("No faucet selected");
       }
       const faucetAddress = Address.fromBech32(selectedFaucetId);
       const faucetAccountId = faucetAddress.accountId();
 
-      // 4. NoteType = Public
       const noteType = NoteType.Public;
 
-      // Get amount from form
       const amount = BigInt(Number(formData.amount) * 1000000 || "0");
 
       if (!Miden) {
         throw new Error("Miden SDK not loaded");
       }
 
-      if (!demo || !isInitialized) {
+      if (!Miden || !handle || !isInitialized) {
         throw new Error("Miden client not initialized");
       }
 
-      const client = demo.getWebClient();
-      if (!client) {
+      const webClient = handle.getWebClient();
+      if (!webClient) {
         throw new Error("WebClient not available");
       }
 
       // Create transaction request
-      const transactionRequest = client.newSendTransactionRequest(
+      const transactionRequest = webClient.newSendTransactionRequest(
         senderAccountId,
         targetAccountId,
         faucetAccountId,
