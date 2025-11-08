@@ -91,12 +91,14 @@
 
 use core::str::FromStr;
 
+use std::sync::Arc;
+
 use axum::http::{HeaderValue, Method, header};
 use miden_client::account::NetworkId;
 use miden_multisig_coordinator_engine::{MultisigClientRuntimeConfig, MultisigEngine};
 use miden_multisig_coordinator_server::{App, config};
 use miden_multisig_coordinator_store::MultisigStore;
-use tokio::{net::TcpListener, runtime::Builder, task};
+use tokio::{net::TcpListener, runtime::Builder, signal, task};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::{Subscriber, subscriber};
 use tracing_subscriber::{EnvFilter, Registry, fmt::format::FmtSpan, layer::SubscriberExt};
@@ -108,41 +110,63 @@ async fn main() -> anyhow::Result<()> {
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     subscriber::set_global_default(make_tracing_subscriber(env_filter))?;
 
-    let app = {
-        let store =
-            miden_multisig_coordinator_store::establish_pool(config.db.db_url, config.db.max_conn)
-                .await
-                .map(MultisigStore::new)?;
-
-        let network_id = NetworkId::new(&config.app.network_id_hrp)?;
-        let rt = Builder::new_current_thread().enable_all().build()?;
-        let multisig_client_rt_config = MultisigClientRuntimeConfig::builder()
-            .node_url(config.miden.node_url.parse()?)
-            .store_path(config.miden.store_path.into())
-            .keystore_path(config.miden.keystore_path.into())
-            .timeout(config.miden.timeout)
-            .build();
-
-        let engine = MultisigEngine::new(network_id, store)
-            .start_multisig_client_runtime(rt, multisig_client_rt_config)
-            .await?;
-
-        App::builder().engine(engine.into()).build()
-    };
-
-    let axum_handle = {
-        let router = miden_multisig_coordinator_server::create_router(app);
-        let cors = create_cors_layer(&config.app.cors_allowed_origins)?;
-        let router = router.layer(TraceLayer::new_for_http()).layer(cors);
-
-        let listener = TcpListener::bind(&config.app.listen)
+    let store =
+        miden_multisig_coordinator_store::establish_pool(config.db.db_url, config.db.max_conn)
             .await
-            .inspect(|_| tracing::info!("server listening at {}", config.app.listen))?;
+            .map(MultisigStore::new)?;
 
-        tokio::spawn(async { axum::serve(listener, router).await })
-    };
+    let network_id = NetworkId::new(&config.app.network_id_hrp)?;
+    let rt = Builder::new_current_thread().enable_all().build()?;
+    let multisig_client_rt_config = MultisigClientRuntimeConfig::builder()
+        .node_url(config.miden.node_url.parse()?)
+        .store_path(config.miden.store_path.into())
+        .keystore_path(config.miden.keystore_path.into())
+        .timeout(config.miden.timeout)
+        .build();
 
-    axum_handle.await??;
+    let engine = MultisigEngine::new(network_id, store)
+        .start_multisig_client_runtime(rt, multisig_client_rt_config)
+        .await?;
+
+    let engine = Arc::new(engine);
+
+    let app = App::builder().engine(engine.clone()).build();
+
+    // Set up router and server
+    let router = miden_multisig_coordinator_server::create_router(app);
+    let cors = create_cors_layer(&config.app.cors_allowed_origins)?;
+    let router = router.layer(TraceLayer::new_for_http()).layer(cors);
+
+    let listener = TcpListener::bind(&config.app.listen)
+        .await
+        .inspect(|_| tracing::info!("server listening at {}", config.app.listen))?;
+
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal_handler())
+        .await?;
+
+    // After axum shuts down, attempt to stop the multisig client runtime
+    // At this point, the axum server has dropped all handler references to the engine
+    tracing::info!("axum server stopped, shutting down multisig client runtime");
+
+    match Arc::try_unwrap(engine) {
+        Ok(engine_instance) => match engine_instance.stop_multisig_client_runtime().await {
+            Ok(_) => {
+                tracing::info!("multisig client runtime stopped successfully");
+            },
+            Err(e) => {
+                tracing::error!("failed to stop multisig client runtime: {e}");
+                return Err(e.into());
+            },
+        },
+        Err(_) => {
+            tracing::warn!(
+                "failed to get exclusive ownership of engine, multisig client runtime might be running"
+            );
+        },
+    }
+
+    tracing::info!("coordinator server shutdown complete");
 
     Ok(())
 }
@@ -179,4 +203,32 @@ fn make_tracing_subscriber(env_filter: EnvFilter) -> impl Subscriber {
                 .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE),
         )
         .with(env_filter)
+}
+
+async fn shutdown_signal_handler() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to install SIGINT signal handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("received SIGINT, initiating graceful shutdown");
+        }
+        _ = terminate => {
+            tracing::info!("received SIGTERM, initiating graceful shutdown");
+        }
+    }
+
+    tracing::info!("shutdown signal received, shutting down axum server");
 }

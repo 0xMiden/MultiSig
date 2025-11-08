@@ -159,6 +159,7 @@ where
         .await
         .map(MultisigClient::new)?;
 
+    client.ensure_genesis_in_place().await?;
     client.sync_state().await?;
 
     for account_id in tracking_multisig_accounts.map(|address| address.id()) {
