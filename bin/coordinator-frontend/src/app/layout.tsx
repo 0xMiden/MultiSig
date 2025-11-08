@@ -28,6 +28,9 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "Miden Multisig",
   description: "Miden Multisig Wallet",
+  icons: {
+    icon: "/svg/logo.svg",
+  },
 };
 
 export default function RootLayout({

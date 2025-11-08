@@ -38,10 +38,11 @@ const Page: React.FC = () => {
   useEffect(() => {
     const walletId = localStorage.getItem("currentWalletId");
     if (walletId) {
+      // Force fetch on every mount to ensure fresh data on page refresh
       dispatch(fetchPendingTransactions({ accountId: walletId }));
       dispatch(fetchConfirmedTransactions({ accountId: walletId }));
     }
-  }, [dispatch]);
+  }, []);
 
   // Calculate total balance from fungible assets
   useEffect(() => {

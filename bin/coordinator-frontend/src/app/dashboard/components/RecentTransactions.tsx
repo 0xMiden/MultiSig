@@ -117,6 +117,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
 
   const [displayTransactions, setDisplayTransactions] = useState<DecodedTransaction[]>([]);
   const [amountsLoading, setAmountsLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,6 +126,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
       if (!allTransactions || allTransactions.length === 0) {
         if (isMounted) {
           setDisplayTransactions([]);
+          setInitialLoad(false);
         }
         return;
       }
@@ -184,11 +186,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
 
         if (isMounted) {
           setDisplayTransactions(decoded);
+          setInitialLoad(false);
         }
       } catch (error) {
         console.error("Error decoding transactions:", error);
         if (isMounted) {
           setDisplayTransactions([]);
+          setInitialLoad(false);
         }
       } finally {
         if (isMounted) {
@@ -236,7 +240,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
           : "h-[200px]" // Default height when no items
           }`}
       >
-        {transactionsLoading ? (
+        {transactionsLoading || initialLoad ? (
           // Loading spinner
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">

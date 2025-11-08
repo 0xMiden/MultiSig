@@ -117,6 +117,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
   const webClient = demo?.getWebClient();
   const [decodedPendingTransactions, setDecodedPendingTransactions] = useState<DecodedTransaction[]>([]);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   console.log("pendingTransactions", pendingTransactions);
   const handleSign = async (txReqFromApi: string, txId: string) => {
@@ -231,6 +232,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     const decodePendingTransactions = async () => {
       if (!pendingTransactions || pendingTransactions.length === 0) {
         setDecodedPendingTransactions([]);
+        setInitialLoad(false);
         return;
       }
 
@@ -295,9 +297,11 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         }
 
         setDecodedPendingTransactions(decoded);
+        setInitialLoad(false);
       } catch (error) {
         console.error("Error decoding pending transactions:", error);
         setDecodedPendingTransactions([]);
+        setInitialLoad(false);
       }
     };
 
@@ -374,7 +378,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           : "h-[200px]" // Default height when no items
           }`}
       >
-        {transactionsLoading ? (
+        {transactionsLoading || initialLoad ? (
           // Loading spinner
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">

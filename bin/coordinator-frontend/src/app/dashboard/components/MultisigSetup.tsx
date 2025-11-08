@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { MidenDemo } from '../../../../lib/miden-client';
+import { MidenWebClientHandle } from '../../../../lib/miden-client';
 import { SecretKey } from '@demox-labs/miden-sdk';
 
 interface MultisigSetupProps {
-  midenDemo: MidenDemo | null;
+  midenDemo: MidenWebClientHandle | null;
 }
 
 interface MultisigSetupResult {

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MidenDemo } from '../../lib/miden-client';
+import { MidenWebClientHandle } from '../../lib/miden-client';
 
 export const useMidenClient = () => {
-  const [demo, setDemo] = useState<MidenDemo | null>(null);
+  const [demo, setDemo] = useState<MidenWebClientHandle | null>(null);
   const [status, setStatus] = useState<string>('');
   const [isRunning, setIsRunning] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -16,7 +16,7 @@ export const useMidenClient = () => {
     setError(null);
     
     try {
-      const newDemo = new MidenDemo();
+      const newDemo = new MidenWebClientHandle();
       setDemo(newDemo);
       
       const success = await newDemo.initialize();
