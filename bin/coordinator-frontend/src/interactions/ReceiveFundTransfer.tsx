@@ -26,7 +26,7 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
       console.log("inputNoteRecord is undefined, importing note file...");
 
       if (noteIdFileBytes) {
-        const noteBytes = (Uint8Array as any).fromBase64(noteIdFileBytes);
+        const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
         await webClient.importNoteFile(noteBytes);
         console.log("Note imported successfully");
 
@@ -138,7 +138,7 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
       console.log("TRANSACTION REQUEST - ", transactionRequest);
       const serializedRequest = transactionRequest.serialize();
 
-      const tx_bz = (serializedRequest as any).toBase64();
+      const tx_bz = serializedRequest.toBase64();
       console.log("TX BZ (base64) - ", tx_bz);
 
       // Propose transaction

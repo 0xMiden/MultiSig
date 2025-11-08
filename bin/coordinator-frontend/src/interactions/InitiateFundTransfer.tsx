@@ -1,5 +1,4 @@
 "use client";
-import { createTransactionThunk } from "@/services";
 import { useDispatch } from "react-redux";
 import { useState, useEffect, useRef } from "react";
 import { AppDispatch } from "@/store";
@@ -9,7 +8,7 @@ import Image from "next/image";
 import { useMidenSdk } from "../hooks/useMidenSdk";
 import { useMidenClient } from "../contexts/MidenClientContext";
 import { useWalletData } from "../hooks/useWalletData";
-import { AccountId, Address, NoteType, AccountInterface, NetworkId } from "@demox-labs/miden-sdk";
+import { Address, NoteType } from "@demox-labs/miden-sdk";
 import { proposeTransactionWithTxBzThunk, fetchPendingTransactions } from "../services/transactionApi";
 import { InitiateFundTransferProps } from "@/types";
 

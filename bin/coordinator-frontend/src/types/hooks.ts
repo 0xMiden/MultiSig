@@ -87,15 +87,6 @@ export interface TransactionTemplate {
   build: () => Promise<Uint8Array>;
 }
 
-// Extend Uint8Array to include base64 methods that exist in the Miden SDK
-export interface Uint8ArrayConstructor {
-  fromBase64(base64: string): Uint8Array;
-}
-
-export interface Uint8ArrayWithBase64 extends Uint8Array {
-  toBase64(): string;
-}
-
 // Miden SDK Hook Types
 export interface MidenSdkContextState {
   isLoading: boolean;

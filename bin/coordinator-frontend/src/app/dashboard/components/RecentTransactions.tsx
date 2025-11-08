@@ -40,7 +40,7 @@ const getSendTransactionAmount = (
 
   try {
 
-    const serializedTXBZ = (Uint8Array as any).fromBase64(txbz);
+    const serializedTXBZ = Uint8Array.fromBase64(txbz);
     const deserializedTXBZ = TransactionRequest.deserialize(serializedTXBZ);
     const expectedOutputOwnNotes = deserializedTXBZ.expectedOutputOwnNotes();
 
@@ -78,7 +78,7 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
     // If inputNoteRecord is undefined, import the note file
     if (!inputNoteRecord) {
       if (noteIdFileBytes) {
-        const noteBytes = (Uint8Array as any).fromBase64(noteIdFileBytes);
+        const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
         await webClient.importNoteFile(noteBytes);
 
         // Retry getting the note

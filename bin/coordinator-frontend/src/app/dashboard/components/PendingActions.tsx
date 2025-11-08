@@ -11,7 +11,7 @@ import { useMidenClient } from "../../../contexts/MidenClientContext";
 import { fetchPendingTransactions, fetchConfirmedTransactions} from "../../../services/transactionApi";
 import { addSignatureThunk } from "../../../services/signatureApi";
 import { useWallet } from "@demox-labs/miden-wallet-adapter";
-import { PendingActionsProps, DecodedTransaction, WebClient, Uint8ArrayConstructor } from "@/types";
+import { PendingActionsProps, DecodedTransaction, WebClient } from "@/types";
 
 // Helper function to get send transaction amount
 const getSendTransactionAmount = (
@@ -71,7 +71,7 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
       console.log("inputNoteRecord is undefined, importing note file...");
 
       if (noteIdFileBytes) {
-        const noteBytes = (Uint8Array as unknown as Uint8ArrayConstructor).fromBase64(noteIdFileBytes);
+        const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
         await webClient.importNoteFile(noteBytes);
         console.log("Note imported successfully");
 
@@ -224,7 +224,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
     try {
       // Decode base64 to get the transaction request
-      const serializedTXBZ = (Uint8Array as unknown as Uint8ArrayConstructor).fromBase64(txbz);
+      const serializedTXBZ = Uint8Array.fromBase64(txbz);
       const deserializedTXBZ = TransactionRequest.deserialize(serializedTXBZ);
       const expectedOutputOwnNotes = deserializedTXBZ.expectedOutputOwnNotes();
 
