@@ -119,6 +119,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   const [amountsLoading, setAmountsLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
 
+  // Set initialLoad to false once the first fetch completes
+  useEffect(() => {
+    if (!transactionsLoading && initialLoad) {
+      setInitialLoad(false);
+    }
+  }, [transactionsLoading, initialLoad]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -126,7 +133,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
       if (!allTransactions || allTransactions.length === 0) {
         if (isMounted) {
           setDisplayTransactions([]);
-          setInitialLoad(false);
         }
         return;
       }
@@ -186,13 +192,11 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
 
         if (isMounted) {
           setDisplayTransactions(decoded);
-          setInitialLoad(false);
         }
       } catch (error) {
         console.error("Error decoding transactions:", error);
         if (isMounted) {
           setDisplayTransactions([]);
-          setInitialLoad(false);
         }
       } finally {
         if (isMounted) {

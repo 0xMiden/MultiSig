@@ -119,6 +119,13 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
   const [decodedPendingTransactions, setDecodedPendingTransactions] = useState<DecodedTransaction[]>([]);
   const [initialLoad, setInitialLoad] = useState(true);
 
+  // Set initialLoad to false once the first fetch completes
+  useEffect(() => {
+    if (!transactionsLoading && initialLoad) {
+      setInitialLoad(false);
+    }
+  }, [transactionsLoading, initialLoad]);
+
   console.log("pendingTransactions", pendingTransactions);
   const handleSign = async (txReqFromApi: string, txId: string) => {
     if (!wallet || !accountId || !connected) {
@@ -232,7 +239,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     const decodePendingTransactions = async () => {
       if (!pendingTransactions || pendingTransactions.length === 0) {
         setDecodedPendingTransactions([]);
-        setInitialLoad(false);
         return;
       }
 
@@ -297,11 +303,9 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         }
 
         setDecodedPendingTransactions(decoded);
-        setInitialLoad(false);
       } catch (error) {
         console.error("Error decoding pending transactions:", error);
         setDecodedPendingTransactions([]);
-        setInitialLoad(false);
       }
     };
 
