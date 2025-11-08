@@ -118,13 +118,17 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   const [displayTransactions, setDisplayTransactions] = useState<DecodedTransaction[]>([]);
   const [amountsLoading, setAmountsLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Set initialLoad to false once the first fetch completes
+  // Track when loading starts and completes
   useEffect(() => {
-    if (!transactionsLoading && initialLoad) {
+    if (transactionsLoading) {
+      setHasLoadedOnce(true);
+    }
+    if (!transactionsLoading && hasLoadedOnce) {
       setInitialLoad(false);
     }
-  }, [transactionsLoading, initialLoad]);
+  }, [transactionsLoading, hasLoadedOnce]);
 
   useEffect(() => {
     let isMounted = true;

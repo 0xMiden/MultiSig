@@ -118,13 +118,17 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
   const webClient = demo?.getWebClient();
   const [decodedPendingTransactions, setDecodedPendingTransactions] = useState<DecodedTransaction[]>([]);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Set initialLoad to false once the first fetch completes
+  // Track when loading starts and completes
   useEffect(() => {
-    if (!transactionsLoading && initialLoad) {
+    if (transactionsLoading) {
+      setHasLoadedOnce(true);
+    }
+    if (!transactionsLoading && hasLoadedOnce) {
       setInitialLoad(false);
     }
-  }, [transactionsLoading, initialLoad]);
+  }, [transactionsLoading, hasLoadedOnce]);
 
   console.log("pendingTransactions", pendingTransactions);
   const handleSign = async (txReqFromApi: string, txId: string) => {
