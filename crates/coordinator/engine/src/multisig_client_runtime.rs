@@ -157,10 +157,18 @@ where
         .sqlite_store(store_path)
         .build()
         .await
+        .inspect_err(|e| tracing::error!("failed to build multisig client: {e}"))
         .map(MultisigClient::new)?;
 
-    client.ensure_genesis_in_place().await?;
-    client.sync_state().await?;
+    client
+        .ensure_genesis_in_place()
+        .await
+        .inspect_err(|e| tracing::error!("failed to ensure genesis in place: {e}"))?;
+
+    client
+        .sync_state()
+        .await
+        .inspect_err(|e| tracing::error!("failed to sync state: {e}"))?;
 
     for account_id in tracking_multisig_accounts.map(|address| address.id()) {
         let _ = client
