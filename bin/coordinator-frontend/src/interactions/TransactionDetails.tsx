@@ -82,7 +82,7 @@ const TransactionDetails = () => {
             <div className="h-[0.5px] w-full bg-[#00000033]"></div>
             <div className="flex flex-row justify-between">
               <span className="font-dmmono text-[12px] font-[400] text-[#00000099] uppercase">
-               trasnaction hash
+               transaction hash
               </span>
               <span className="font-dmmono text-[12px] font-[500] uppercase">
               mts1234..fgr
