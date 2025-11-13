@@ -13,7 +13,6 @@ import {
   fetchConfirmedTransactions,
 } from "../../../services/transactionApi";
 
-// Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -37,15 +36,9 @@ const Page: React.FC = () => {
 
   useEffect(() => {
     const walletId = localStorage.getItem("currentWalletId");
-    console.log('Dashboard: Fetching transactions for walletId:', walletId);
     if (walletId) {
-      // Force fetch on every mount to ensure fresh data on page refresh
-      dispatch(fetchPendingTransactions({ accountId: walletId })).then((result) => {
-        console.log('Dashboard: fetchPendingTransactions complete', result);
-      });
-      dispatch(fetchConfirmedTransactions({ accountId: walletId })).then((result) => {
-        console.log('Dashboard: fetchConfirmedTransactions complete', result);
-      });
+      dispatch(fetchPendingTransactions({ accountId: walletId }));
+      dispatch(fetchConfirmedTransactions({ accountId: walletId }));
     }
   }, []);
 

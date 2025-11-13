@@ -98,10 +98,10 @@ export const proposeTransactionWithTxBzThunk = createAsyncThunk(
         tx_request: txBz
       };
 
-      console.log('Proposing transaction with payload:', payload);
-      console.log('API URL:', `${COORDINATOR_API_BASE_URL}/api/v1/multisig-tx/propose`);
-      console.log('Account ID:', accountId);
-      console.log('TX BZ length:', txBz.length);
+      console.info('[TransactionAPI] Proposing transaction', {
+        accountId,
+        payloadBytes: txBz.length,
+      });
 
       const response = await fetch(`${COORDINATOR_API_BASE_URL}/api/v1/multisig-tx/propose`, {
         method: 'POST',
@@ -110,8 +110,6 @@ export const proposeTransactionWithTxBzThunk = createAsyncThunk(
         },
         body: JSON.stringify(payload),
       });
-
-      console.log('Response status:', response.status);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

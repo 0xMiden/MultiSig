@@ -23,11 +23,11 @@ export function MidenClientProvider({ children }: { children: ReactNode }) {
 
   const reinitialize = async () => {
     if (isRunning || isInitialized) {
-      console.log('MidenClient: Already running or initialized, skipping');
+      console.info('MidenClient: Initialization skipped (already running or complete)');
       return;
     }
 
-    console.log('MidenClient: Starting initialization...');
+    console.info('MidenClient: Starting initialization');
     setIsRunning(true);
     setStatus('Initializing Miden client...');
     setError(null);
@@ -38,7 +38,7 @@ export function MidenClientProvider({ children }: { children: ReactNode }) {
       
       const success = await newHandle.initialize();
       if (success) {
-        console.log('MidenClient: Initialized successfully!');
+        console.info('MidenClient: Initialized successfully');
         setStatus('Miden client initialized successfully!');
         setIsInitialized(true);
       } else {

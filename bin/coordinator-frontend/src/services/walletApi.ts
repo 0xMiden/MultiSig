@@ -17,20 +17,13 @@ export const createMultiSigWallet = async (walletData: {
     const threshold = parseInt(walletData.signatureThreshold);
     const approvers = walletData.signerAddresses;
     const pubKeyCommits = walletData.signerPublicKeys;
-    console.log("pubkey commits", pubKeyCommits);
+    console.info('[WalletAPI] Creating multisig wallet', {
+      walletName: walletData.walletName,
+      approverCount: approvers.length,
+      threshold,
+    });
 
-    // Convert hex elements to base64
-    const base64PubKeyCommits: string[] = [];
-    for (let i = 0; i < pubKeyCommits.length; i++) {
-      const hexString = pubKeyCommits[i];
-      // Remove '0x' prefix if present
-      const cleanHex = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
-      // Convert hex to buffer then to base64
-      const buffer = Buffer.from(cleanHex, 'hex');
-      const base64String = buffer.toString('base64');
-      base64PubKeyCommits.push(base64String);
-    }
-    console.log("base64 pubkey commits", base64PubKeyCommits);
+    const base64PubKeyCommits = pubKeyCommits.map((hexPk) => Uint8Array.fromHex(hexPk).toBase64());
 
     if (threshold > approvers.length) {
       throw new Error(`Threshold (${threshold}) cannot be greater than total approvers (${approvers.length})`);
@@ -44,7 +37,6 @@ export const createMultiSigWallet = async (walletData: {
     };
 
 
-    console.log("api payload", apiPayload);
     const response = await fetch(`${COORDINATOR_API_BASE_URL}/api/v1/multisig-account/create`, {
       method: 'POST',
       headers: {

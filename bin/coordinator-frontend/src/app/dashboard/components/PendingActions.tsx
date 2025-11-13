@@ -13,7 +13,6 @@ import { addSignatureThunk } from "../../../services/signatureApi";
 import { useWallet } from "@demox-labs/miden-wallet-adapter";
 import { PendingActionsProps, DecodedTransaction, WebClient } from "@/types";
 
-// Helper function to get send transaction amount
 const getSendTransactionAmount = (
   txRequestBase64: string | undefined,
   transactionType: "sent" | "received" | null
@@ -50,7 +49,6 @@ const getSendTransactionAmount = (
   }
 };
 
-// Helper function to get receive transaction amount
 const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: string, webClient: WebClient | null): Promise<number> => {
   try {
     if (!noteId || typeof noteId !== "string" || noteId.trim() === "") {
@@ -62,29 +60,18 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
       return 0;
     }
 
-    // Step 2: Get input note using note_id
     let inputNoteRecord = await webClient.getInputNote(noteId);
-    console.log("Retrieved note from database:", inputNoteRecord);
-
-    // If inputNoteRecord is undefined, import the note file
     if (!inputNoteRecord) {
-      console.log("inputNoteRecord is undefined, importing note file...");
-
       if (noteIdFileBytes) {
         const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
         await webClient.importNoteFile(noteBytes);
-        console.log("Note imported successfully");
-
-        // Retry getting the note
         inputNoteRecord = await webClient.getInputNote(noteId);
-        console.log("Retrieved note after import:", inputNoteRecord);
       } else {
         console.error("No note file bytes to import");
         return 0;
       }
     }
 
-    // Step 3: Extract the amount using InputNoteRecord.details().assets().fungibleAssets()[0].amount()
     if (inputNoteRecord) {
       const details = inputNoteRecord.details();
       const assets = details.assets();
@@ -117,7 +104,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
   const [initialLoad, setInitialLoad] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Track when loading starts and completes
   useEffect(() => {
     if (transactionsLoading) {
       setHasLoadedOnce(true);
@@ -127,7 +113,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     }
   }, [transactionsLoading, hasLoadedOnce]);
 
-  console.log("pendingTransactions", pendingTransactions);
   const handleSign = async (txReqFromApi: string, txId: string) => {
     if (!wallet || !accountId || !connected) {
       setShowWalletErrorModal(true);
@@ -149,19 +134,13 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
     setSigningTransactionId(txId);
     try {
-      // Step 1: Generate transaction-summary object using TransactionSummary.deserialize
       const txReqBytes = new Uint8Array(
         atob(txReqFromApi)
           .split('')
           .map(char => char.charCodeAt(0))
       );
-      console.log("txReqBytes", txReqBytes);
       const transactionSummary = TransactionSummary.deserialize(txReqBytes);
-      console.log("transactionSummary", transactionSummary);
-      // Step 2: Create SigningInputs using SigningInputs.newTransactionSummary
       const signingInputs = SigningInputs.newTransactionSummary(transactionSummary);
-      console.log("signingInputs", signingInputs);
-      // Step 3: Invoke MidenWalletAdapter.signBytes with "signingInputs" kind
       let signature: Uint8Array;
       try {
         signature = await signBytes(signingInputs.serialize(), "signingInputs");
@@ -235,18 +214,9 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     }
   };
 
-  // Decode pending transactions with amounts
   useEffect(() => {
     const decodePendingTransactions = async () => {
-      console.log('PendingActions: decoding transactions', {
-        transactionsCount: pendingTransactions?.length || 0,
-        hasWebClient: !!webClient,
-        transactionsLoading,
-        initialLoad
-      });
-
       if (!pendingTransactions || pendingTransactions.length === 0) {
-        console.log('PendingActions: No transactions to decode');
         setDecodedPendingTransactions([]);
         return;
       }
@@ -254,15 +224,8 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
       try {
         const decoded: DecodedTransaction[] = [];
 
-        // Process transactions sequentially
         for (let index = 0; index < pendingTransactions.length; index++) {
           const tx = pendingTransactions[index];
-          console.log(`Processing tx ${index}:`, {
-            id: tx.id,
-            tx_request: tx.tx_request?.substring(0, 50),
-            has_input_note_ids: !!tx.input_note_ids,
-            input_note_ids_length: tx.input_note_ids?.length || 0
-          });
 
           const transactionType = getTransactionType(tx.tx_request);
           const txId = tx.id;
@@ -271,9 +234,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
           if (transactionType === "sent") {
             amount = getSendTransactionAmount(tx.tx_request, transactionType);
-            console.log(`Sent transaction amount: ${amount}`);
           } else if (transactionType === "received" && tx.input_note_ids && tx.input_note_ids.length > 0 && webClient) {
-            // Sum amounts from all input notes
             let totalAmount = 0;
             for (const inputNote of tx.input_note_ids) {
               const noteAmount = await getReceiveTransactionAmount(
@@ -282,12 +243,9 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
                 webClient
               );
               totalAmount += noteAmount;
-              console.log(`Note amount: ${noteAmount}, Total so far: ${totalAmount}`);
             }
             amount = totalAmount;
           }
-
-          console.log(`Transaction ${index} - Type: ${transactionType}, Final Amount: ${amount}`);
 
           if (amount === 0 && transactionType) {
             console.warn(`Transaction ${index} has 0 amount! Type: ${transactionType}`);
@@ -311,7 +269,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           } as any);
         }
 
-        console.log('PendingActions: Setting decoded transactions', { count: decoded.length });
         setDecodedPendingTransactions(decoded);
       } catch (error) {
         console.error("PendingActions: Error decoding transactions:", error);
@@ -321,14 +278,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
     decodePendingTransactions();
   }, [pendingTransactions, webClient]);
-
-  // Debug log for render
-  console.log('PendingActions: Rendering', {
-    decodedTransactionsCount: decodedPendingTransactions.length,
-    transactionsLoading,
-    initialLoad,
-    pendingTransactionsCount: pendingTransactions?.length || 0
-  });
 
   const [isPendingTransactionDetailsOpen, setIsPendingTransactionDetailsOpen] =
     useState(false);
@@ -374,7 +323,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
   return (
     <div className="flex flex-col gap-2 border-[0.5px] border-[#00000033] p-4 font-dmmono w-full">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div className="#00000099 font-[500] text-[#00000099] text-[16px]">
           PENDING ACTIONS
@@ -389,7 +337,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         )}
       </div>
 
-      {/*pending actions cards */}
       <div
         className={`flex flex-col gap-2 ${decodedPendingTransactions.length > 0
           ? fixedHeight
@@ -401,7 +348,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           }`}
       >
         {transactionsLoading || initialLoad ? (
-          // Loading spinner
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
@@ -489,7 +435,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
             );
           })
         ) : (
-          // Empty state when no pending transactions
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <svg
@@ -515,7 +460,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           </div>
         )}
       </div>
-      {/* Pending Transaction Details Modal */}
       <AnimatePresence>
         {isPendingTransactionDetailsOpen && (
           <motion.div
@@ -539,7 +483,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         )}
       </AnimatePresence>
 
-      {/* Custom Notification */}
       <AnimatePresence>
         {notification && (
           <motion.div
@@ -559,7 +502,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         )}
       </AnimatePresence>
 
-      {/* Wallet Error Modal */}
       <AnimatePresence>
         {showWalletErrorModal && (
           <motion.div

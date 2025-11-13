@@ -134,15 +134,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
     let isMounted = true;
 
     const decodeAllTransactions = async () => {
-      console.log('RecentTransactions: decoding transactions', {
-        transactionsCount: allTransactions?.length || 0,
-        hasWebClient: !!webClient,
-        transactionsLoading,
-        initialLoad
-      });
-
       if (!allTransactions || allTransactions.length === 0) {
-        console.log('RecentTransactions: No transactions to decode');
         if (isMounted) {
           setDisplayTransactions([]);
         }
@@ -153,7 +145,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
       try {
         const decoded: DecodedTransaction[] = [];
 
-        // Process transactions sequentially (one by one)
         for (let index = 0; index < allTransactions.length; index++) {
           if (!isMounted) break; // Stop if component unmounted
 
@@ -203,7 +194,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
         }
 
         if (isMounted) {
-          console.log('RecentTransactions: Setting decoded transactions', { count: decoded.length });
           setDisplayTransactions(decoded);
         }
       } catch (error) {
@@ -228,13 +218,6 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   const handleViewAll = () => {
     router.push('/dashboard/transactions');
   };
-
-  console.log('RecentTransactions: Rendering', {
-    displayTransactionsCount: displayTransactions.length,
-    transactionsLoading,
-    initialLoad,
-    allTransactionsCount: allTransactions?.length || 0
-  });
 
   return (
     <div className="flex flex-col gap-2 w-full border p-4">

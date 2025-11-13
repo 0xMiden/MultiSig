@@ -5,7 +5,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/store";
 import { proposeTransactionWithTxBzThunk, fetchPendingTransactions, fetchConfirmedTransactions, getConsumableNotesThunk } from "../services/transactionApi";
 
-// Helper function to get receive transaction amount
 const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: string, webClient: any): Promise<number> => {
   try {
     if (!noteId || typeof noteId !== "string" || noteId.trim() === "") {
@@ -17,29 +16,18 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
       return 0;
     }
 
-    // Step 2: Get input note using note_id
     let inputNoteRecord = await webClient.getInputNote(noteId);
-    console.log("Retrieved note from database:", inputNoteRecord);
-
-    // If inputNoteRecord is undefined, import the note file
     if (!inputNoteRecord) {
-      console.log("inputNoteRecord is undefined, importing note file...");
-
       if (noteIdFileBytes) {
         const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
         await webClient.importNoteFile(noteBytes);
-        console.log("Note imported successfully");
-
-        // Retry getting the note
         inputNoteRecord = await webClient.getInputNote(noteId);
-        console.log("Retrieved note after import:", inputNoteRecord);
       } else {
         console.error("No note file bytes to import");
         return 0;
       }
     }
 
-    // Step 3: Extract the amount using InputNoteRecord.details().assets().fungibleAssets()[0].amount()
     if (inputNoteRecord) {
       const details = inputNoteRecord.details();
       const assets = details.assets();
@@ -133,21 +121,19 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
 
     setIsConsuming(true);
     try {
-      // Create consume transaction request with selected noteIds
       const transactionRequest = webClient.newConsumeTransactionRequest(selectedNoteIds);
-      console.log("TRANSACTION REQUEST - ", transactionRequest);
       const serializedRequest = transactionRequest.serialize();
 
       const tx_bz = serializedRequest.toBase64();
-      console.log("TX BZ (base64) - ", tx_bz);
+      console.info('[ReceiveFundTransfer] Proposing consume transaction', {
+        selectedCount: selectedNoteIds.length,
+      });
 
-      // Propose transaction
       const result = await dispatch(proposeTransactionWithTxBzThunk({
         accountId: localStorage.getItem("currentWalletId") || "",
         txBz: tx_bz
       })).unwrap();
 
-      // Refresh transactions after successful consumption
       try {
         const currentWalletId = localStorage.getItem("currentWalletId");
         if (currentWalletId) {
@@ -160,7 +146,6 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
         console.warn("Failed to refresh transactions:", refreshError);
       }
 
-      // Refresh fungible assets after successful consumption
       if (onAssetsUpdated) {
         try {
           await onAssetsUpdated();
@@ -169,7 +154,6 @@ const ReceiveFundTransfer = ({ onCancel, onAssetsUpdated }: { onCancel?: () => v
         }
       }
 
-      // Close the modal after successful consumption
       onCancel?.();
     } catch (error) {
       console.error("Error consuming notes:", error);

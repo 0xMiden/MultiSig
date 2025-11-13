@@ -1,55 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Coordinator Frontend
 
-## Environment Configuration
+The coordinator frontend is built with Next.js and connects to the multisig coordinator backend. This document focuses on the pieces you need to run and develop the UI locally.
 
-The frontend requires environment variables to connect to the backend coordinator server. See [ENV_CONFIG.md](./ENV_CONFIG.md) for detailed configuration instructions.
+## Prerequisites
 
-Quick setup for local development:
+- Node.js 18+
+- pnpm, npm, yarn, or bun
+- Access to a running coordinator backend (local or remote)
+
+## Environment setup
+
+Create `.env.local` in the project root:
 
 ```bash
-# Create .env.local file with required environment variables
-cat > .env.local << EOF
 NEXT_PUBLIC_COORDINATOR_API_URL=http://localhost:59059
 NEXT_PUBLIC_MIDEN_NODE_ENDPOINT=https://rpc.testnet.miden.io:443
-EOF
 ```
 
-### Environment Variables
+Additional environment options are documented in [ENV_CONFIG.md](./ENV_CONFIG.md).
 
-- `NEXT_PUBLIC_COORDINATOR_API_URL`: Backend coordinator server URL (required)
-- `NEXT_PUBLIC_MIDEN_NODE_ENDPOINT`: Miden RPC node endpoint (optional, defaults to `https://rpc.testnet.miden.io:443`)
-
-## Getting Started
-
-First, run the development server:
+## Install dependencies
 
 ```bash
-npm run dev
+pnpm install
 # or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run the development server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+# or
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open <http://localhost:3000> to view the app. Changes in `src` hot-reload automatically.
 
-## Learn More
+## Available scripts
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm build     # Create a production build
+pnpm start     # Serve the production build
+pnpm lint      # Run lint checks
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app` – Next.js app directory for routes and UI
+- `src/services` – API clients and async thunks
+- `src/interactions` – Wallet interactions and modal flows
+- `src/contexts` – React context providers
 
-## Deploy on Vercel
+## Troubleshooting
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+If the UI fails to reach the coordinator API, confirm the values in `.env.local` and ensure the backend is reachable from your machine.
