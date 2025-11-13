@@ -1,0 +1,32 @@
+[package]
+edition.workspace = true
+name              = "miden-multisig-coordinator-engine"
+publish.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bon                               = { workspace = true }
+dissolve-derive                   = { workspace = true }
+miden-client                      = { workspace = true, features = ["sqlite", "tonic"] }
+miden-multisig-client             = { workspace = true }
+miden-multisig-coordinator-domain = { workspace = true }
+miden-multisig-coordinator-store  = { workspace = true }
+miden-multisig-coordinator-utils  = { workspace = true }
+miden-objects                     = { workspace = true }
+thiserror                         = { workspace = true }
+tokio                             = { workspace = true, default-features = false, features = ["sync"] }
+tracing                           = { workspace = true }
+url                               = { workspace = true }
+
+[dev-dependencies]
+diesel                 = { version = "2", features = ["postgres"] }
+diesel_migrations      = "2"
+openssl-sys            = { version = "0.9", features = ["vendored"] }
+pq-sys                 = { version = "0.7", features = ["bundled"] }
+rand                   = "0.9"
+tempfile               = "3"
+testcontainers         = "0.25"
+testcontainers-modules = { version = "0.13", features = ["postgres"] }

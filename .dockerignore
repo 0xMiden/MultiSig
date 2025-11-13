@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose.yml
+.dockerignore
+
+# Build artifacts
+target/
+*.sqlite3
+keystore/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+LICENSE
+
+# CI/CD
+.github/
+

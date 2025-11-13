@@ -23,11 +23,8 @@ use miden_client::testing::mock::{MockClient, MockRpcApi};
 // These already exist in miden-client, but are not exported publicly.
 // See https://github.com/0xMiden/miden-client/pull/1255 which might resolve this.
 
-pub async fn create_test_client_builder() -> (
-    ClientBuilder<TestClientKeyStore>,
-    MockRpcApi,
-    FilesystemKeyStore<StdRng>,
-) {
+pub async fn create_test_client_builder()
+-> (ClientBuilder<TestClientKeyStore>, MockRpcApi, FilesystemKeyStore<StdRng>) {
     let store = SqliteStore::new(create_test_store_path()).await.unwrap();
     let store = Arc::new(store);
 
@@ -53,11 +50,8 @@ pub async fn create_test_client_builder() -> (
     (builder, rpc_api, keystore)
 }
 
-pub async fn create_test_client() -> (
-    MockClient<FilesystemKeyStore<StdRng>>,
-    MockRpcApi,
-    FilesystemKeyStore<StdRng>,
-) {
+pub async fn create_test_client()
+-> (MockClient<FilesystemKeyStore<StdRng>>, MockRpcApi, FilesystemKeyStore<StdRng>) {
     let (builder, rpc_api, keystore) = Box::pin(create_test_client_builder()).await;
     let mut client = builder.build().await.unwrap();
     client.ensure_genesis_in_place().await.unwrap();
@@ -71,26 +65,18 @@ pub async fn create_prebuilt_mock_chain() -> MockChain {
         .add_existing_mock_account(miden_testing::Auth::IncrNonce)
         .unwrap();
 
-    let note_first = NoteBuilder::new(
-        mock_account.id(),
-        RpoRandomCoin::new([0, 0, 0, 0].map(Felt::new).into()),
-    )
-    .tag(
-        NoteTag::for_public_use_case(0, 0, NoteExecutionMode::Local)
-            .unwrap()
-            .into(),
-    )
-    .build()
-    .unwrap();
+    let note_first =
+        NoteBuilder::new(mock_account.id(), RpoRandomCoin::new([0, 0, 0, 0].map(Felt::new).into()))
+            .tag(NoteTag::for_public_use_case(0, 0, NoteExecutionMode::Local).unwrap().into())
+            .build()
+            .unwrap();
 
-    let note_second = NoteBuilder::new(
-        mock_account.id(),
-        RpoRandomCoin::new([0, 0, 0, 1].map(Felt::new).into()),
-    )
-    .note_type(NoteType::Private)
-    .tag(NoteTag::for_local_use_case(0, 0).unwrap().into())
-    .build()
-    .unwrap();
+    let note_second =
+        NoteBuilder::new(mock_account.id(), RpoRandomCoin::new([0, 0, 0, 1].map(Felt::new).into()))
+            .note_type(NoteType::Private)
+            .tag(NoteTag::for_local_use_case(0, 0).unwrap().into())
+            .build()
+            .unwrap();
     let mut mock_chain = mock_chain_builder.build().unwrap();
 
     // Block 1: Create first note
@@ -119,9 +105,7 @@ pub async fn create_prebuilt_mock_chain() -> MockChain {
     .unwrap();
 
     // Block 5: Consume (nullify) second note
-    mock_chain
-        .add_pending_executed_transaction(&transaction)
-        .unwrap();
+    mock_chain.add_pending_executed_transaction(&transaction).unwrap();
     mock_chain.prove_next_block().unwrap();
 
     mock_chain

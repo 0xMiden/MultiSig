@@ -28,27 +28,19 @@ async fn multisig() {
     let (mut coordinator_client, mock_rpc_api, coordinator_keystore) =
         setup_multisig_client().await;
 
-    let (_, _, secret_key_a) = insert_new_wallet(
-        &mut signer_a_client,
-        AccountStorageMode::Private,
-        &authenticator_a,
-    )
-    .await
-    .unwrap();
+    let (_, _, secret_key_a) =
+        insert_new_wallet(&mut signer_a_client, AccountStorageMode::Private, &authenticator_a)
+            .await
+            .unwrap();
     let pub_key_a = secret_key_a.public_key();
 
-    let (_, _, secret_key_b) = insert_new_wallet(
-        &mut signer_b_client,
-        AccountStorageMode::Private,
-        &authenticator_b,
-    )
-    .await
-    .unwrap();
+    let (_, _, secret_key_b) =
+        insert_new_wallet(&mut signer_b_client, AccountStorageMode::Private, &authenticator_b)
+            .await
+            .unwrap();
     let pub_key_b = secret_key_b.public_key();
 
-    let multisig_account = coordinator_client
-        .setup_account(vec![pub_key_a, pub_key_b], 2)
-        .await;
+    let multisig_account = coordinator_client.setup_account(vec![pub_key_a, pub_key_b], 2).await;
 
     // we insert the faucet to the coordinator client for convenience
     let (faucet_account, ..) = insert_new_fungible_faucet(
@@ -93,14 +85,10 @@ async fn multisig() {
 
     let signing_inputs = SigningInputs::TransactionSummary(Box::new(tx_summary.clone()));
 
-    let signature_a = authenticator_a
-        .get_signature(pub_key_a.into(), &signing_inputs)
-        .await
-        .unwrap();
-    let signature_b = authenticator_b
-        .get_signature(pub_key_b.into(), &signing_inputs)
-        .await
-        .unwrap();
+    let signature_a =
+        authenticator_a.get_signature(pub_key_a.into(), &signing_inputs).await.unwrap();
+    let signature_b =
+        authenticator_b.get_signature(pub_key_b.into(), &signing_inputs).await.unwrap();
 
     let tx_result = coordinator_client
         .new_multisig_transaction(
