@@ -1,31 +1,44 @@
+# Rust
+target/
+**/*.rs.bk
+**/*.pdb
+
+# Node.js / Frontend
+bin/coordinator-frontend/node_modules
+bin/coordinator-frontend/.next
+bin/coordinator-frontend/out
+bin/coordinator-frontend/.vercel
+bin/coordinator-frontend/dist
+bin/coordinator-frontend/*.log
+bin/coordinator-frontend/npm-debug.log*
+bin/coordinator-frontend/yarn-debug.log*
+bin/coordinator-frontend/yarn-error.log*
+bin/coordinator-frontend/.pnpm-debug.log*
+bin/coordinator-frontend/public/_next
+bin/coordinator-frontend/public/static
+
 # Git
 .git
 .gitignore
 
-# Docker
-Dockerfile*
-docker-compose.yml
-.dockerignore
-
-# Build artifacts
-target/
-*.sqlite3
-keystore/
-
 # IDE
-.vscode/
-.idea/
+.vscode
+.idea
+*.iml
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
+# CI/CD
+.github
+
 # Documentation
 *.md
 LICENSE
 
-# CI/CD
-.github/
-
+# Environment files (keep these local)
+.env*.local

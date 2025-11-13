@@ -1,1 +1,29 @@
+# Rust
 /target
+
+# Node.js / Next.js (coordinator-frontend)
+bin/coordinator-frontend/node_modules/
+bin/coordinator-frontend/.next/
+bin/coordinator-frontend/out/
+bin/coordinator-frontend/.env*.local
+bin/coordinator-frontend/.vercel
+bin/coordinator-frontend/dist/
+bin/coordinator-frontend/*.log
+bin/coordinator-frontend/npm-debug.log*
+bin/coordinator-frontend/yarn-debug.log*
+bin/coordinator-frontend/yarn-error.log*
+bin/coordinator-frontend/.pnpm-debug.log*
+bin/coordinator-frontend/tsconfig.tsbuildinfo
+bin/coordinator-frontend/public/_next/
+bin/coordinator-frontend/public/static/
+
+# OS specific
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml

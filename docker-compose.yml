@@ -56,6 +56,31 @@ services:
     networks:
       - multisig-network
 
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator-frontend
+    container_name: multisig-frontend
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_COORDINATOR_API_URL: "http://server:59059"
+      NEXT_PUBLIC_EXTERNAL_COORDINATOR_API_URL: "http://localhost:59059"
+      NEXT_PUBLIC_MIDEN_NODE_ENDPOINT: "https://rpc.testnet.miden.io:443"
+      NODE_ENV: "production"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --spider --quiet http://localhost:3000 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - multisig-network
+
 networks:
   multisig-network:
     driver: bridge
