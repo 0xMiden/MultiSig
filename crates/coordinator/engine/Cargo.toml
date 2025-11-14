@@ -24,6 +24,7 @@ url                               = { workspace = true }
 [dev-dependencies]
 diesel                 = { features = ["postgres"], version = "2" }
 diesel_migrations      = "2"
+miden-testing          = "0.11"
 openssl-sys            = { features = ["vendored"], version = "0.9" }
 pq-sys                 = { features = ["bundled"], version = "0.7" }
 rand                   = "0.9"

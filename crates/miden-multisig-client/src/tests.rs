@@ -1,29 +1,32 @@
 use alloc::boxed::Box;
 
-use miden_client::auth::SigningInputs;
-use miden_client::note::NoteType;
-
-mod test_utils;
-use test_utils::*;
+use miden_client::{
+    auth::SigningInputs,
+    note::NoteType,
+    testing::{
+        common::{TestClientKeyStore, insert_new_fungible_faucet, insert_new_wallet, mint_note},
+        mock::MockRpcApi,
+    },
+    transaction::TransactionRequestBuilder,
+};
 
 use super::*;
-use miden_client::testing::common::{
-    TestClientKeyStore, insert_new_fungible_faucet, insert_new_wallet, mint_note,
-};
-use miden_client::testing::mock::MockRpcApi;
-use miden_client::transaction::TransactionRequestBuilder;
 
 type TestMultisigClient = MultisigClient<TestClientKeyStore>;
 
 async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, TestClientKeyStore) {
-    let (client, mock_rpc_api, keystore) = create_test_client().await;
+    let (client, mock_rpc_api, keystore) =
+        miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
+
     (MultisigClient { client }, mock_rpc_api, keystore)
 }
 
 #[tokio::test]
 async fn multisig() {
-    let (mut signer_a_client, _, authenticator_a) = create_test_client().await;
-    let (mut signer_b_client, _, authenticator_b) = create_test_client().await;
+    let (mut signer_a_client, _, authenticator_a) =
+        miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
+    let (mut signer_b_client, _, authenticator_b) =
+        miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
 
     let (mut coordinator_client, mock_rpc_api, coordinator_keystore) =
         setup_multisig_client().await;

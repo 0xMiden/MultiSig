@@ -1,19 +1,24 @@
 //! A client for managing multisig transactions.
-#[macro_use]
+
 extern crate alloc;
 
-use core::ops::{Deref, DerefMut};
+#[cfg(test)]
+mod tests;
 
-use alloc::string::ToString;
-use alloc::vec::Vec;
+use core::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use alloc::{
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
+
+use std::path::PathBuf;
 
 use anyhow::Context;
-use rand::{RngCore, rngs::StdRng};
-use thiserror::Error;
-use url::Url;
-
 use miden_client::{
     Client, ClientError, Felt, Word, ZERO,
     account::{
@@ -30,18 +35,19 @@ use miden_objects::{
     Hasher, assembly::diagnostics::tracing::info, crypto::dsa::rpo_falcon512::PublicKey,
     transaction::TransactionSummary,
 };
-
-#[cfg(test)]
-mod tests;
+use rand::{RngCore, rngs::StdRng};
+use thiserror::Error;
+use url::Url;
 
 /// Represents errors that can occur in the multisig client.
 #[derive(Debug, Error)]
 pub enum MultisigClientError {
-    #[error("multisig transaction proposal error: {0}")]
     /// An error occurred while proposing a new transaction.
+    #[error("multisig transaction proposal error: {0}")]
     TxProposalError(String),
-    #[error("multisig transaction execution error: {0}")]
+
     /// An error occurred while executing a transaction.
+    #[error("multisig transaction execution error: {0}")]
     TxExecutionError(String),
 }
 

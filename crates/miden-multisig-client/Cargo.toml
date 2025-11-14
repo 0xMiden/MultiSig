@@ -3,7 +3,6 @@ description = "A rust client for Miden multisig wallets"
 edition     = "2024"
 license     = "MIT"
 name        = "miden-multisig-client"
-readme      = "README.md"
 repository  = "https://github.com/0xMiden/MultiSig"
 version     = "0.1.0"
 
@@ -21,5 +20,5 @@ tokio     = { default-features = false, workspace = true }
 url       = { workspace = true }
 
 [dev-dependencies]
-miden-client  = { features = ["sqlite", "testing", "tonic"], version = "0.11" }
-miden-testing = "0.11"
+miden-client              = { features = ["sqlite", "testing", "tonic"], version = "0.11" }
+miden-multisig-test-utils = { workspace = true }
