@@ -14,7 +14,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY bin ./bin
 COPY crates ./crates
 
-RUN cargo build --release --bin miden-multisig-coordinator-server
+RUN cargo build --release --bin miden-multisig-coordinator-server --features sysbundle
 
 FROM alpine:3.22 AS runtime
 
