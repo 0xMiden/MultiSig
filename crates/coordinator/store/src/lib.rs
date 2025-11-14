@@ -390,6 +390,13 @@ impl MultisigStore {
         Ok(Some(multisig_account))
     }
 
+    /// Retrieves all multisig accounts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Stored account data cannot be deserialized
     #[tracing::instrument(skip_all)]
     pub async fn get_all_multisig_accounts(&self) -> Result<Vec<MultisigAccount>> {
         store::stream_multisig_accounts(&mut self.get_conn().await?)
@@ -401,6 +408,14 @@ impl MultisigStore {
             .await
     }
 
+    /// Retrieves all approvers for a multisig account address for the given network identified
+    /// by `network_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The database query fails
+    /// - Approver data cannot be deserialized
     #[tracing::instrument(skip_all)]
     pub async fn get_approvers_by_multisig_account_address(
         &self,
@@ -464,7 +479,7 @@ impl MultisigStore {
                 .map(Result::flatten)
         }
 
-        match tx_status_filter.into() {
+        match Option::<MultisigTxStatus>::from(tx_status_filter) {
             Some(status) => {
                 store::stream_txs_with_signature_count_by_multisig_account_address_and_status(
                     conn,
@@ -505,6 +520,18 @@ impl MultisigStore {
             .transpose()
     }
 
+    /// Retrieves aggregated transaction statistics for a multisig account.
+    ///
+    /// Computes and returns summary statistics (e.g., counts by status) for all
+    /// transactions associated with the provided multisig account address.
+    ///
+    /// # Returns
+    ///
+    /// Returns `MultisigTxStats` summarizing transactions for the account.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     #[tracing::instrument(skip(self))]
     pub async fn get_multisig_tx_stats_by_multisig_account_address(
         &self,
