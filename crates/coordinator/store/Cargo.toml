@@ -4,6 +4,9 @@ name              = "miden-multisig-coordinator-store"
 publish.workspace = true
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 bon                               = { workspace = true }
 chrono                            = { workspace = true }
