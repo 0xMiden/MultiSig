@@ -19,23 +19,23 @@ anyhow                            = { workspace = true }
 axum                              = "0.8"
 bon                               = { workspace = true }
 chrono                            = { workspace = true }
-config                            = { version = "0.15", default-features = false, features = ["ron"] }
+config                            = { default-features = false, features = ["ron"], version = "0.15" }
 dissolve-derive                   = { workspace = true }
 humantime-serde                   = "1.1"
 itertools                         = "0.14"
 miden-client                      = { workspace = true }
-miden-multisig-coordinator-domain = { workspace = true, features = ["serde"] }
+miden-multisig-coordinator-domain = { features = ["serde"], workspace = true }
 miden-multisig-coordinator-engine = { workspace = true }
 miden-multisig-coordinator-store  = { workspace = true }
 miden-multisig-coordinator-utils  = { workspace = true }
 miden-objects                     = { workspace = true }
-openssl-sys                       = { version = "0.9", optional = true, features = ["vendored"] }
-pq-sys                            = { version = "0.7", optional = true, features = ["bundled"] }
-serde                             = { workspace = true, features = ["derive"] }
-serde_with                        = { workspace = true, features = ["base64", "macros"] }
+openssl-sys                       = { features = ["vendored"], optional = true, version = "0.9" }
+pq-sys                            = { features = ["bundled"], optional = true, version = "0.7" }
+serde                             = { features = ["derive"], workspace = true }
+serde_with                        = { features = ["base64", "macros"], workspace = true }
 thiserror                         = "2"
-tokio                             = { workspace = true, features = ["rt-multi-thread", "signal"] }
-tower-http                        = { version = "0.6", features = ["cors", "trace"] }
+tokio                             = { features = ["rt-multi-thread", "signal"], workspace = true }
+tower-http                        = { features = ["cors", "trace"], version = "0.6" }
 tracing                           = { workspace = true }
-tracing-subscriber                = { version = "0.3", features = ["env-filter"] }
-uuid                              = { workspace = true, features = ["serde"] }
+tracing-subscriber                = { features = ["env-filter"], version = "0.3" }
+uuid                              = { features = ["serde"], workspace = true }

@@ -11,15 +11,15 @@ version     = "0.1.0"
 workspace = true
 
 [dependencies]
-miden-client  = { workspace = true, features = ["sqlite", "tonic"] }
+miden-client  = { features = ["sqlite", "tonic"], workspace = true }
 miden-objects = { workspace = true }
 
 anyhow    = { workspace = true }
 rand      = { workspace = true }
 thiserror = { workspace = true }
-tokio     = { workspace = true, default-features = false }
+tokio     = { default-features = false, workspace = true }
 url       = { workspace = true }
 
 [dev-dependencies]
-miden-client  = { version = "0.11", features = ["sqlite", "testing", "tonic"] }
+miden-client  = { features = ["sqlite", "testing", "tonic"], version = "0.11" }
 miden-testing = "0.11"

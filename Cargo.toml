@@ -28,14 +28,14 @@ miden-multisig-coordinator-utils  = { path = "crates/coordinator/utils" }
 miden-objects                     = "0.11"
 
 anyhow          = "1"
-bon             = { version = "3", default-features = false }
-chrono          = { version = "0.4", default-features = false }
+bon             = { default-features = false, version = "3" }
+chrono          = { default-features = false, version = "0.4" }
 dissolve-derive = "0.1.2"
 rand            = "0.9"
-serde           = { version = "1", default-features = false }
-serde_with      = { version = "3", default-features = false }
-thiserror       = { version = "2", default-features = false }
-tokio           = { version = "1.40", default-features = false }
+serde           = { default-features = false, version = "1" }
+serde_with      = { default-features = false, version = "3" }
+thiserror       = { default-features = false, version = "2" }
+tokio           = { default-features = false, version = "1.40" }
 tracing         = "0.1"
 url             = "2.5"
-uuid            = { version = "1", default-features = false }
+uuid            = { default-features = false, version = "1" }
