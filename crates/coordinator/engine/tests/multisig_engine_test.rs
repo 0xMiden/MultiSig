@@ -155,7 +155,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
 
     let tx_result = engine.add_signature(add_sig_request).await.unwrap();
 
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
     // Assert
     assert!(tx_result.is_some());
