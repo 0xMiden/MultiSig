@@ -1,0 +1,13 @@
+[package]
+edition.workspace = true
+name              = "miden-multisig-test-utils"
+publish.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+miden-client  = { workspace = true }
+miden-testing = "0.11"
+rand          = { workspace = true }

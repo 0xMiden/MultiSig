@@ -1,6 +1,43 @@
-[workspace]
-members = ["crates/miden-multisig-client"]
-resolver = "2"
+[workspace.package]
+edition = "2024"
+publish = false
+version = "0.0.1-pre"
 
 [workspace.lints.rust]
 missing_docs = "warn"
+unsafe_code  = "forbid"
+
+[workspace]
+members = [
+  "bin/coordinator-server",
+  "crates/coordinator/domain",
+  "crates/coordinator/engine",
+  "crates/coordinator/store",
+  "crates/coordinator/utils",
+  "crates/miden-multisig-client",
+  "crates/test-utils",
+]
+resolver = "3"
+
+[workspace.dependencies]
+miden-client                      = "0.11.9"
+miden-multisig-client             = { path = "crates/miden-multisig-client" }
+miden-multisig-coordinator-domain = { path = "crates/coordinator/domain" }
+miden-multisig-coordinator-engine = { path = "crates/coordinator/engine" }
+miden-multisig-coordinator-store  = { path = "crates/coordinator/store" }
+miden-multisig-coordinator-utils  = { path = "crates/coordinator/utils" }
+miden-multisig-test-utils         = { path = "crates/test-utils" }
+miden-objects                     = "0.11"
+
+anyhow          = "1"
+bon             = { default-features = false, version = "3" }
+chrono          = { default-features = false, version = "0.4" }
+dissolve-derive = "0.1.2"
+rand            = "0.9"
+serde           = { default-features = false, version = "1" }
+serde_with      = { default-features = false, version = "3" }
+thiserror       = { default-features = false, version = "2" }
+tokio           = { default-features = false, version = "1.40" }
+tracing         = "0.1"
+url             = "2.5"
+uuid            = { default-features = false, version = "1" }

@@ -1,0 +1,42 @@
+FROM rust:1.90-alpine AS builder
+
+RUN apk add --no-cache \
+    musl-dev \
+    pkgconfig \
+    openssl-dev \
+    openssl-libs-static \
+    perl \
+    make
+
+WORKDIR /build
+
+COPY Cargo.toml Cargo.lock ./
+COPY bin ./bin
+COPY crates ./crates
+
+RUN cargo build --release --bin miden-multisig-coordinator-server --features sysbundle
+
+FROM alpine:3.22 AS runtime
+
+# wget for healthcheck
+RUN apk add --no-cache \
+    ca-certificates \
+    libgcc \
+    wget 
+
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+RUN mkdir -p /app/data && \
+    chown -R appuser:appuser /app
+
+WORKDIR /app
+
+COPY --from=builder /build/target/release/miden-multisig-coordinator-server /usr/local/bin/coordinator-server
+
+USER appuser
+
+EXPOSE 59059
+
+CMD ["coordinator-server"]
+

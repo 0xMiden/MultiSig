@@ -1,0 +1,23 @@
+[package]
+edition.workspace = true
+name              = "miden-multisig-coordinator-domain"
+publish.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+serde   = ["chrono/serde", "dep:serde", "dep:serde_with", "uuid/serde"]
+
+[dependencies]
+bon             = { workspace = true }
+chrono          = { workspace = true }
+dissolve-derive = { workspace = true }
+miden-client    = { workspace = true }
+miden-objects   = { workspace = true }
+serde           = { default-features = false, features = ["derive"], optional = true, workspace = true }
+serde_with      = { default-features = false, features = ["macros"], optional = true, workspace = true }
+strum           = { features = ["derive"], version = "0.27" }
+uuid            = { workspace = true }

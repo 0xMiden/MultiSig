@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: multisig-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: multisig
+      POSTGRES_USER: multisig
+      POSTGRES_PASSWORD: multisig_password
+    volumes:
+      - ./crates/coordinator/store/migrations/2025-08-03-205356_multisig/up.sql:/docker-entrypoint-initdb.d/01-init-schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U multisig -d multisig" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - multisig-network
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator
+    container_name: multisig-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "59059:59059"
+    environment:
+      # Application configuration
+      MIDENMULTISIG_APP__LISTEN: "0.0.0.0:59059"
+      MIDENMULTISIG_APP__NETWORK_ID_HRP: "mtst"
+
+      # Database configuration
+      MIDENMULTISIG_DB__DB_URL: "postgres://multisig:multisig_password@postgres:5432/multisig"
+      MIDENMULTISIG_DB__MAX_CONN: "10"
+
+      # Miden configuration
+      MIDENMULTISIG_MIDEN__NODE_URL: "https://rpc.testnet.miden.io:443"
+      MIDENMULTISIG_MIDEN__STORE_PATH: "/app/data/store.sqlite3"
+      MIDENMULTISIG_MIDEN__KEYSTORE_PATH: "/app/data/keystore"
+      MIDENMULTISIG_MIDEN__TIMEOUT: "30s"
+
+      # Logging
+      RUST_LOG: "info"
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "--quiet", "http://localhost:59059/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - multisig-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.coordinator-frontend
+    container_name: multisig-frontend
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_COORDINATOR_API_URL: "http://server:59059"
+      NEXT_PUBLIC_EXTERNAL_COORDINATOR_API_URL: "http://localhost:59059"
+      NEXT_PUBLIC_MIDEN_NODE_ENDPOINT: "https://rpc.testnet.miden.io:443"
+      NODE_ENV: "production"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --spider --quiet http://localhost:3000 || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - multisig-network
+
+networks:
+  multisig-network:
+    driver: bridge

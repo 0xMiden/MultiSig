@@ -98,3 +98,20 @@ install-tools: ## Installs development tools required by the Makefile (typos, ne
 	cargo install taplo-cli --locked
 	cargo install cargo-machete --locked
 	@echo "Development tools installation complete!"
+
+# --- docker --------------------------------------------------------------------------------------
+
+.PHONY: run-coordinator
+docker-run-coordinator: ## Build and start the multisig coordinator server with PostgreSQL DB using docker-compose
+	@echo "Building docker images..."
+	docker compose build
+	@echo "Starting multisig coordinator server, frontend, and postgres database..."
+	docker compose up -d
+	@echo "Multisig coordinator server is running at http://localhost:59059"
+	@echo "Multisig frontend is running at http://localhost:3000"
+
+.PHONY: stop-coordinator
+docker-stop-coordinator: ## Stop and remove the multisig coordinator server and postgres containers
+	@echo "Stopping multisig coordinator server, frontend, and postgres database..."
+	docker compose down
+	@echo "Multisig coordinator services stopped"

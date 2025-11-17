@@ -1,54 +1,69 @@
 //! A client for managing multisig transactions.
-#[macro_use]
+
 extern crate alloc;
-
-use alloc::string::ToString;
-use alloc::vec::Vec;
-use anyhow::Context;
-use core::ops::{Deref, DerefMut};
-use rand::RngCore;
-use rand::rngs::StdRng;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use thiserror::Error;
-use url::Url;
-
-use miden_client::ClientError;
-use miden_client::account::AccountFile;
-use miden_client::account::component::{AuthRpoFalcon512Multisig, BasicWallet};
-use miden_client::account::{Account, AccountBuilder, AccountId, AccountStorageMode, AccountType};
-use miden_client::auth::TransactionAuthenticator;
-use miden_client::builder::ClientBuilder;
-use miden_client::keystore::FilesystemKeyStore;
-use miden_client::rpc::Endpoint;
-use miden_client::transaction::TransactionExecutorError;
-use miden_client::{Felt, Word, ZERO};
-use miden_objects::Hasher;
-use miden_objects::assembly::diagnostics::tracing::info;
-use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
-use miden_objects::transaction::TransactionSummary;
-
-use miden_client::Client;
-use miden_client::transaction::{TransactionRequest, TransactionResult};
 
 #[cfg(test)]
 mod tests;
 
+use core::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
+
+use alloc::{
+    string::{String, ToString},
+    sync::Arc,
+    vec::Vec,
+};
+
+use std::path::PathBuf;
+
+use anyhow::Context;
+use miden_client::{
+    Client, ClientError, Felt, Word, ZERO,
+    account::{
+        Account, AccountBuilder, AccountFile, AccountId, AccountStorageMode, AccountType,
+        component::{AuthRpoFalcon512Multisig, BasicWallet},
+    },
+    auth::TransactionAuthenticator,
+    builder::ClientBuilder,
+    keystore::FilesystemKeyStore,
+    rpc::Endpoint,
+    transaction::{TransactionExecutorError, TransactionRequest, TransactionResult},
+};
+use miden_objects::{
+    Hasher, assembly::diagnostics::tracing::info, crypto::dsa::rpo_falcon512::PublicKey,
+    transaction::TransactionSummary,
+};
+use rand::{RngCore, rngs::StdRng};
+use thiserror::Error;
+use url::Url;
+
 /// Represents errors that can occur in the multisig client.
 #[derive(Debug, Error)]
 pub enum MultisigClientError {
-    #[error("multisig transaction proposal error: {0}")]
     /// An error occurred while proposing a new transaction.
+    #[error("multisig transaction proposal error: {0}")]
     TxProposalError(String),
-    #[error("multisig transaction execution error: {0}")]
+
     /// An error occurred while executing a transaction.
+    #[error("multisig transaction execution error: {0}")]
     TxExecutionError(String),
 }
 
-/// A client for interacting with Miden multisig accounts.
+/// A client for interacting with multisig accounts.
 pub struct MultisigClient<AUTH: TransactionAuthenticator + Sync + 'static> {
     client: Client<AUTH>,
+}
+
+impl<AUTH> MultisigClient<AUTH>
+where
+    AUTH: TransactionAuthenticator + Sync + 'static,
+{
+    /// Construct a `MultisigClient`.
+    pub fn new(client: Client<AUTH>) -> Self {
+        Self { client }
+    }
 }
 
 impl MultisigClient<FilesystemKeyStore<StdRng>> {
@@ -120,9 +135,7 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
             .build()
             .unwrap();
 
-        self.add_account(&multisig_account, Some(seed), false)
-            .await
-            .unwrap();
+        self.add_account(&multisig_account, Some(seed), false).await.unwrap();
 
         multisig_account
     }
@@ -162,16 +175,12 @@ impl<AUTH: TransactionAuthenticator + Sync + 'static> MultisigClient<AUTH> {
         // Add signatures to the advice provider
         let advice_inputs = transaction_request.advice_map_mut();
         let msg = transaction_summary.to_commitment();
-        let num_approvers: u32 = account.storage().get_item(0).unwrap().as_elements()[1]
-            .try_into()
-            .unwrap();
+        let num_approvers: u32 =
+            account.storage().get_item(0).unwrap().as_elements()[1].try_into().unwrap();
 
         for i in 0..num_approvers as usize {
             let pub_key_index_word = Word::from([Felt::from(i as u32), ZERO, ZERO, ZERO]);
-            let pub_key = account
-                .storage()
-                .get_map_item(1, pub_key_index_word)
-                .unwrap();
+            let pub_key = account.storage().get_map_item(1, pub_key_index_word).unwrap();
             let sig_key = Hasher::merge(&[pub_key, msg]);
             if let Some(signature) = signatures.get(i).and_then(|s| s.as_ref()) {
                 advice_inputs.extend(vec![(sig_key, signature.clone())]);
