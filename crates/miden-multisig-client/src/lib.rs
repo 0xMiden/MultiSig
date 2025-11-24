@@ -140,7 +140,7 @@ where
             != usize::try_from(num_approvers)
                 .map_err(|_| TransactionExecutionError::UnsupportedNumApprovers)?
         {
-            Err(TransactionExecutionError::NumSingaturesMismatch)?;
+            Err(TransactionExecutionError::NumSignaturesMismatch)?;
         }
 
         let msg = tx_summary.to_commitment();

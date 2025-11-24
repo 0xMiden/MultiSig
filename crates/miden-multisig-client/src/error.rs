@@ -55,7 +55,7 @@ pub(crate) enum TransactionExecutionError {
     UnsupportedNumApprovers,
 
     #[error("mismatch between number of signatures provided and number of approvers")]
-    NumSingaturesMismatch,
+    NumSignaturesMismatch,
 
     #[error("public key retrieval failure from storage slot map")]
     PubKeyStorageSlotMap,
