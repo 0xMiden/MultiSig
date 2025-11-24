@@ -1,12 +1,11 @@
 //! Response types for multisig engine operations.
 
 use dissolve_derive::Dissolve;
-use miden_client::account::Account;
+use miden_client::{account::Account, transaction::TransactionSummary};
 use miden_multisig_coordinator_domain::{
     account::{MultisigAccount, MultisigApprover},
     tx::{MultisigTx, MultisigTxId, MultisigTxStats},
 };
-use miden_objects::transaction::TransactionSummary;
 
 /// Response from creating a multisig account.
 ///

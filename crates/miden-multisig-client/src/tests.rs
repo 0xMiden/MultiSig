@@ -4,7 +4,7 @@ use miden_client::{
     auth::SigningInputs,
     note::NoteType,
     testing::{
-        common::{TestClientKeyStore, insert_new_fungible_faucet, insert_new_wallet, mint_note},
+        common::{self, TestClientKeyStore},
         mock::MockRpcApi,
     },
     transaction::TransactionRequestBuilder,
@@ -12,14 +12,9 @@ use miden_client::{
 
 use super::*;
 
+const AUTH_SCHEME_ID: u8 = 0;
+
 type TestMultisigClient = MultisigClient<TestClientKeyStore>;
-
-async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, TestClientKeyStore) {
-    let (client, mock_rpc_api, keystore) =
-        miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
-
-    (MultisigClient { client }, mock_rpc_api, keystore)
-}
 
 #[tokio::test]
 async fn multisig() {
@@ -31,31 +26,43 @@ async fn multisig() {
     let (mut coordinator_client, mock_rpc_api, coordinator_keystore) =
         setup_multisig_client().await;
 
-    let (_, _, secret_key_a) =
-        insert_new_wallet(&mut signer_a_client, AccountStorageMode::Private, &authenticator_a)
-            .await
-            .unwrap();
-    let pub_key_a = secret_key_a.public_key();
+    let (_, secret_key_a) = common::insert_new_wallet(
+        &mut signer_a_client,
+        AccountStorageMode::Private,
+        &authenticator_a,
+        AUTH_SCHEME_ID,
+    )
+    .await
+    .unwrap();
+    let pub_key_commit_a = secret_key_a.public_key().to_commitment();
 
-    let (_, _, secret_key_b) =
-        insert_new_wallet(&mut signer_b_client, AccountStorageMode::Private, &authenticator_b)
-            .await
-            .unwrap();
-    let pub_key_b = secret_key_b.public_key();
+    let (_, secret_key_b) = common::insert_new_wallet(
+        &mut signer_b_client,
+        AccountStorageMode::Private,
+        &authenticator_b,
+        AUTH_SCHEME_ID,
+    )
+    .await
+    .unwrap();
+    let pub_key_commit_b = secret_key_b.public_key().to_commitment();
 
-    let multisig_account = coordinator_client.setup_account(vec![pub_key_a, pub_key_b], 2).await;
+    let multisig_account = coordinator_client
+        .setup_account(vec![pub_key_commit_a, pub_key_commit_b], 2.try_into().unwrap())
+        .await
+        .unwrap();
 
     // we insert the faucet to the coordinator client for convenience
-    let (faucet_account, ..) = insert_new_fungible_faucet(
+    let (faucet_account, ..) = common::insert_new_fungible_faucet(
         coordinator_client.deref_mut(),
         AccountStorageMode::Public,
         &coordinator_keystore,
+        AUTH_SCHEME_ID,
     )
     .await
     .unwrap();
 
     // mint a note to the multisig account
-    let (_tx_id, note) = mint_note(
+    let (_tx_id, note) = common::mint_note(
         &mut coordinator_client,
         multisig_account.id(),
         faucet_account.id(),
@@ -88,13 +95,20 @@ async fn multisig() {
 
     let signing_inputs = SigningInputs::TransactionSummary(Box::new(tx_summary.clone()));
 
-    let signature_a =
-        authenticator_a.get_signature(pub_key_a.into(), &signing_inputs).await.unwrap();
-    let signature_b =
-        authenticator_b.get_signature(pub_key_b.into(), &signing_inputs).await.unwrap();
+    let signature_a = authenticator_a
+        .get_signature(pub_key_commit_a, &signing_inputs)
+        .await
+        .unwrap()
+        .to_prepared_signature(Word::empty());
+
+    let signature_b = authenticator_b
+        .get_signature(pub_key_commit_b, &signing_inputs)
+        .await
+        .unwrap()
+        .to_prepared_signature(Word::empty());
 
     let tx_result = coordinator_client
-        .new_multisig_transaction(
+        .execute_multisig_transaction(
             multisig_account,
             tx_request,
             tx_summary,
@@ -103,4 +117,11 @@ async fn multisig() {
         .await;
 
     assert!(tx_result.is_ok());
+}
+
+async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, TestClientKeyStore) {
+    let (client, mock_rpc_api, keystore) =
+        miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
+
+    (MultisigClient { client }, mock_rpc_api, keystore)
 }

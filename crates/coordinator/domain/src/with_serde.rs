@@ -1,30 +1,25 @@
-use miden_client::account::AccountIdAddress;
+use miden_client::account::AccountId;
 
-fn serialize_account_id_address(
-    account_id_address: &AccountIdAddress,
-) -> [u8; AccountIdAddress::SERIALIZED_SIZE] {
-    (*account_id_address).into()
+fn serialize_account_id_address(account_id: &AccountId) -> [u8; AccountId::SERIALIZED_SIZE] {
+    (*account_id).into()
 }
 
-pub mod account_id_address {
-    use miden_client::account::AccountIdAddress;
+pub mod account_id {
+    use miden_client::account::AccountId;
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
-    pub fn serialize<S>(
-        account_id_address: &AccountIdAddress,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(account_id: &AccountId, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_bytes(&super::serialize_account_id_address(account_id_address))
+        serializer.serialize_bytes(&super::serialize_account_id_address(account_id))
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<AccountIdAddress, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<AccountId, D::Error>
     where
         D: Deserializer<'de>,
     {
-        <[u8; AccountIdAddress::SERIALIZED_SIZE]>::deserialize(deserializer)
+        <[u8; AccountId::SERIALIZED_SIZE]>::deserialize(deserializer)
             .map(TryFrom::try_from)?
             .map_err(D::Error::custom)
     }
@@ -86,24 +81,26 @@ pub mod network_id {
 }
 
 pub mod pub_key_commit {
-    use miden_client::Word;
-    use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+    use miden_client::{Word, auth::PublicKeyCommitment};
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
-    pub fn serialize<S>(&pub_key_commit: &PublicKey, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(
+        &pub_key_commit: &PublicKeyCommitment,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         serializer.serialize_bytes(&Word::from(pub_key_commit).as_bytes())
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<PublicKey, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<PublicKeyCommitment, D::Error>
     where
         D: Deserializer<'de>,
     {
         <[u8; Word::SERIALIZED_SIZE]>::deserialize(deserializer)
             .map(Word::try_from)?
-            .map(PublicKey::new)
+            .map(From::from)
             .map_err(D::Error::custom)
     }
 }
@@ -133,8 +130,10 @@ pub mod transaction_request {
 }
 
 pub mod transaction_summary {
-    use miden_client::utils::{Deserializable, Serializable};
-    use miden_objects::transaction::TransactionSummary;
+    use miden_client::{
+        transaction::TransactionSummary,
+        utils::{Deserializable, Serializable},
+    };
     use serde::{Deserialize, Deserializer, Serializer, de::Error};
 
     pub fn serialize<S>(tx_summary: &TransactionSummary, serializer: S) -> Result<S::Ok, S::Error>
@@ -160,37 +159,34 @@ pub mod vec_account_id_address {
         vec::Vec,
     };
 
-    use miden_client::account::AccountIdAddress;
+    use miden_client::account::AccountId;
     use serde::{
         Deserializer, Serializer,
         de::{self, SeqAccess, Visitor},
         ser::SerializeSeq,
     };
 
-    pub fn serialize<S>(
-        account_id_addresses: &Vec<AccountIdAddress>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(account_id: &Vec<AccountId>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let mut seq = serializer.serialize_seq(account_id_addresses.len().into())?;
+        let mut seq = serializer.serialize_seq(account_id.len().into())?;
 
-        for account_id_address in account_id_addresses {
+        for account_id_address in account_id {
             seq.serialize_element(&super::serialize_account_id_address(account_id_address))?;
         }
 
         seq.end()
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<AccountIdAddress>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<AccountId>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct AccountIdAddressVecVisitor;
+        struct AccountIdVecVisitor;
 
-        impl<'de> Visitor<'de> for AccountIdAddressVecVisitor {
-            type Value = Vec<AccountIdAddress>;
+        impl<'de> Visitor<'de> for AccountIdVecVisitor {
+            type Value = Vec<AccountId>;
 
             fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                 formatter.write_str("a sequence of account ids")
@@ -200,19 +196,17 @@ pub mod vec_account_id_address {
             where
                 A: SeqAccess<'de>,
             {
-                let mut account_id_addresses = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                let mut account_id = Vec::with_capacity(seq.size_hint().unwrap_or(0));
 
-                while let Some(bz) =
-                    seq.next_element::<[u8; AccountIdAddress::SERIALIZED_SIZE]>()?
-                {
-                    account_id_addresses.push(bz.try_into().map_err(de::Error::custom)?);
+                while let Some(bz) = seq.next_element::<[u8; AccountId::SERIALIZED_SIZE]>()? {
+                    account_id.push(bz.try_into().map_err(de::Error::custom)?);
                 }
 
-                Ok(account_id_addresses)
+                Ok(account_id)
             }
         }
 
-        deserializer.deserialize_seq(AccountIdAddressVecVisitor)
+        deserializer.deserialize_seq(AccountIdVecVisitor)
     }
 }
 
@@ -222,15 +216,17 @@ pub mod vec_pub_key_commits {
         vec::Vec,
     };
 
-    use miden_client::Word;
-    use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+    use miden_client::{Word, auth::PublicKeyCommitment};
     use serde::{
         Deserializer, Serializer,
         de::{self, SeqAccess, Visitor},
         ser::SerializeSeq,
     };
 
-    pub fn serialize<S>(pub_key_commits: &Vec<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(
+        pub_key_commits: &Vec<PublicKeyCommitment>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -243,14 +239,14 @@ pub mod vec_pub_key_commits {
         seq.end()
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<PublicKey>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<PublicKeyCommitment>, D::Error>
     where
         D: Deserializer<'de>,
     {
         struct PubKeyCommitVecVisitor;
 
         impl<'de> Visitor<'de> for PubKeyCommitVecVisitor {
-            type Value = Vec<PublicKey>;
+            type Value = Vec<PublicKeyCommitment>;
 
             fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                 formatter.write_str("a sequence of public key commitments")
@@ -264,7 +260,7 @@ pub mod vec_pub_key_commits {
 
                 while let Some(bz) = seq.next_element::<[u8; Word::SERIALIZED_SIZE]>()? {
                     let pub_key_commit =
-                        Word::try_from(bz).map(PublicKey::new).map_err(de::Error::custom)?;
+                        Word::try_from(bz).map(From::from).map_err(de::Error::custom)?;
                     pub_key_commits.push(pub_key_commit);
                 }
 

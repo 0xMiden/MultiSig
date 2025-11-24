@@ -6,8 +6,10 @@ use alloc::vec::Vec;
 
 use bon::Builder;
 use dissolve_derive::Dissolve;
-use miden_client::account::{AccountIdAddress, AccountStorageMode, NetworkId};
-use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
+use miden_client::{
+    account::{AccountId, AccountStorageMode, NetworkId},
+    auth::PublicKeyCommitment,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -19,7 +21,7 @@ use crate::with_serde;
 
 /// An approver authorized to sign multisig transactions.
 ///
-/// Each approver is identified by their account address and has an associated
+/// Each approver is identified by their account id and has an associated
 /// public key commitment used for signature verification.
 ///
 /// # Type Parameters
@@ -28,9 +30,9 @@ use crate::with_serde;
 #[derive(Debug, Clone, Builder, Dissolve)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MultisigApprover<AUX = Timestamps> {
-    /// The account address of the approver.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
-    address: AccountIdAddress,
+    /// The account id of the approver.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id"))]
+    account_id: AccountId,
 
     /// The network this account belongs to.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
@@ -38,7 +40,7 @@ pub struct MultisigApprover<AUX = Timestamps> {
 
     /// The public key commitment used for signature verification.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::pub_key_commit"))]
-    pub_key_commit: PublicKey,
+    pub_key_commit: PublicKeyCommitment,
 
     /// Auxiliary metadata associated with this approver.
     aux: AUX,
@@ -61,7 +63,7 @@ pub struct MultisigApprover<AUX = Timestamps> {
 /// ```ignore
 /// // Create a new multisig account
 /// let account = MultisigAccount::builder()
-///     .address(address)
+///     .account_id(account_id)
 ///     .network_id(network_id)
 ///     .kind(AccountStorageMode::Public)
 ///     .threshold(2)
@@ -77,9 +79,9 @@ pub struct MultisigApprover<AUX = Timestamps> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MultisigAccount<APPR = WithoutApprovers, PKC = WithoutPubKeyCommits, AUX = Timestamps> {
-    /// The account's unique address identifier.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
-    address: AccountIdAddress,
+    /// The account's unique identifier.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id"))]
+    account_id: AccountId,
 
     /// The network this account belongs to.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]
@@ -104,13 +106,13 @@ pub struct MultisigAccount<APPR = WithoutApprovers, PKC = WithoutPubKeyCommits, 
 
 /// Type-state marker indicating that approvers have been set.
 ///
-/// This type wraps a vector of approver addresses and is used as a type parameter
+/// This type wraps a vector of approver account ids and is used as a type parameter
 /// in [`MultisigAccount`] to enforce compile-time checks.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WithApprovers(
     #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_account_id_address"))]
-    Vec<AccountIdAddress>,
+    Vec<AccountId>,
 );
 
 /// Type-state marker indicating that approvers have not been set.
@@ -127,7 +129,8 @@ pub struct WithoutApprovers;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WithPubKeyCommits(
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_pub_key_commits"))] Vec<PublicKey>,
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::vec_pub_key_commits"))]
+    Vec<PublicKeyCommitment>,
 );
 
 /// Type-state marker indicating that public key commitments have not been set.
@@ -146,14 +149,14 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, AUX> {
     /// to populate the account with approvers and their public key commiements.
     #[builder]
     pub fn new(
-        address: AccountIdAddress,
+        account_id: AccountId,
         network_id: NetworkId,
         kind: AccountStorageMode,
         threshold: NonZeroU32,
         aux: AUX,
     ) -> Self {
         Self {
-            address,
+            account_id,
             network_id,
             kind,
             threshold,
@@ -175,7 +178,7 @@ impl<APPR, PKC, AUX1> MultisigAccount<APPR, PKC, AUX1> {
     /// A tuple of (new account with `AUX2`, old `AUX1` value)
     pub fn with_aux<AUX2>(self, aux: AUX2) -> (MultisigAccount<APPR, PKC, AUX2>, AUX1) {
         let multisig_account = MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -200,15 +203,15 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, AUX> {
     /// * `None` if there are fewer approvers than the threshold
     pub fn with_approvers(
         self,
-        approver_addresses: Vec<AccountIdAddress>,
+        approver_account_ids: Vec<AccountId>,
     ) -> Option<MultisigAccount<WithApprovers, WithoutPubKeyCommits, AUX>> {
         // TODO: ascertain whether casting u32 to usize will always be safe
-        (approver_addresses.len() >= self.threshold.get() as usize).then(|| MultisigAccount {
-            address: self.address,
+        (approver_account_ids.len() >= self.threshold.get() as usize).then(|| MultisigAccount {
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
-            approvers: WithApprovers(approver_addresses),
+            approvers: WithApprovers(approver_account_ids),
             pub_key_commits: WithoutPubKeyCommits,
             aux: self.aux,
         })
@@ -225,11 +228,11 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, AUX> {
     /// * `None` if there are fewer public keys than the threshold
     pub fn with_pub_key_commits(
         self,
-        pub_key_commits: Vec<PublicKey>,
+        pub_key_commits: Vec<PublicKeyCommitment>,
     ) -> Option<MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX>> {
         // TODO: ascertain whether casting u32 to usize will always be safe
         (pub_key_commits.len() >= self.threshold.get() as usize).then(|| MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -250,10 +253,10 @@ impl<AUX> MultisigAccount<WithApprovers, WithoutPubKeyCommits, AUX> {
     /// * `None` if the counts don't match
     pub fn with_pub_key_commits(
         self,
-        pub_key_commits: Vec<PublicKey>,
+        pub_key_commits: Vec<PublicKeyCommitment>,
     ) -> Option<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>> {
         (self.approvers.get().len() == pub_key_commits.len()).then(|| MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -274,14 +277,14 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX> {
     /// * `None` if the counts don't match
     pub fn with_approvers(
         self,
-        approver_addresses: Vec<AccountIdAddress>,
+        approver_account_ids: Vec<AccountId>,
     ) -> Option<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>> {
-        (self.pub_key_commits.get().len() == approver_addresses.len()).then(|| MultisigAccount {
-            address: self.address,
+        (self.pub_key_commits.get().len() == approver_account_ids.len()).then(|| MultisigAccount {
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
-            approvers: WithApprovers(approver_addresses),
+            approvers: WithApprovers(approver_account_ids),
             pub_key_commits: self.pub_key_commits,
             aux: self.aux,
         })
@@ -289,14 +292,14 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX> {
 }
 
 impl<APPR, PKC, AUX> MultisigAccount<APPR, PKC, AUX> {
-    /// Returns the account's address.
-    pub fn address(&self) -> AccountIdAddress {
-        self.address
+    /// Returns the account id.
+    pub fn account_id(&self) -> AccountId {
+        self.account_id
     }
 
     /// Returns the network ID this account belongs to.
-    pub fn network_id(&self) -> NetworkId {
-        self.network_id
+    pub fn network_id(&self) -> &NetworkId {
+        &self.network_id
     }
 
     /// Returns the account kind.
@@ -316,15 +319,15 @@ impl<APPR, PKC, AUX> MultisigAccount<APPR, PKC, AUX> {
 }
 
 impl<PKC, AUX> MultisigAccount<WithApprovers, PKC, AUX> {
-    /// Returns the list of approver addresses.
-    pub fn approvers(&self) -> &[AccountIdAddress] {
+    /// Returns the list of approver account ids.
+    pub fn approvers(&self) -> &[AccountId] {
         self.approvers.get()
     }
 }
 
 impl<APPR, AUX> MultisigAccount<APPR, WithPubKeyCommits, AUX> {
     /// Returns the list of public key commitments.
-    pub fn pub_key_commits(&self) -> &[PublicKey] {
+    pub fn pub_key_commits(&self) -> &[PublicKeyCommitment] {
         self.pub_key_commits.get()
     }
 }
@@ -344,17 +347,13 @@ impl<AUX> MultisigAccount<WithApprovers, WithoutPubKeyCommits, AUX> {
     ///
     /// Returns a tuple of:
     /// 1. A bare account (no approvers, no pub keys, `()` as auxiliary data)
-    /// 2. The list of approver addresses
+    /// 2. The list of approver account ids
     /// 3. The original auxiliary data
     pub fn dissolve(
         self,
-    ) -> (
-        MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, ()>,
-        Vec<AccountIdAddress>,
-        AUX,
-    ) {
+    ) -> (MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, ()>, Vec<AccountId>, AUX) {
         let multisig_account = MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -376,9 +375,13 @@ impl<AUX> MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX> {
     /// 3. The original auxiliary data
     pub fn dissolve(
         self,
-    ) -> (MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, ()>, Vec<PublicKey>, AUX) {
+    ) -> (
+        MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, ()>,
+        Vec<PublicKeyCommitment>,
+        AUX,
+    ) {
         let multisig_account = MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -396,19 +399,19 @@ impl<AUX> MultisigAccount<WithApprovers, WithPubKeyCommits, AUX> {
     ///
     /// Returns a tuple of:
     /// 1. A bare account - (no approvers, no public key commitments, `()` as auxiliary data)
-    /// 2. The list of approver addresses
+    /// 2. The list of approver account ids
     /// 3. The list of public key commitments
     /// 4. The original auxiliary data
     pub fn dissolve(
         self,
     ) -> (
         MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, ()>,
-        Vec<AccountIdAddress>,
-        Vec<PublicKey>,
+        Vec<AccountId>,
+        Vec<PublicKeyCommitment>,
         AUX,
     ) {
         let multisig_account = MultisigAccount {
-            address: self.address,
+            account_id: self.account_id,
             network_id: self.network_id,
             kind: self.kind,
             threshold: self.threshold,
@@ -427,21 +430,21 @@ impl<AUX> MultisigAccount<WithApprovers, WithPubKeyCommits, AUX> {
 }
 
 impl WithApprovers {
-    fn get(&self) -> &[AccountIdAddress] {
+    fn get(&self) -> &[AccountId] {
         &self.0
     }
 
-    fn into_inner(self) -> Vec<AccountIdAddress> {
+    fn into_inner(self) -> Vec<AccountId> {
         self.0
     }
 }
 
 impl WithPubKeyCommits {
-    fn get(&self) -> &[PublicKey] {
+    fn get(&self) -> &[PublicKeyCommitment] {
         &self.0
     }
 
-    fn into_inner(self) -> Vec<PublicKey> {
+    fn into_inner(self) -> Vec<PublicKeyCommitment> {
         self.0
     }
 }
@@ -449,7 +452,8 @@ impl WithPubKeyCommits {
 impl<AUX> From<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>>
     for MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, AUX>
 {
-    /// Converts a fully configured account to a bare account, discarding approvers and public key commitments.
+    /// Converts a fully configured account to a bare account,
+    /// discarding approvers and public key commitments.
     fn from(multisig_account: MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>) -> Self {
         let (multisig_account, _, _, aux) = multisig_account.dissolve();
         multisig_account.with_aux(aux).0
@@ -469,7 +473,8 @@ impl<AUX> From<MultisigAccount<WithApprovers, WithoutPubKeyCommits, AUX>>
 impl<AUX> From<MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX>>
     for MultisigAccount<WithoutApprovers, WithoutPubKeyCommits, AUX>
 {
-    /// Converts an account with public key commitments to a bare account, discarding public key commitments
+    /// Converts an account with public key commitments to a bare account,
+    /// discarding public key commitments.
     fn from(multisig_account: MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX>) -> Self {
         let (multisig_account, _, aux) = multisig_account.dissolve();
         multisig_account.with_aux(aux).0
@@ -479,10 +484,11 @@ impl<AUX> From<MultisigAccount<WithoutApprovers, WithPubKeyCommits, AUX>>
 impl<AUX> From<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>>
     for MultisigAccount<WithApprovers, WithoutPubKeyCommits, AUX>
 {
-    /// Converts a fully configured account to one without public key commitments, keeping approvers.
+    /// Converts a fully configured account to one without public key commitments,
+    /// keeping approvers.
     fn from(
         MultisigAccount {
-            address,
+            account_id,
             network_id,
             kind,
             threshold,
@@ -492,7 +498,7 @@ impl<AUX> From<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>>
         }: MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>,
     ) -> Self {
         Self {
-            address,
+            account_id,
             network_id,
             kind,
             threshold,
@@ -509,7 +515,7 @@ impl<AUX> From<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>>
     /// Converts a fully configured account to one without approvers, keeping public key commitments.
     fn from(
         MultisigAccount {
-            address,
+            account_id,
             network_id,
             kind,
             threshold,
@@ -519,7 +525,7 @@ impl<AUX> From<MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>>
         }: MultisigAccount<WithApprovers, WithPubKeyCommits, AUX>,
     ) -> Self {
         Self {
-            address,
+            account_id,
             network_id,
             kind,
             threshold,

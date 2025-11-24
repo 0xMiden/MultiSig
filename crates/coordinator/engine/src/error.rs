@@ -1,12 +1,10 @@
 use std::borrow::Cow;
 
+use miden_multisig_client::MultisigClientError;
 use miden_multisig_coordinator_store::MultisigStoreError;
 use tokio::sync::oneshot;
 
-use crate::multisig_client_runtime::{
-    MultisigClientRuntimeError,
-    msg::{ProcessMultisigTxError, ProposeMultisigTxError},
-};
+use crate::multisig_client_runtime::MultisigClientRuntimeError;
 
 /// The main error type for multisig engine operations.
 #[derive(Debug, thiserror::Error)]
@@ -17,6 +15,9 @@ pub struct MultisigEngineError(#[from] MultisigEngineErrorKind);
 pub(crate) enum MultisigEngineErrorKind {
     #[error("multisig client runtime error: {0}")]
     MultisigClientRuntime(#[from] MultisigClientRuntimeError),
+
+    #[error("multisig client error: {0}")]
+    MultisigClient(#[from] MultisigClientError),
 
     #[error("multisig store error: {0}")]
     MultisigStore(#[from] MultisigStoreError),
@@ -29,12 +30,6 @@ pub(crate) enum MultisigEngineErrorKind {
 
     #[error("not found error: {0}")]
     NotFound(Cow<'static, str>),
-
-    #[error("propose multisig tx error: {0}")]
-    ProposeMultisigTx(#[from] ProposeMultisigTxError),
-
-    #[error("process multisig tx error: {0}")]
-    ProcessMultisigTx(#[from] ProcessMultisigTxError),
 
     #[error("other error: {0}")]
     Other(Cow<'static, str>),

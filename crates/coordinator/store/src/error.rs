@@ -24,7 +24,7 @@ pub enum MultisigStoreError {
     /// The requested resource was not found in the database.
     ///
     /// This is returned when querying for entities that don't exist,
-    /// such as non-existent transaction IDs or account addresses.
+    /// such as non-existent transaction IDs or account ids.
     #[error("not found error: {0}")]
     NotFound(Cow<'static, str>),
 

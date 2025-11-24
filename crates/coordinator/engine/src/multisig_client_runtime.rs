@@ -53,9 +53,13 @@ use std::{
 
 use bon::Builder;
 use miden_client::{
-    account::AccountIdAddress, auth::TransactionAuthenticator, builder::ClientBuilder,
+    Word,
+    account::AccountId,
+    auth::{Signature, TransactionAuthenticator},
+    builder::ClientBuilder,
     keystore::FilesystemKeyStore,
 };
+use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_multisig_client::MultisigClient;
 use tokio::{runtime::Runtime, sync::mpsc, task::LocalSet};
 use url::Url;
@@ -97,7 +101,7 @@ pub fn spawn_new<A>(
     config: MultisigClientRuntimeConfig,
 ) -> JoinHandle<Result<()>>
 where
-    A: Iterator<Item = AccountIdAddress> + Send + 'static,
+    A: Iterator<Item = AccountId> + Send + 'static,
 {
     thread::spawn(move || {
         let local = LocalSet::new();
@@ -138,7 +142,7 @@ async fn run_multisig_client_runtime<A>(
     }: MultisigClientRuntimeConfig,
 ) -> Result<()>
 where
-    A: Iterator<Item = AccountIdAddress>,
+    A: Iterator<Item = AccountId>,
 {
     let keystore = FilesystemKeyStore::new(keystore_path)
         .map_err(|e| MultisigClientRuntimeError::other(e.to_string()))?;
@@ -147,12 +151,8 @@ where
         MultisigClientRuntimeError::other(format!("failed to parse node url {node_url}: {e}"))
     })?;
 
-    let store_path = store_path
-        .to_str()
-        .ok_or(MultisigClientRuntimeError::other("invalid store path"))?;
-
     let mut client = ClientBuilder::new()
-        .tonic_rpc_client(&endpoint, Some(timeout.as_millis() as u64))
+        .grpc_client(&endpoint, Some(timeout.as_millis() as u64))
         .authenticator(Arc::new(keystore))
         .sqlite_store(store_path)
         .build()
@@ -170,7 +170,7 @@ where
         .await
         .inspect_err(|e| tracing::error!("failed to sync state: {e}"))?;
 
-    for account_id in tracking_multisig_accounts.map(|address| address.id()) {
+    for account_id in tracking_multisig_accounts {
         let _ = client
             .import_account_by_id(account_id)
             .await
@@ -224,7 +224,7 @@ where
 
     let CreateMultisigAccountDissolved { threshold, approvers, sender } = msg.dissolve();
 
-    let account = client.setup_account(approvers, threshold.get()).await;
+    let account = client.setup_account(approvers, threshold).await;
 
     let _ = sender
         .send(account)
@@ -264,12 +264,12 @@ where
 {
     client.sync_state().await?;
 
-    let ProposeMultisigTxDissolved { account_id, tx_request, sender } = msg.dissolve();
+    let ProposeMultisigTxDissolved { multisig_account_id, tx_request, sender } = msg.dissolve();
 
-    let tx_summary = client.propose_multisig_transaction(account_id, tx_request).await;
+    let tx_summary = client.propose_multisig_transaction(multisig_account_id, tx_request).await;
 
     let _ = sender
-        .send(tx_summary.map_err(From::from))
+        .send(tx_summary)
         .inspect_err(|_| tracing::error!("oneshot sender failed to send tx summary"));
 
     Ok(())
@@ -286,30 +286,26 @@ where
     client.sync_state().await?;
 
     let ProcessMultisigTxDissolved {
-        account_id,
+        multisig_account_id,
         tx_request,
         tx_summary,
         signatures,
         sender,
     } = msg.dissolve();
 
-    let account_record = client.try_get_account(account_id).await?;
+    let account_record = client.try_get_account(multisig_account_id).await?;
 
     let signatures = signatures
         .into_iter()
-        .map(|s| s.map(miden_multisig_coordinator_utils::rpo_falcon512_signature_into_felt_vec))
+        .map(|s| s.map(|s| Signature::RpoFalcon512(s).to_prepared_signature(Word::empty())))
         .collect();
 
     let tx_result = client
-        .new_multisig_transaction(account_record.into(), tx_request, tx_summary, signatures)
+        .submit_new_multisig_transaction(account_record.into(), tx_request, tx_summary, signatures)
         .await;
 
-    if let Ok(tx_result) = &tx_result {
-        client.submit_transaction(tx_result.clone()).await?;
-    }
-
     let _ = sender
-        .send(tx_result.map_err(From::from))
+        .send(tx_result)
         .inspect_err(|_| tracing::error!("oneshot sender failed to send tx result"));
 
     Ok(())

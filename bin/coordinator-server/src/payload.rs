@@ -7,7 +7,6 @@ use bon::Builder;
 use chrono::{DateTime, Utc};
 use miden_client::{
     Word,
-    account::Address,
     note::{NoteFile, NoteId},
     utils::Serializable,
 };
@@ -80,7 +79,7 @@ pub struct NoteIdPayload {
 impl From<MultisigAccount> for MultisigAccountPayload {
     fn from(account: MultisigAccount) -> Self {
         Self::builder()
-            .address(Address::AccountId(account.address()).to_bech32(account.network_id()))
+            .address(account.account_id().to_bech32(account.network_id().clone()))
             .kind(account.kind().to_string())
             .threshold(account.threshold())
             .created_at(account.aux().created_at())
@@ -91,11 +90,15 @@ impl From<MultisigAccount> for MultisigAccountPayload {
 
 impl From<MultisigApprover> for MultisigApproverPayload {
     fn from(approver: MultisigApprover) -> Self {
-        let MultisigApproverDissolved { address, network_id, pub_key_commit, aux } =
-            approver.dissolve();
+        let MultisigApproverDissolved {
+            account_id,
+            network_id,
+            pub_key_commit,
+            aux,
+        } = approver.dissolve();
 
         Self::builder()
-            .address(Address::AccountId(address).to_bech32(network_id))
+            .address(account_id.to_bech32(network_id))
             .pub_key_commit(Word::from(pub_key_commit).to_bytes())
             .created_at(aux.created_at())
             .updated_at(aux.updated_at())
@@ -107,7 +110,7 @@ impl From<MultisigTx> for MultisigTxPayload {
     fn from(tx: MultisigTx) -> Self {
         let MultisigTxDissolved {
             id,
-            address,
+            multisig_account_id,
             network_id,
             status,
             tx_request,
@@ -119,7 +122,7 @@ impl From<MultisigTx> for MultisigTxPayload {
 
         Self::builder()
             .id(id.into())
-            .multisig_account_address(Address::AccountId(address).to_bech32(network_id))
+            .multisig_account_address(multisig_account_id.to_bech32(network_id))
             .status(status)
             .tx_request(tx_request.to_bytes())
             .tx_summary(tx_summary.to_bytes())

@@ -28,10 +28,10 @@
 //! let store = MultisigStore::new(pool);
 //!
 //! // Store operations
-//! let account = store.get_multisig_account(network_id, address).await?;
-//! let txs = store.get_txs_by_multisig_account_address_with_status_filter(
+//! let account = store.get_multisig_account(network_id, account_id).await?;
+//! let txs = store.get_txs_by_multisig_account_with_status_filter(
 //!     network_id,
-//!     address,
+//!     account_id,
 //!     Some(MultisigTxStatus::Pending)
 //! ).await?;
 //! ```
@@ -50,19 +50,16 @@ use diesel_async::AsyncConnection;
 use futures::{Stream, StreamExt, TryStreamExt};
 use miden_client::{
     Word,
-    account::{AccountIdAddress, Address, NetworkId},
-    transaction::TransactionRequest,
+    account::{AccountId, NetworkId},
+    auth::PublicKeyCommitment,
+    crypto::rpo_falcon512::Signature,
+    transaction::{TransactionRequest, TransactionSummary},
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_domain::{
     Timestamps,
     account::{MultisigAccount, MultisigApprover, WithApprovers, WithPubKeyCommits},
     tx::{MultisigTx, MultisigTxId, MultisigTxStats, MultisigTxStatus},
-};
-use miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair;
-use miden_objects::{
-    crypto::dsa::rpo_falcon512::{PublicKey, Signature},
-    transaction::TransactionSummary,
 };
 use oblux::U63;
 
@@ -115,12 +112,12 @@ impl MultisigStore {
     ///
     /// Returns an error if:
     /// - The database transaction fails
-    /// - An account with the same address already exists
+    /// - An account with the same account id already exists
     /// - Any approver data is invalid
     #[tracing::instrument(
         skip_all,
         fields(
-            address = %multisig_account.address().id().to_hex(),
+            address = %multisig_account.account_id().to_hex(),
             network_id = %multisig_account.network_id(),
             kind = %multisig_account.kind(),
             threshold = multisig_account.threshold(),
@@ -135,8 +132,9 @@ impl MultisigStore {
             .await?
             .transaction(|conn| {
                 Box::pin(async move {
-                    let multisig_account_address = Address::AccountId(multisig_account.address())
-                        .to_bech32(multisig_account.network_id());
+                    let multisig_account_address = multisig_account
+                        .account_id()
+                        .to_bech32(multisig_account.network_id().clone());
 
                     let new_multisig_account = NewMultisigAccountRecord::builder()
                         .address(&multisig_account_address)
@@ -148,14 +146,14 @@ impl MultisigStore {
                         .await
                         .map(|t| Timestamps::builder().created_at(t).updated_at(t).build())?;
 
-                    for (idx, (&approver_account_id_address, &pub_key_commit)) in multisig_account
+                    for (idx, (&approver_account_id, &pub_key_commit)) in multisig_account
                         .approvers()
                         .iter()
                         .zip(multisig_account.pub_key_commits())
                         .enumerate()
                     {
-                        let approver_address = Address::AccountId(approver_account_id_address)
-                            .to_bech32(multisig_account.network_id());
+                        let approver_address =
+                            approver_account_id.to_bech32(multisig_account.network_id().clone());
 
                         let pub_key_commit_bz = Word::from(pub_key_commit).as_bytes();
 
@@ -200,16 +198,16 @@ impl MultisigStore {
     /// - The database operation fails
     #[tracing::instrument(
         skip_all,
-        fields(%network_id, account_id_address = account_id_address.id().to_hex()),
+        fields(%network_id, account_id = account_id.to_hex()),
     )]
     pub async fn create_multisig_tx(
         &self,
         network_id: NetworkId,
-        account_id_address: AccountIdAddress,
+        account_id: AccountId,
         tx_request: &TransactionRequest,
         tx_summary: &TransactionSummary,
     ) -> Result<MultisigTxId> {
-        let multisig_account_address = Address::AccountId(account_id_address).to_bech32(network_id);
+        let multisig_account_address = account_id.to_bech32(network_id);
 
         let tx_request_bz = tx_request.to_bytes();
         let tx_summary_bz = tx_summary.to_bytes();
@@ -250,22 +248,21 @@ impl MultisigStore {
         fields(
             %tx_id,
             %network_id,
-            approver_account_id_address = %approver_account_id_address.id().to_hex(),
+            approver_account_id = %approver_account_id.to_hex(),
         ),
     )]
     pub async fn add_multisig_tx_signature(
         &self,
         tx_id: &MultisigTxId,
         network_id: NetworkId,
-        approver_account_id_address: AccountIdAddress,
+        approver_account_id: AccountId,
         signature: &Signature,
     ) -> Result<Option<bool>> {
         self.get_conn()
             .await?
             .transaction(|conn| {
                 Box::pin(async move {
-                    let approver_address =
-                        Address::AccountId(approver_account_id_address).to_bech32(network_id);
+                    let approver_address = approver_account_id.to_bech32(network_id);
 
                     if !store::validate_approver_address_by_tx_id(
                         conn,
@@ -332,10 +329,11 @@ impl MultisigStore {
         Ok(())
     }
 
-    /// Retrieves a multisig account by its address.
+    /// Retrieves a multisig account by its `account_id`.
     ///
-    /// This method fetches the basic account information (address, network, kind, threshold)
-    /// but does not include the approvers or public key commitments.
+    /// This method fetches the basic account information
+    /// (`account_id`, `network`, `kind`, `threshold`) but does not include the approvers or their
+    /// public key commitments.
     ///
     /// # Returns
     ///
@@ -350,17 +348,17 @@ impl MultisigStore {
         skip_all,
         fields(
             %network_id,
-            account_id_address = %account_id_address.id().to_hex(),
+            account_id = %account_id.to_hex(),
         )
     )]
     pub async fn get_multisig_account(
         &self,
         network_id: NetworkId,
-        account_id_address: AccountIdAddress,
+        account_id: AccountId,
     ) -> Result<Option<MultisigAccount>> {
         let conn = &mut self.get_conn().await?;
 
-        let address = Address::AccountId(account_id_address).to_bech32(network_id);
+        let address = account_id.to_bech32(network_id.clone());
 
         let Some(MultisigAccountRecordDissolved { kind, threshold, created_at, .. }) =
             store::fetch_mutisig_account_by_address(conn, &address)
@@ -380,7 +378,7 @@ impl MultisigStore {
             Timestamps::builder().created_at(created_at).updated_at(created_at).build();
 
         let multisig_account = MultisigAccount::builder()
-            .address(account_id_address)
+            .account_id(account_id)
             .network_id(network_id)
             .kind(kind.into_inner())
             .threshold(threshold)
@@ -408,8 +406,8 @@ impl MultisigStore {
             .await
     }
 
-    /// Retrieves all approvers for a multisig account address for the given network identified
-    /// by `network_id`.
+    /// Retrieves all approvers for a multisig account identified by `multisig_account_id`
+    /// for the given network identified by `network_id`.
     ///
     /// # Errors
     ///
@@ -420,12 +418,11 @@ impl MultisigStore {
     pub async fn get_approvers_by_multisig_account_address(
         &self,
         network_id: NetworkId,
-        multisig_account_id_address: AccountIdAddress,
+        multisig_account_id: AccountId,
     ) -> Result<Vec<MultisigApprover>> {
         let conn = &mut self.get_conn().await?;
 
-        let multisig_account_address =
-            Address::AccountId(multisig_account_id_address).to_bech32(network_id);
+        let multisig_account_address = multisig_account_id.to_bech32(network_id);
 
         store::stream_approvers_by_multisig_account_address(conn, &multisig_account_address)
             .await?
@@ -438,7 +435,7 @@ impl MultisigStore {
 
     /// Retrieves all transactions for a multisig account, optionally filtered by status.
     ///
-    /// Fetches transactions associated with a specific account address,
+    /// Fetches transactions associated with a specific account id,
     /// with optional filtering by execution status (pending, success, failure).
     ///
     /// # Returns
@@ -454,13 +451,13 @@ impl MultisigStore {
         skip_all,
         fields(
             %network_id,
-            address = %address.id().to_hex(),
+            account_id = %account_id.to_hex(),
         ),
     )]
-    pub async fn get_txs_by_multisig_account_address_with_status_filter<TSF>(
+    pub async fn get_txs_by_multisig_account_with_status_filter<TSF>(
         &self,
         network_id: NetworkId,
-        address: AccountIdAddress,
+        account_id: AccountId,
         tx_status_filter: TSF, // TODO: add support to filter on multiple `tx_status_filter`
     ) -> Result<Vec<MultisigTx>>
     where
@@ -468,7 +465,7 @@ impl MultisigStore {
     {
         let conn = &mut self.get_conn().await?;
 
-        let address = Address::AccountId(address).to_bech32(network_id);
+        let address = account_id.to_bech32(network_id);
 
         fn transform_into_multisig_tx(
             stream: impl Stream<Item = Result<(TxRecord, U63), StoreError>>,
@@ -523,7 +520,7 @@ impl MultisigStore {
     /// Retrieves aggregated transaction statistics for a multisig account.
     ///
     /// Computes and returns summary statistics (e.g., counts by status) for all
-    /// transactions associated with the provided multisig account address.
+    /// transactions associated with the provided multisig account id.
     ///
     /// # Returns
     ///
@@ -536,17 +533,17 @@ impl MultisigStore {
     pub async fn get_multisig_tx_stats_by_multisig_account_address(
         &self,
         network_id: NetworkId,
-        multisig_account_id_address: AccountIdAddress,
+        multisig_account_id: AccountId,
     ) -> Result<MultisigTxStats> {
         let conn = &mut self.get_conn().await?;
-        let address = Address::AccountId(multisig_account_id_address).to_bech32(network_id);
+        let address = multisig_account_id.to_bech32(network_id);
 
         store::fetch_tx_stats_by_multisig_account_address(conn, &address)
             .await
             .map_err(From::from)
     }
 
-    /// Retrieves an approver by their account address.
+    /// Retrieves an approver by their account id.
     ///
     /// This method looks up an approver's information including their public key commitment.
     ///
@@ -563,15 +560,15 @@ impl MultisigStore {
         skip_all,
         fields(
             %network_id,
-            approver_account_id_address = %approver_account_id_address.id().to_hex(),
+            approver_account_id = %approver_account_id.to_hex(),
         )
     )]
     pub async fn get_approver_by_approver_address(
         &self,
         network_id: NetworkId,
-        approver_account_id_address: AccountIdAddress,
+        approver_account_id: AccountId,
     ) -> Result<Option<MultisigApprover>> {
-        let address = Address::AccountId(approver_account_id_address).to_bech32(network_id);
+        let address = approver_account_id.to_bech32(network_id);
         store::fetch_approver_by_approver_address(&mut self.get_conn().await?, &address)
             .await?
             .map(make_multisig_approver)
@@ -638,7 +635,7 @@ fn make_multisig_account(
     let MultisigAccountRecordDissolved { address, kind, threshold, created_at } =
         multisig_account_record.dissolve();
 
-    let (network_id, account_id_address) = extract_network_id_account_id_address_pair(&address)
+    let (network_id, account_id) = AccountId::from_bech32(&address)
         .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
     let threshold = threshold
@@ -650,7 +647,7 @@ fn make_multisig_account(
     let timestamps = Timestamps::builder().created_at(created_at).updated_at(created_at).build();
 
     let multisig_account = MultisigAccount::builder()
-        .address(account_id_address)
+        .account_id(account_id)
         .network_id(network_id)
         .kind(kind.into_inner())
         .threshold(threshold)
@@ -671,10 +668,7 @@ fn make_multisig_tx(tx_record: TxRecord, signature_count: U63) -> Result<Multisi
         created_at,
     } = tx_record.dissolve();
 
-    let (network_id, address) =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
-            &multisig_account_address,
-        )
+    let (network_id, account_id) = AccountId::from_bech32(&multisig_account_address)
         .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
     let tx_request = TransactionRequest::read_from_bytes(&tx_request)
@@ -696,7 +690,7 @@ fn make_multisig_tx(tx_record: TxRecord, signature_count: U63) -> Result<Multisi
 
     let tx = MultisigTx::builder()
         .id(id.into())
-        .address(address)
+        .multisig_account_id(account_id)
         .network_id(network_id)
         .status(status.into_inner())
         .tx_request(tx_request)
@@ -713,18 +707,17 @@ fn make_multisig_approver(approver_record: ApproverRecord) -> Result<MultisigApp
     let ApproverRecordDissolved { address, pub_key_commit, created_at } =
         approver_record.dissolve();
 
-    let (network_id, address) =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&address)
-            .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
+    let (network_id, account_id) = AccountId::from_bech32(&address)
+        .map_err(|e| MultisigStoreError::Other(e.to_string().into()))?;
 
     let pub_key_commit = Word::read_from_bytes(&pub_key_commit)
-        .map(PublicKey::new)
+        .map(PublicKeyCommitment::from)
         .map_err(|_| MultisigStoreError::InvalidValue)?;
 
     let timestamps = Timestamps::builder().created_at(created_at).updated_at(created_at).build();
 
     let approver = MultisigApprover::builder()
-        .address(address)
+        .account_id(account_id)
         .network_id(network_id)
         .pub_key_commit(pub_key_commit)
         .aux(timestamps)

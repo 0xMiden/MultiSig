@@ -16,8 +16,6 @@ dissolve-derive                   = { workspace = true }
 futures                           = { default-features = false, version = "0.3" }
 miden-client                      = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true }
-miden-multisig-coordinator-utils  = { workspace = true }
-miden-objects                     = { workspace = true }
 oblux                             = "0.1"
 rustls                            = { default-features = false, version = "0.23" }
 rustls-native-certs               = "0.8"
