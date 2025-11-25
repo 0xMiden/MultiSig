@@ -1,4 +1,4 @@
-FROM rust:1.90-alpine AS builder
+FROM rust:1.90-alpine AS chef
 
 RUN apk add --no-cache \
     musl-dev \
@@ -8,10 +8,26 @@ RUN apk add --no-cache \
     perl \
     make
 
+FROM rust:1.90-alpine AS chef
+
 WORKDIR /build
+
+FROM chef AS planner
 
 COPY Cargo.toml Cargo.lock ./
 COPY bin ./bin
+COPY crates ./crates
+
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+COPY --from=planner /build/recipe.json recipe.json
+
+RUN cargo chef cook --release --recipe-path recipe.json --features sysbundle
+
+COPY Cargo.toml Cargo.lock ./
+COPY bin/coordinator-server ./bin/coordinator-server
 COPY crates ./crates
 
 RUN cargo build --release --bin miden-multisig-coordinator-server --features sysbundle
