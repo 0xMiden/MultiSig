@@ -3,6 +3,7 @@ use itertools::Itertools;
 use miden_client::{
     Word,
     account::AccountId,
+    address::{Address, AddressId},
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_engine::{
@@ -65,16 +66,24 @@ pub async fn create_multisig_account(
             let approvers = approvers
                 .iter()
                 .map(AsRef::as_ref)
-                .map(AccountId::from_bech32)
-                .map(|res| res.map_err(From::from))
-                .map_ok(|(network_id, account_id)| {
+                .map(Address::decode)
+                .map(|res| {
+                    res.map_err(|e| AppError::other(format!("failed to decode address: {e}")))
+                })
+                .map_ok(|(network_id, address)| {
                     engine_network_id
                         .eq(&network_id)
-                        .then_some(account_id)
+                        .then_some(address)
                         .ok_or(AppError::InvalidNetworkId)
                 })
                 .map(Result::flatten)
-                .try_collect()?;
+                .map_ok(|a| match a.id() {
+                    AddressId::AccountId(id) => Ok(id),
+                    _ => Err(AppError::other("approver address must be account id")),
+                })
+                .map(Result::flatten)
+                .try_collect()
+                .inspect_err(|e| tracing::error!("failed to decode approvers: {e}"))?;
 
             let pub_key_commits = pub_key_commits
                 .iter()
@@ -82,7 +91,8 @@ pub async fn create_multisig_account(
                 .map(Word::read_from_bytes)
                 .map_ok(From::from)
                 .try_collect()
-                .map_err(|_| AppError::InvalidPubKeyCommit)?;
+                .map_err(|_| AppError::InvalidPubKeyCommit)
+                .inspect_err(|e| tracing::error!("failed to decode public key commitments: {e}"))?;
 
             CreateMultisigAccountRequest::builder()
                 .threshold(threshold)
@@ -91,11 +101,13 @@ pub async fn create_multisig_account(
                 .build()
                 .map_err(RequestError::from)
                 .map_err(AppError::from)
+                .inspect_err(|e| tracing::error!("failed to create request: {e}"))
         })
         .await?
         .map(|request| engine.create_multisig_account(request))?
         .await
-        .map(CreateMultisigAccountResponse::dissolve)?;
+        .map(CreateMultisigAccountResponse::dissolve)
+        .inspect_err(|e| tracing::error!("failed to create multisig account: {e}"))?;
 
     let response = CreateMultisigAccountResponsePayload::builder()
         .address(multisig_account.account_id().to_bech32(multisig_account.network_id().clone()))
