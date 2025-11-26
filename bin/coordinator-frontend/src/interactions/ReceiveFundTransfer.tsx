@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useMidenClient } from "@/contexts/MidenClientContext";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch } from "@/store";
+import { NoteFile } from "@demox-labs/miden-sdk";
 import { proposeTransactionWithTxBzThunk, fetchPendingTransactions, fetchConfirmedTransactions, getConsumableNotesThunk } from "../services/transactionApi";
 
 const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: string, webClient: any): Promise<number> => {
@@ -20,7 +21,8 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
     if (!inputNoteRecord) {
       if (noteIdFileBytes) {
         const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
-        await webClient.importNoteFile(noteBytes);
+        const noteFile = NoteFile.deserialize(noteBytes);
+        await webClient.importNoteFile(noteFile);
         inputNoteRecord = await webClient.getInputNote(noteId);
       } else {
         console.error("No note file bytes to import");

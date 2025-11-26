@@ -92,14 +92,6 @@ export interface MidenSdkContextState {
   isLoading: boolean;
   Miden: typeof MidenSDK | null;
   createClient: () => Promise<MidenClient>;
-  createFaucet: (
-    client: MidenClient,
-    storageMode: StorageMode,
-    nonFungible: boolean,
-    assetSymbol: string,
-    decimals: number,
-    totalSupply: bigint
-  ) => Promise<MidenFaucet>;
 }
 
 // Miden SDK class type

@@ -17,7 +17,7 @@ const General = () => {
       const walletAccountId = walletAddress.accountId();
       const convertedWalletId = walletAccountId.toBech32(
         NetworkId.Testnet,
-        AccountInterface.Unspecified
+        AccountInterface.BasicWallet
       );
       return convertedWalletId;
     } catch (error) {

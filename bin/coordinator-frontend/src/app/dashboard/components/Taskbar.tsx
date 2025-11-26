@@ -70,7 +70,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
       const walletAddress = Address.fromBech32(currentWalletId);
       const walletAccountId = walletAddress.accountId();
 
-      const convertedWalletId = walletAccountId.toBech32(NetworkId.Testnet, AccountInterface.Unspecified);
+      const convertedWalletId = walletAccountId.toBech32(NetworkId.Testnet, AccountInterface.BasicWallet);
 
 
       return convertedWalletId;

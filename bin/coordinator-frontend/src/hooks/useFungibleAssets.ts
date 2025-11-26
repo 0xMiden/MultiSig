@@ -45,7 +45,7 @@ export const useFungibleAssets = () => {
         const assets = assetVault.fungibleAssets();
 
         const assetsWithBalance = assets.map(asset => {
-          const faucetId = asset.faucetId().toBech32(NetworkId.Testnet, AccountInterface.Unspecified);
+          const faucetId = asset.faucetId().toBech32(NetworkId.Testnet, AccountInterface.BasicWallet);
           const balance = assetVault.getBalance(asset.faucetId()).toString();
           return { faucetId, balance };
         });
