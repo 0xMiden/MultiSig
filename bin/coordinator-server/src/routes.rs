@@ -4,6 +4,7 @@ use miden_client::{
     Word,
     account::AccountId,
     address::{Address, AddressId, NetworkId},
+    auth::Signature,
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_engine::{
@@ -163,8 +164,11 @@ pub async fn add_signature(
             })?
             .ok_or(AppError::InvalidNetworkId)?;
 
-        let signature =
-            Deserializable::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?;
+        let Signature::RpoFalcon512(signature) =
+            Signature::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?
+        else {
+            return Err(AppError::InvalidSignature);
+        };
 
         AddSignatureRequest::builder()
             .tx_id(tx_id.into())
