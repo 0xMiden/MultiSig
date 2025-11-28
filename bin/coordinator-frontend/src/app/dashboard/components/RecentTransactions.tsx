@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import media from "../../../../public/media";
 import { useAppSelector } from "@/store/hooks";
 import { DecodedTransaction, RecentTransactionsProps } from "@/types";
-import { TransactionRequest } from "@demox-labs/miden-sdk";
+import { TransactionRequest, NoteFile } from "@demox-labs/miden-sdk";
 import { useMidenClient } from "../../../contexts/MidenClientContext";
 
 const getTransactionType = (
@@ -79,7 +79,8 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
     if (!inputNoteRecord) {
       if (noteIdFileBytes) {
         const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
-        await webClient.importNoteFile(noteBytes);
+        const noteFile = NoteFile.deserialize(noteBytes);
+        await webClient.importNoteFile(noteFile);
 
         // Retry getting the note
         inputNoteRecord = await webClient.getInputNote(noteId);

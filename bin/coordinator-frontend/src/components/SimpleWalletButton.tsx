@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { WalletMultiButton } from '@demox-labs/miden-wallet-adapter';
+import { WalletAdapterNetwork } from '@demox-labs/miden-wallet-adapter-base';
 
 const SimpleWalletButton: React.FC = () => {
   return (
@@ -12,7 +13,7 @@ const SimpleWalletButton: React.FC = () => {
       <p className="text-sm font-dmmono text-gray-600 mb-4">
         Click the button below to connect your Miden wallet
       </p>
-      <WalletMultiButton className="bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-medium px-6 py-3 rounded-md transition-colors duration-200" />
+      <WalletMultiButton network={WalletAdapterNetwork.Testnet} className="bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-medium px-6 py-3 rounded-md transition-colors duration-200" />
     </div>
   );
 };

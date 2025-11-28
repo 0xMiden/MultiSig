@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { WalletMultiButton } from '@demox-labs/miden-wallet-adapter';
 import { useWallet } from '@demox-labs/miden-wallet-adapter';
+import { WalletAdapterNetwork } from '@demox-labs/miden-wallet-adapter-base';
 import { WalletConnectionProps } from '@/types';
 
 export const WalletConnection: React.FC<WalletConnectionProps> = ({ className = '' }) => {
@@ -27,6 +28,7 @@ export const WalletConnection: React.FC<WalletConnectionProps> = ({ className = 
 
       <div className="flex items-center space-x-4">
         <WalletMultiButton 
+          network={WalletAdapterNetwork.Testnet}
           className="bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-medium px-6 py-3 rounded-md transition-colors duration-200"
         />
         
