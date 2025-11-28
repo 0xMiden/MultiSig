@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { WalletAdapterNetwork } from '@demox-labs/miden-wallet-adapter-base';
 
 const DynamicWalletButton: React.FC = () => {
-  const [WalletMultiButton, setWalletMultiButton] = useState<React.ComponentType<{ className?: string }> | null>(null);
+  const [WalletMultiButton, setWalletMultiButton] = useState<React.ComponentType<{ className?: string; network?: WalletAdapterNetwork }> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +41,7 @@ const DynamicWalletButton: React.FC = () => {
   }
 
   return (
-    <WalletMultiButton className="h-[34px] bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-[500] text-[12px] text-center py-2 transition-colors duration-200 cursor-pointer" />
+    <WalletMultiButton network={WalletAdapterNetwork.Testnet} className="h-[34px] bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-[500] text-[12px] text-center py-2 transition-colors duration-200 cursor-pointer" />
   );
 };
 

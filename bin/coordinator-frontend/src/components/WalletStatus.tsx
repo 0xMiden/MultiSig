@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useWallet } from '@demox-labs/miden-wallet-adapter';
 import { WalletMultiButton } from '@demox-labs/miden-wallet-adapter';
+import { WalletAdapterNetwork } from '@demox-labs/miden-wallet-adapter-base';
 
 interface WalletStatusProps {
   className?: string;
@@ -60,6 +61,7 @@ export const WalletStatus: React.FC<WalletStatusProps> = ({
       
       {showButton && (
         <WalletMultiButton 
+          network={WalletAdapterNetwork.Testnet}
           className="bg-[#FF5500] hover:bg-[#E04A00] text-white font-dmmono font-medium px-3 py-1 text-sm rounded-md transition-colors duration-200"
         />
       )}
