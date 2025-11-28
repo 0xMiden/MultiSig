@@ -13,8 +13,6 @@
     "@demox-labs/miden-wallet-adapter": "^0.10.0",
     "@demox-labs/miden-wallet-adapter-base": "^0.10.0",
     "@demox-labs/miden-wallet-adapter-miden": "^0.10.0",
-    "@demox-labs/miden-wallet-adapter-react": "^0.10.0",
-    "@demox-labs/miden-wallet-adapter-reactui": "^0.10.0",
     "@reduxjs/toolkit": "^2.8.2",
     "framer-motion": "^12.23.12",
     "next": "15.4.5",
