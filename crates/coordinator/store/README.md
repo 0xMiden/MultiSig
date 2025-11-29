@@ -40,13 +40,13 @@ let store = MultisigStore::new(pool);
 use miden_multisig_coordinator_domain::account::MultisigAccount;
 
 let account = MultisigAccount::builder()
-    .address(account_id_address)
+    .account_id(account_id)
     .network_id(network_id)
     .kind(AccountStorageMode::Public)
     .threshold(2.try_into()?)
     .aux(())
     .build()
-    .with_approvers(approver_addresses)?
+    .with_approvers(approver_account_ids)?
     .with_pub_key_commits(pub_key_commits)?;
 
 let created_account = store.create_multisig_account(account).await?;
@@ -57,7 +57,7 @@ let created_account = store.create_multisig_account(account).await?;
 ```rust
 let tx_id = store.create_multisig_tx(
     network_id,
-    account_address,
+    account_id,
     &tx_request,
     &tx_summary,
 ).await?;
@@ -69,7 +69,7 @@ let tx_id = store.create_multisig_tx(
 let threshold_met = store.add_multisig_tx_signature(
     &tx_id,
     network_id,
-    approver_address,
+    approver_account_id,
     &signature,
 ).await?;
 ```
@@ -77,7 +77,7 @@ let threshold_met = store.add_multisig_tx_signature(
 ### get multisig account
 
 ```rust
-let account = store.get_multisig_account(network_id, account_address).await?;
+let account = store.get_multisig_account(network_id, account_id).await?;
 ```
 
 ### get approvers by multisig account
@@ -85,7 +85,7 @@ let account = store.get_multisig_account(network_id, account_address).await?;
 ```rust
 let approvers = store.get_approvers_by_multisig_account_address(
     network_id,
-    multisig_account_address,
+    multisig_account_id,
 ).await?;
 ```
 
@@ -95,16 +95,16 @@ let approvers = store.get_approvers_by_multisig_account_address(
 use miden_multisig_coordinator_domain::tx::MultisigTxStatus;
 
 // with status filter
-let pending_txs = store.get_txs_by_multisig_account_address_with_status_filter(
+let pending_txs = store.get_txs_by_multisig_account_with_status_filter(
     network_id,
-    account_address,
+    account_id,
     MultisigTxStatus::Pending,
 ).await?;
 
 // without filter (all transactions)
-let all_txs = store.get_txs_by_multisig_account_address_with_status_filter(
+let all_txs = store.get_txs_by_multisig_account_with_status_filter(
     network_id,
-    account_address,
+    account_id,
     None,
 ).await?;
 ```

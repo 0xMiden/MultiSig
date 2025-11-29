@@ -4,8 +4,8 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use miden_client::AccountIdError;
 use miden_multisig_coordinator_engine::{MultisigEngineError, request::RequestError};
-use miden_multisig_coordinator_utils::AccountIdAddressError;
 use tokio::task::JoinError;
 
 #[derive(Debug, thiserror::Error)]
@@ -16,8 +16,8 @@ pub(crate) enum AppError {
     #[error("invalid network id error")]
     InvalidNetworkId,
 
-    #[error("invalid account id address: {0}")]
-    InvalidAccountIdAddress(Cow<'static, str>),
+    #[error("account id error: {0}")]
+    AccountId(#[from] AccountIdError),
 
     #[error("invalid pub key commit error")]
     InvalidPubKeyCommit,
@@ -61,17 +61,11 @@ impl From<MultisigEngineError> for AppError {
     }
 }
 
-impl From<AccountIdAddressError> for AppError {
-    fn from(err: AccountIdAddressError) -> Self {
-        Self::InvalidAccountIdAddress(err.to_string().into())
-    }
-}
-
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let code = match self {
             AppError::InvalidNetworkId
-            | AppError::InvalidAccountIdAddress(_)
+            | AppError::AccountId(_)
             | AppError::InvalidPubKeyCommit
             | AppError::InvalidTransactionRequest
             | AppError::InvalidSignature

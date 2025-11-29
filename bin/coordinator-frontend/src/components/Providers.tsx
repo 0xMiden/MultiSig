@@ -9,6 +9,7 @@ import {
   MidenWalletAdapter,
   PrivateDataPermission,
 } from '@demox-labs/miden-wallet-adapter';
+import { WalletAdapterNetwork } from '@demox-labs/miden-wallet-adapter-base';
 import { MidenSdkProvider } from '../hooks/useMidenSdk';
 import { MidenClientProvider } from '../contexts/MidenClientContext';
 
@@ -48,9 +49,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WalletProvider
           wallets={wallets}
           privateDataPermission={PrivateDataPermission.UponRequest}
+          network={WalletAdapterNetwork.Testnet}
           autoConnect={true}
         >
-          <WalletModalProvider>
+          <WalletModalProvider network={WalletAdapterNetwork.Testnet}>
             <MidenSdkProvider>
               {children}
             </MidenSdkProvider>

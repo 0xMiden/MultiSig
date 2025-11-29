@@ -6,10 +6,9 @@ use bon::Builder;
 use dissolve_derive::Dissolve;
 use miden_client::{
     Word,
-    account::{AccountIdAddress, NetworkId},
-    transaction::TransactionRequest,
+    account::{AccountId, NetworkId},
+    transaction::{TransactionRequest, TransactionSummary},
 };
-use miden_objects::transaction::TransactionSummary;
 use strum::{Display, EnumString, IntoStaticStr};
 use uuid::Uuid;
 
@@ -60,9 +59,9 @@ pub struct MultisigTx<AUX = Timestamps> {
     /// The unique identifier for this transaction.
     id: MultisigTxId,
 
-    /// The multisig account address to which this transaction applies.
-    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id_address"))]
-    address: AccountIdAddress,
+    /// The multisig account id to which this transaction applies.
+    #[cfg_attr(feature = "serde", serde(with = "with_serde::account_id"))]
+    multisig_account_id: AccountId,
 
     /// The network this transaction is associated with.
     #[cfg_attr(feature = "serde", serde(with = "with_serde::network_id"))]

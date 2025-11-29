@@ -6,9 +6,9 @@ import media from "../../../../public/media";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import PendingTransactionDetails from "@/interactions/PendingTransactionDetails";
 import { AnimatePresence, motion } from "framer-motion";
-import { TransactionRequest, TransactionSummary, SigningInputs } from "@demox-labs/miden-sdk";
+import { TransactionRequest, TransactionSummary, SigningInputs, NoteFile } from "@demox-labs/miden-sdk";
 import { useMidenClient } from "../../../contexts/MidenClientContext";
-import { fetchPendingTransactions, fetchConfirmedTransactions} from "../../../services/transactionApi";
+import { fetchPendingTransactions, fetchConfirmedTransactions } from "../../../services/transactionApi";
 import { addSignatureThunk } from "../../../services/signatureApi";
 import { useWallet } from "@demox-labs/miden-wallet-adapter";
 import { PendingActionsProps, DecodedTransaction, WebClient } from "@/types";
@@ -64,7 +64,8 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
     if (!inputNoteRecord) {
       if (noteIdFileBytes) {
         const noteBytes = Uint8Array.fromBase64(noteIdFileBytes);
-        await webClient.importNoteFile(noteBytes);
+        const noteFile = NoteFile.deserialize(noteBytes);
+        await webClient.importNoteFile(noteFile);
         inputNoteRecord = await webClient.getInputNote(noteId);
       } else {
         console.error("No note file bytes to import");
@@ -92,7 +93,7 @@ const getReceiveTransactionAmount = async (noteId: string, noteIdFileBytes: stri
 
 const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight = false }) => {
   const router = useRouter();
-  const { wallet, accountId, connected, signBytes } = useWallet();
+  const { wallet, address, connected, signBytes } = useWallet();
   const { handle, isInitialized } = useMidenClient();
   const dispatch = useAppDispatch();
   const { pendingTransactions, loading: transactionsLoading } = useAppSelector(
@@ -114,7 +115,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
   }, [transactionsLoading, hasLoadedOnce]);
 
   const handleSign = async (txReqFromApi: string, txId: string) => {
-    if (!wallet || !accountId || !connected) {
+    if (!wallet || !address || !connected) {
       setShowWalletErrorModal(true);
       setTimeout(() => {
         setShowWalletErrorModal(false);
@@ -157,7 +158,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
       try {
         const signatureData = {
           tx_id: txId,
-          approver: accountId,
+          approver: address,
           signature: signatureBase64,
         };
 

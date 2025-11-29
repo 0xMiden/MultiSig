@@ -7,7 +7,7 @@ use core::{
 
 use std::{
     path::Path,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{LazyLock, Mutex},
 };
 
 use diesel::{Connection, PgConnection, RunQueryDsl};
@@ -15,19 +15,19 @@ use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use miden_client::{
     Client, DebugMode, Felt,
     account::{
-        Account, AccountBuilder, AccountIdAddress, AccountStorageMode, AccountType,
-        AddressInterface, NetworkId,
+        Account, AccountBuilder, AccountStorageMode, AccountType, NetworkId,
         component::{AuthRpoFalcon512, BasicFungibleFaucet, BasicWallet},
     },
     asset::{FungibleAsset, TokenSymbol},
     auth::AuthSecretKey,
     builder::ClientBuilder,
-    crypto::SecretKey,
+    crypto::rpo_falcon512::SecretKey,
     keystore::FilesystemKeyStore,
     note::NoteType,
-    rpc::{Endpoint, TonicRpcClient},
+    rpc::Endpoint,
     transaction::TransactionRequestBuilder,
 };
+use miden_client_sqlite_store::ClientBuilderSqliteExt;
 use miden_multisig_coordinator_engine::{
     MultisigClientRuntimeConfig, MultisigEngine, Started,
     request::{
@@ -81,16 +81,13 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
 
     let engine = start_testnet_multisig_engine(&temp_dir.join("multisig")).await;
 
-    let approvers = {
-        let alice_addr = AccountIdAddress::new(alice_account.id(), AddressInterface::BasicWallet);
-        let bob_addr = AccountIdAddress::new(bob_account.id(), AddressInterface::BasicWallet);
-        let charlie_addr =
-            AccountIdAddress::new(charlie_account.id(), AddressInterface::BasicWallet);
+    let approvers = vec![alice_account.id(), bob_account.id(), charlie_account.id()];
 
-        vec![alice_addr, bob_addr, charlie_addr]
-    };
-
-    let pub_key_commits = vec![alice_sk.public_key(), bob_sk.public_key(), charlie_sk.public_key()];
+    let pub_key_commits = vec![
+        alice_sk.public_key().to_commitment().into(),
+        bob_sk.public_key().to_commitment().into(),
+        charlie_sk.public_key().to_commitment().into(),
+    ];
 
     let create_account_request = CreateMultisigAccountRequest::builder()
         .threshold(NonZeroU32::new(2).unwrap())
@@ -109,14 +106,12 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
         .unwrap();
 
     ff_client.sync_state().await.unwrap();
-    let tx_result = ff_client.new_transaction(ff_account.id(), mint_request).await.unwrap();
-
-    ff_client.submit_transaction(tx_result).await.unwrap();
+    ff_client.submit_new_transaction(ff_account.id(), mint_request).await.unwrap();
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     let consume_notes_tx_request = {
-        let note_ids = engine
+        let note_ids: Vec<_> = engine
             .get_consumable_notes(GetConsumableNotesRequest::builder().build())
             .await
             .unwrap()
@@ -128,7 +123,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
     };
 
     let propose_request = ProposeMultisigTxRequest::builder()
-        .address(AccountIdAddress::new(multisig_account.id(), AddressInterface::BasicWallet))
+        .multisig_account_id(multisig_account.id())
         .tx_request(consume_notes_tx_request)
         .build();
 
@@ -140,7 +135,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
 
     let add_sig_request = AddSignatureRequest::builder()
         .tx_id(tx_id.clone())
-        .approver(AccountIdAddress::new(alice_account.id(), AddressInterface::BasicWallet))
+        .approver(alice_account.id())
         .signature(alice_sk.sign(tx_summary_commitment))
         .build();
 
@@ -149,7 +144,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
 
     let add_sig_request = AddSignatureRequest::builder()
         .tx_id(tx_id)
-        .approver(AccountIdAddress::new(charlie_account.id(), AddressInterface::BasicWallet))
+        .approver(charlie_account.id())
         .signature(charlie_sk.sign(tx_summary_commitment))
         .build();
 
@@ -191,18 +186,18 @@ async fn setup_fungible_faucet_client(
     let symbol = TokenSymbol::new(symbol).unwrap();
     let max_supply = Felt::new(max_supply);
 
-    let sk = SecretKey::with_rng(client.rng());
+    let sk = AuthSecretKey::new_rpo_falcon512();
 
-    let (account, seed) = AccountBuilder::new(init_seed)
+    let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
         .storage_mode(miden_client::account::AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(sk.public_key()))
+        .with_auth_component(AuthRpoFalcon512::new(sk.public_key().to_commitment()))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
         .build()
         .unwrap();
 
-    client.add_account(&account, Some(seed), false).await.unwrap();
-    keystore.add_key(&AuthSecretKey::RpoFalcon512(sk)).unwrap();
+    client.add_account(&account, false).await.unwrap();
+    keystore.add_key(&sk).unwrap();
 
     (client, account)
 }
@@ -215,18 +210,22 @@ async fn setup_regular_account_client(
     let mut init_seed = [0u8; 32];
     client.rng().fill_bytes(&mut init_seed);
 
-    let sk = SecretKey::with_rng(client.rng());
+    let sk = AuthSecretKey::new_rpo_falcon512();
 
-    let (account, seed) = AccountBuilder::new(init_seed)
+    let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(sk.public_key()))
+        .with_auth_component(AuthRpoFalcon512::new(sk.public_key().to_commitment()))
         .with_component(BasicWallet)
         .build()
         .unwrap();
 
-    client.add_account(&account, Some(seed), false).await.unwrap();
-    keystore.add_key(&AuthSecretKey::RpoFalcon512(sk.clone())).unwrap();
+    client.add_account(&account, false).await.unwrap();
+    keystore.add_key(&sk).unwrap();
+
+    let AuthSecretKey::RpoFalcon512(sk) = sk else {
+        panic!("secret key must be rpo falcon 512 scheme");
+    };
 
     (client, account, sk)
 }
@@ -238,8 +237,8 @@ async fn setup_testnet_client(
         FilesystemKeyStore::new(temp_dir.join("keystore")).expect("failed to initialize keystore");
 
     let client = ClientBuilder::new()
-        .rpc(Arc::new(TonicRpcClient::new(&Endpoint::testnet(), 10_000)))
-        .sqlite_store(temp_dir.join("store").as_os_str().to_str().unwrap())
+        .grpc_client(&Endpoint::testnet(), Some(20_000))
+        .sqlite_store(temp_dir.join("store"))
         .authenticator(keystore.clone().into())
         .in_debug_mode(DebugMode::Enabled)
         .build()

@@ -8,6 +8,7 @@ version.workspace = true
 workspace = true
 
 [dependencies]
-miden-client  = { workspace = true }
-miden-testing = "0.11"
-rand          = { workspace = true }
+miden-client              = { features = ["testing"], workspace = true }
+miden-client-sqlite-store = { workspace = true }
+miden-testing             = "0.12"
+rand                      = { workspace = true }

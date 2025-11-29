@@ -14,7 +14,6 @@ use miden_client::{
     crypto::RpoRandomCoin,
     keystore::FilesystemKeyStore,
     note::{NoteExecutionMode, NoteTag, NoteType},
-    store::sqlite_store::SqliteStore,
     testing::{
         NoteBuilder,
         common::{TestClientKeyStore, create_test_store_path},
@@ -22,6 +21,7 @@ use miden_client::{
     },
     transaction::OutputNote,
 };
+use miden_client_sqlite_store::SqliteStore;
 use miden_testing::{MockChain, MockChainBuilder};
 use rand::{Rng, rngs::StdRng};
 
@@ -90,6 +90,7 @@ async fn create_prebuilt_mock_chain() -> MockChain {
             .tag(NoteTag::for_public_use_case(0, 0, NoteExecutionMode::Local).unwrap().into())
             .build()
             .unwrap();
+    mock_chain_builder.add_output_note(OutputNote::Full(note_first));
 
     let note_second =
         NoteBuilder::new(mock_account.id(), RpoRandomCoin::new([0, 0, 0, 1].map(Felt::new).into()))
@@ -97,20 +98,11 @@ async fn create_prebuilt_mock_chain() -> MockChain {
             .tag(NoteTag::for_local_use_case(0, 0).unwrap().into())
             .build()
             .unwrap();
+    mock_chain_builder.add_output_note(OutputNote::Full(note_second.clone()));
+
     let mut mock_chain = mock_chain_builder.build().unwrap();
 
-    // Block 1: Create first note
-    mock_chain.add_pending_note(OutputNote::Full(note_first));
-    mock_chain.prove_next_block().unwrap();
-
-    // Block 2
-    mock_chain.prove_next_block().unwrap();
-
-    // Block 3
-    mock_chain.prove_next_block().unwrap();
-
-    // Block 4: Create second note
-    mock_chain.add_pending_note(OutputNote::Full(note_second.clone()));
+    // Block 1
     mock_chain.prove_next_block().unwrap();
 
     let transaction = Box::pin(
@@ -124,7 +116,7 @@ async fn create_prebuilt_mock_chain() -> MockChain {
     .await
     .unwrap();
 
-    // Block 5: Consume (nullify) second note
+    // Block 2: Consume (nullify) second note
     mock_chain.add_pending_executed_transaction(&transaction).unwrap();
     mock_chain.prove_next_block().unwrap();
 

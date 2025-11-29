@@ -65,7 +65,7 @@ let (miden_account, multisig_account) = response.dissolve();
 use miden_multisig_coordinator_engine::request::ProposeMultisigTxRequest;
 
 let request = ProposeMultisigTxRequest::builder()
-    .address(multisig_account_address)
+    .multisig_account_id(multisig_account_id)
     .tx_request(tx_request)
     .build();
 
@@ -80,7 +80,7 @@ use miden_multisig_coordinator_engine::request::AddSignatureRequest;
 
 let request = AddSignatureRequest::builder()
     .tx_id(tx_id)
-    .approver(approver_address)
+    .approver(approver_account_id)
     .signature(signature)
     .build();
 
@@ -98,7 +98,7 @@ if let Some(tx_result) = maybe_result {
 use miden_multisig_coordinator_engine::request::GetMultisigAccountRequest;
 
 let request = GetMultisigAccountRequest::builder()
-    .multisig_account_id_address(account_address)
+    .multisig_account_id(account_id)
     .build();
 
 let response = engine.get_multisig_account(request).await?;
@@ -115,7 +115,7 @@ if let Some(account) = maybe_account {
 use miden_multisig_coordinator_engine::request::ListMultisigApproverRequest;
 
 let request = ListMultisigApproverRequest::builder()
-    .multisig_account_id_address(multisig_account_address)
+    .multisig_account_id(multisig_account_id)
     .build();
 
 let response = engine.list_multisig_approvers(request).await?;
@@ -129,7 +129,7 @@ use miden_multisig_coordinator_engine::request::ListMultisigTxRequest;
 use miden_multisig_coordinator_domain::tx::MultisigTxStatus;
 
 let request = ListMultisigTxRequest::builder()
-    .multisig_account_id_address(account_address)
+    .multisig_account_id(account_id)
     .tx_status_filter(Some(MultisigTxStatus::Pending))
     .build();
 
@@ -143,7 +143,7 @@ let txs = response.dissolve();
 use miden_multisig_coordinator_engine::request::GetConsumableNotesRequest;
 
 let request = GetConsumableNotesRequest::builder()
-    .address(Some(account_address))
+    .account_id(Some(account_id))
     .build();
 
 let notes = engine.get_consumable_notes(request).await?;

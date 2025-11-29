@@ -21,21 +21,24 @@ export function MidenClientProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const initializationRef = React.useRef(false);
+
   const reinitialize = async () => {
-    if (isRunning || isInitialized) {
+    if (initializationRef.current || isRunning || isInitialized) {
       console.info('MidenClient: Initialization skipped (already running or complete)');
       return;
     }
 
     console.info('MidenClient: Starting initialization');
+    initializationRef.current = true;
     setIsRunning(true);
     setStatus('Initializing Miden client...');
     setError(null);
-    
+
     try {
       const newHandle = new MidenWebClientHandle();
       setHandle(newHandle);
-      
+
       const success = await newHandle.initialize();
       if (success) {
         console.info('MidenClient: Initialized successfully');
@@ -46,6 +49,7 @@ export function MidenClientProvider({ children }: { children: ReactNode }) {
         setStatus('Failed to initialize Miden client');
         setIsInitialized(false);
         setError('Initialization failed');
+        initializationRef.current = false; // Allow retry on failure
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -53,6 +57,7 @@ export function MidenClientProvider({ children }: { children: ReactNode }) {
       setStatus(`Error: ${errorMessage}`);
       setIsInitialized(false);
       setError(errorMessage);
+      initializationRef.current = false; // Allow retry on error
     } finally {
       setIsRunning(false);
     }

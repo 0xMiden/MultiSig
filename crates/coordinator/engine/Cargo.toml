@@ -10,24 +10,24 @@ workspace = true
 [dependencies]
 bon                               = { workspace = true }
 dissolve-derive                   = { workspace = true }
-miden-client                      = { features = ["sqlite", "tonic"], workspace = true }
+miden-client                      = { features = ["tonic"], workspace = true }
+miden-client-sqlite-store         = { workspace = true }
 miden-multisig-client             = { workspace = true }
 miden-multisig-coordinator-domain = { workspace = true }
 miden-multisig-coordinator-store  = { workspace = true }
-miden-multisig-coordinator-utils  = { workspace = true }
-miden-objects                     = { workspace = true }
 thiserror                         = { workspace = true }
 tokio                             = { default-features = false, features = ["sync"], workspace = true }
 tracing                           = { workspace = true }
 url                               = { workspace = true }
 
 [dev-dependencies]
-diesel                 = { features = ["postgres"], version = "2" }
-diesel_migrations      = "2"
-miden-testing          = "0.11"
-openssl-sys            = { features = ["vendored"], version = "0.9" }
-pq-sys                 = { features = ["bundled"], version = "0.7" }
-rand                   = "0.9"
-tempfile               = "3"
-testcontainers         = "0.25"
-testcontainers-modules = { features = ["postgres"], version = "0.13" }
+diesel                    = { features = ["postgres"], version = "2" }
+diesel_migrations         = "2"
+miden-client              = { features = ["tonic"], version = "0.12" }
+miden-client-sqlite-store = "0.12"
+openssl-sys               = { features = ["vendored"], version = "0.9" }
+pq-sys                    = { features = ["bundled"], version = "0.7" }
+rand                      = "0.9"
+tempfile                  = "3"
+testcontainers            = "0.25"
+testcontainers-modules    = { features = ["postgres"], version = "0.13" }

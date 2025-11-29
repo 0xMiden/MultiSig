@@ -2,7 +2,9 @@ use axum::{Json, extract::State, http::StatusCode};
 use itertools::Itertools;
 use miden_client::{
     Word,
-    account::Address,
+    account::AccountId,
+    address::{Address, AddressId, NetworkId},
+    auth::Signature,
     utils::{Deserializable, Serializable},
 };
 use miden_multisig_coordinator_engine::{
@@ -18,7 +20,6 @@ use miden_multisig_coordinator_engine::{
         ListMultisigTxResponseDissolved, ProposeMultisigTxResponseDissolved,
     },
 };
-use miden_objects::crypto::dsa::rpo_falcon512::PublicKey;
 use tokio::task;
 
 use crate::{
@@ -60,30 +61,31 @@ pub async fn create_multisig_account(
     let CreateMultisigAccountRequestPayloadDissolved { threshold, approvers, pub_key_commits } =
         payload.dissolve();
 
-    let engine_network_id = engine.network_id();
+    let engine_network_id = engine.network_id().clone();
     let CreateMultisigAccountResponseDissolved { multisig_account, .. } =
         task::spawn_blocking(move || {
             let approvers = approvers
                 .iter()
                 .map(AsRef::as_ref)
-                .map(miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair)
-                .map(|res| res.map_err(From::from))
-                .map_ok(|(network_id, account_id_address)| {
+                .map(decode_account_address)
+                .map_ok(|(network_id, account_id)| {
                     engine_network_id
                         .eq(&network_id)
-                        .then_some(account_id_address)
+                        .then_some(account_id)
                         .ok_or(AppError::InvalidNetworkId)
                 })
                 .map(Result::flatten)
-                .try_collect()?;
+                .try_collect()
+                .inspect_err(|e| tracing::error!("failed to decode approvers: {e}"))?;
 
             let pub_key_commits = pub_key_commits
                 .iter()
                 .map(AsRef::as_ref)
                 .map(Word::read_from_bytes)
-                .map_ok(PublicKey::new)
+                .map_ok(From::from)
                 .try_collect()
-                .map_err(|_| AppError::InvalidPubKeyCommit)?;
+                .map_err(|_| AppError::InvalidPubKeyCommit)
+                .inspect_err(|e| tracing::error!("failed to decode public key commitments: {e}"))?;
 
             CreateMultisigAccountRequest::builder()
                 .threshold(threshold)
@@ -92,16 +94,16 @@ pub async fn create_multisig_account(
                 .build()
                 .map_err(RequestError::from)
                 .map_err(AppError::from)
+                .inspect_err(|e| tracing::error!("failed to create request: {e}"))
         })
         .await?
         .map(|request| engine.create_multisig_account(request))?
         .await
-        .map(CreateMultisigAccountResponse::dissolve)?;
+        .map(CreateMultisigAccountResponse::dissolve)
+        .inspect_err(|e| tracing::error!("failed to create multisig account: {e}"))?;
 
     let response = CreateMultisigAccountResponsePayload::builder()
-        .address(
-            Address::AccountId(multisig_account.address()).to_bech32(multisig_account.network_id()),
-        )
+        .address(multisig_account.account_id().to_bech32(multisig_account.network_id().clone()))
         .created_at(multisig_account.aux().created_at())
         .updated_at(multisig_account.aux().updated_at())
         .build();
@@ -116,24 +118,21 @@ pub async fn propose_multisig_tx(
 ) -> Result<Json<ProposeMultisigTxResponsePayload>, AppError> {
     let AppDissolved { engine } = app.dissolve();
 
-    let ProposeMultisigTxRequestPayloadDissolved {
-        multisig_account_address: address,
-        tx_request,
-    } = payload.dissolve();
+    let ProposeMultisigTxRequestPayloadDissolved { multisig_account_address, tx_request } =
+        payload.dissolve();
 
     let request = {
-        let account_id_address =
-            miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&address)
-                .map(|(network_id, address)| {
-                    engine.network_id().eq(&network_id).then_some(address)
-                })?
-                .ok_or(AppError::InvalidNetworkId)?;
+        let account_id = decode_account_address(&multisig_account_address)
+            .map(|(network_id, account_id)| {
+                engine.network_id().eq(&network_id).then_some(account_id)
+            })?
+            .ok_or(AppError::InvalidNetworkId)?;
 
         let tx_request = Deserializable::read_from_bytes(&tx_request)
             .map_err(|_| AppError::InvalidTransactionRequest)?;
 
         ProposeMultisigTxRequest::builder()
-            .address(account_id_address)
+            .multisig_account_id(account_id)
             .tx_request(tx_request)
             .build()
     };
@@ -159,15 +158,17 @@ pub async fn add_signature(
     let AddSignatureRequestPayloadDissolved { tx_id, approver, signature } = payload.dissolve();
 
     let request = {
-        let approver =
-            miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(&approver)
-                .map(|(network_id, address)| {
-                    engine.network_id().eq(&network_id).then_some(address)
-                })?
-                .ok_or(AppError::InvalidNetworkId)?;
+        let approver = decode_account_address(&approver)
+            .map(|(network_id, account_id)| {
+                engine.network_id().eq(&network_id).then_some(account_id)
+            })?
+            .ok_or(AppError::InvalidNetworkId)?;
 
-        let signature =
-            Deserializable::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?;
+        let Signature::RpoFalcon512(signature) =
+            Signature::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?
+        else {
+            return Err(AppError::InvalidSignature);
+        };
 
         AddSignatureRequest::builder()
             .tx_id(tx_id.into())
@@ -192,20 +193,20 @@ pub async fn list_consumable_notes(
 
     let ListConsumableNotesRequestPayloadDissolved { address } = payload.dissolve();
 
-    let account_id_address = address
+    let account_id = address
         .as_deref()
-        .map(miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair)
+        .map(decode_account_address)
         .transpose()?
-        .map(|(network_id, address)| {
+        .map(|(network_id, account_id)| {
             engine
                 .network_id()
                 .eq(&network_id)
-                .then_some(address)
+                .then_some(account_id)
                 .ok_or(AppError::InvalidNetworkId)
         })
         .transpose()?;
 
-    let request = GetConsumableNotesRequest::builder().maybe_address(account_id_address).build();
+    let request = GetConsumableNotesRequest::builder().maybe_account_id(account_id).build();
 
     let note_ids = engine
         .get_consumable_notes(request)
@@ -229,15 +230,12 @@ pub async fn get_multisig_account_details(
     let GetMultisigAccountDetailsRequestPayloadDissolved { multisig_account_address } =
         payload.dissolve();
 
-    let multisig_account_id_address =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
-            &multisig_account_address,
-        )
-        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+    let multisig_account_id = decode_account_address(&multisig_account_address)
+        .map(|(network_id, account_id)| engine.network_id().eq(&network_id).then_some(account_id))?
         .ok_or(AppError::InvalidNetworkId)?;
 
     let request = GetMultisigAccountRequest::builder()
-        .multisig_account_id_address(multisig_account_id_address)
+        .multisig_account_id(multisig_account_id)
         .build();
 
     let GetMultisigAccountResponseDissolved { multisig_account } =
@@ -262,15 +260,12 @@ pub async fn list_multisig_approvers(
     let ListMultisigApproverRequestPayloadDissolved { multisig_account_address } =
         payload.dissolve();
 
-    let multisig_account_id_address =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
-            &multisig_account_address,
-        )
-        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+    let multisig_account_id = decode_account_address(&multisig_account_address)
+        .map(|(network_id, account_id)| engine.network_id().eq(&network_id).then_some(account_id))?
         .ok_or(AppError::InvalidNetworkId)?;
 
     let request = ListMultisigApproverRequest::builder()
-        .multisig_account_id_address(multisig_account_id_address)
+        .multisig_account_id(multisig_account_id)
         .build();
 
     let ListMultisigApproverResponseDissolved { approvers } =
@@ -291,15 +286,12 @@ pub async fn get_multisig_tx_stats(
 
     let GetMultisigTxStatsRequestPayloadDissolved { multisig_account_address } = payload.dissolve();
 
-    let multisig_account_id_address =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
-            &multisig_account_address,
-        )
-        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+    let multisig_account_id = decode_account_address(&multisig_account_address)
+        .map(|(network_id, account_id)| engine.network_id().eq(&network_id).then_some(account_id))?
         .ok_or(AppError::InvalidNetworkId)?;
 
     let request = GetMultisigTxStatsRequest::builder()
-        .multisig_account_id_address(multisig_account_id_address)
+        .multisig_account_id(multisig_account_id)
         .build();
 
     let GetMultisigTxStatsResponseDissolved { tx_stats } =
@@ -322,11 +314,8 @@ pub async fn list_multisig_tx(
         tx_status_filter,
     } = payload.dissolve();
 
-    let multisig_account_id_address =
-        miden_multisig_coordinator_utils::extract_network_id_account_id_address_pair(
-            &multisig_account_address,
-        )
-        .map(|(network_id, address)| engine.network_id().eq(&network_id).then_some(address))?
+    let multisig_account_id = decode_account_address(&multisig_account_address)
+        .map(|(network_id, account_id)| engine.network_id().eq(&network_id).then_some(account_id))?
         .ok_or(AppError::InvalidNetworkId)?;
 
     let tx_status_filter = tx_status_filter
@@ -336,7 +325,7 @@ pub async fn list_multisig_tx(
         .map_err(|_| AppError::InvalidMultisigTxStatus)?;
 
     let request = ListMultisigTxRequest::builder()
-        .multisig_account_id_address(multisig_account_id_address)
+        .multisig_account_id(multisig_account_id)
         .maybe_tx_status_filter(tx_status_filter)
         .build();
 
@@ -348,4 +337,14 @@ pub async fn list_multisig_tx(
         .build();
 
     Ok(Json(response))
+}
+
+fn decode_account_address(address: &str) -> Result<(NetworkId, AccountId), AppError> {
+    let (network_id, address) = Address::decode(address)
+        .map_err(|e| AppError::other(format!("failed to decode address: {e}")))?;
+
+    match address.id() {
+        AddressId::AccountId(account_id) => Ok((network_id, account_id)),
+        _ => Err(AppError::other("address must be account id")),
+    }
 }

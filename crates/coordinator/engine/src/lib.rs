@@ -126,14 +126,6 @@ mod error;
 mod multisig_client_runtime;
 mod types;
 
-use crate::types::{
-    request::{
-        GetMultisigTxStatsRequest, GetMultisigTxStatsRequestDissolved, ListMultisigApproverRequest,
-        ListMultisigApproverRequestDissolved,
-    },
-    response::{GetMultisigTxStatsResponse, ListMultisigApproverResponse},
-};
-
 pub use self::{
     error::MultisigEngineError,
     multisig_client_runtime::MultisigClientRuntimeConfig,
@@ -143,7 +135,7 @@ pub use self::{
 use std::thread::JoinHandle;
 
 use miden_client::{
-    account::{AccountIdAddress, AccountStorageMode, AddressInterface, NetworkId},
+    account::{AccountStorageMode, NetworkId},
     note::NoteConsumability,
     store::InputNoteRecord,
     transaction::TransactionResult,
@@ -176,13 +168,15 @@ use self::{
             AddSignatureRequest, AddSignatureRequestDissolved, CreateMultisigAccountRequest,
             CreateMultisigAccountRequestDissolved, GetConsumableNotesRequest,
             GetConsumableNotesRequestDissolved, GetMultisigAccountRequest,
-            GetMultisigAccountRequestDissolved, ListMultisigTxRequest,
+            GetMultisigAccountRequestDissolved, GetMultisigTxStatsRequest,
+            GetMultisigTxStatsRequestDissolved, ListMultisigApproverRequest,
+            ListMultisigApproverRequestDissolved, ListMultisigTxRequest,
             ListMultisigTxRequestDissolved, ProposeMultisigTxRequest,
             ProposeMultisigTxRequestDissolved,
         },
         response::{
-            CreateMultisigAccountResponse, GetMultisigAccountResponse, ListMultisigTxResponse,
-            ProposeMultisigTxResponse,
+            CreateMultisigAccountResponse, GetMultisigAccountResponse, GetMultisigTxStatsResponse,
+            ListMultisigApproverResponse, ListMultisigTxResponse, ProposeMultisigTxResponse,
         },
     },
 };
@@ -220,9 +214,9 @@ pub struct Started {
 }
 
 impl<R> MultisigEngine<R> {
-    /// Returns the network ID this engine is configured for.
-    pub fn network_id(&self) -> NetworkId {
-        self.network_id
+    /// Returns the network ID the engine is configured for.
+    pub fn network_id(&self) -> &NetworkId {
+        &self.network_id
     }
 }
 
@@ -250,7 +244,7 @@ impl MultisigEngine<Stopped> {
             .map_err(MultisigEngineErrorKind::from)?;
 
         let addresses: Vec<_> = task::spawn_blocking(move || {
-            multisig_accounts.iter().map(MultisigAccount::address).collect()
+            multisig_accounts.iter().map(MultisigAccount::account_id).collect()
         })
         .await
         .map_err(|e| MultisigEngineErrorKind::other(e.to_string()))?;
@@ -263,7 +257,7 @@ impl MultisigEngine<Stopped> {
         );
 
         let engine = MultisigEngine {
-            network_id: self.network_id(),
+            network_id: self.network_id,
             store: self.store,
             runtime: Started { sender, handle },
         };
@@ -310,11 +304,14 @@ impl MultisigEngine<Started> {
             MultisigEngineErrorKind::mpsc_sender("failed to send create multisig account")
         })?;
 
-        let miden_account = receiver.await.map_err(MultisigEngineErrorKind::from)?;
+        let miden_account = receiver
+            .await
+            .map_err(MultisigEngineErrorKind::from)?
+            .map_err(MultisigEngineErrorKind::from)?;
 
         let multisig_account = MultisigAccount::builder()
-            .address(AccountIdAddress::new(miden_account.id(), AddressInterface::BasicWallet))
-            .network_id(self.network_id())
+            .account_id(miden_account.id())
+            .network_id(self.network_id().clone())
             .kind(AccountStorageMode::Public) // TODO: add support for private multisig accounts
             .threshold(threshold)
             .aux(())
@@ -342,13 +339,13 @@ impl MultisigEngine<Started> {
         &self,
         request: GetConsumableNotesRequest,
     ) -> Result<Vec<(InputNoteRecord, Vec<NoteConsumability>)>, MultisigEngineError> {
-        let GetConsumableNotesRequestDissolved { address } = request.dissolve();
+        let GetConsumableNotesRequestDissolved { account_id } = request.dissolve();
 
         let (msg, receiver) = {
             let (sender, receiver) = oneshot::channel();
 
             let msg = GetConsumableNotes::builder()
-                .maybe_account_id(address.as_ref().map(AccountIdAddress::id))
+                .maybe_account_id(account_id)
                 .sender(sender)
                 .build();
 
@@ -394,13 +391,14 @@ impl MultisigEngine<Started> {
         &self,
         request: ProposeMultisigTxRequest,
     ) -> Result<ProposeMultisigTxResponse, MultisigEngineError> {
-        let ProposeMultisigTxRequestDissolved { address, tx_request } = request.dissolve();
+        let ProposeMultisigTxRequestDissolved { multisig_account_id, tx_request } =
+            request.dissolve();
 
         let (msg, receiver) = {
             let (sender, receiver) = oneshot::channel();
 
             let msg = ProposeMultisigTx::builder()
-                .account_id(address.id())
+                .multisig_account_id(multisig_account_id)
                 .tx_request(tx_request.clone())
                 .sender(sender)
                 .build();
@@ -413,7 +411,7 @@ impl MultisigEngine<Started> {
         })?;
 
         self.store
-            .get_multisig_account(self.network_id(), address)
+            .get_multisig_account(self.network_id().clone(), multisig_account_id)
             .await
             .map_err(MultisigEngineErrorKind::from)?
             .ok_or(MultisigEngineErrorKind::not_found("account not found"))?;
@@ -425,7 +423,12 @@ impl MultisigEngine<Started> {
 
         let tx_id = self
             .store
-            .create_multisig_tx(self.network_id(), address, &tx_request, &tx_summary)
+            .create_multisig_tx(
+                self.network_id().clone(),
+                multisig_account_id,
+                &tx_request,
+                &tx_summary,
+            )
             .await
             .map_err(MultisigEngineErrorKind::from)?;
 
@@ -460,7 +463,7 @@ impl MultisigEngine<Started> {
 
         let threshold_met = self
             .store
-            .add_multisig_tx_signature(&tx_id, self.network_id(), approver, &signature)
+            .add_multisig_tx_signature(&tx_id, self.network_id().clone(), approver, &signature)
             .await
             .map_err(MultisigEngineErrorKind::from)?
             .ok_or(MultisigEngineErrorKind::other(
@@ -478,11 +481,15 @@ impl MultisigEngine<Started> {
             let (msg, receiver) = {
                 let (sender, receiver) = oneshot::channel();
 
-                let MultisigTxDissolved { address, tx_request, tx_summary, .. } =
-                    multisig_tx.dissolve();
+                let MultisigTxDissolved {
+                    multisig_account_id,
+                    tx_request,
+                    tx_summary,
+                    ..
+                } = multisig_tx.dissolve();
 
                 let msg = ProcessMultisigTx::builder()
-                    .account_id(address.id())
+                    .multisig_account_id(multisig_account_id)
                     .tx_request(tx_request)
                     .tx_summary(tx_summary)
                     .signatures(signatures)
@@ -520,7 +527,7 @@ impl MultisigEngine<Started> {
         Ok(None)
     }
 
-    /// Retrieves a multisig account by its address.
+    /// Retrieves a multisig account by its id.
     ///
     /// Queries the persistent store for multisig account metadata, including threshold,
     /// approvers, and public key commitments.
@@ -529,11 +536,11 @@ impl MultisigEngine<Started> {
         &self,
         request: GetMultisigAccountRequest,
     ) -> Result<GetMultisigAccountResponse, MultisigEngineError> {
-        let GetMultisigAccountRequestDissolved { multisig_account_id_address } = request.dissolve();
+        let GetMultisigAccountRequestDissolved { multisig_account_id } = request.dissolve();
 
         let multisig_account = self
             .store
-            .get_multisig_account(self.network_id(), multisig_account_id_address)
+            .get_multisig_account(self.network_id().clone(), multisig_account_id)
             .await
             .map_err(MultisigEngineErrorKind::from)?;
 
@@ -552,13 +559,13 @@ impl MultisigEngine<Started> {
         &self,
         request: GetMultisigTxStatsRequest,
     ) -> Result<GetMultisigTxStatsResponse, MultisigEngineError> {
-        let GetMultisigTxStatsRequestDissolved { multisig_account_id_address } = request.dissolve();
+        let GetMultisigTxStatsRequestDissolved { multisig_account_id } = request.dissolve();
 
         let tx_stats = self
             .store
             .get_multisig_tx_stats_by_multisig_account_address(
-                self.network_id(),
-                multisig_account_id_address,
+                self.network_id().clone(),
+                multisig_account_id,
             )
             .await
             .map_err(MultisigEngineErrorKind::from)?;
@@ -570,20 +577,19 @@ impl MultisigEngine<Started> {
 
     /// Lists all approvers for a specific multisig account.
     ///
-    /// Retrieves the list of approvers associated with the given multisig account address,
-    /// including their addresses and public key commitments.
+    /// Retrieves the list of approvers associated with the given multisig account id,
+    /// including their account ids and public key commitments.
     #[tracing::instrument(skip_all)]
     pub async fn list_multisig_approvers(
         &self,
         request: ListMultisigApproverRequest,
     ) -> Result<ListMultisigApproverResponse, MultisigEngineError> {
-        let ListMultisigApproverRequestDissolved { multisig_account_id_address } =
-            request.dissolve();
+        let ListMultisigApproverRequestDissolved { multisig_account_id } = request.dissolve();
 
         self.store
             .get_approvers_by_multisig_account_address(
-                self.network_id(),
-                multisig_account_id_address,
+                self.network_id().clone(),
+                multisig_account_id,
             )
             .await
             .map(|approvers| ListMultisigApproverResponse::builder().approvers(approvers).build())
@@ -593,22 +599,20 @@ impl MultisigEngine<Started> {
 
     /// Lists multisig transactions for a specific multisig account.
     ///
-    /// Returns transactions associated with the given account address, optionally
+    /// Returns transactions associated with the given account id, optionally
     /// filtered by status (Pending, Success, Failure).
     #[tracing::instrument(skip_all)]
     pub async fn list_multisig_tx(
         &self,
         request: ListMultisigTxRequest, // TODO: add pagination support
     ) -> Result<ListMultisigTxResponse, MultisigEngineError> {
-        let ListMultisigTxRequestDissolved {
-            multisig_account_id_address,
-            tx_status_filter,
-        } = request.dissolve();
+        let ListMultisigTxRequestDissolved { multisig_account_id, tx_status_filter } =
+            request.dissolve();
 
         self.store
-            .get_txs_by_multisig_account_address_with_status_filter(
-                self.network_id(),
-                multisig_account_id_address,
+            .get_txs_by_multisig_account_with_status_filter(
+                self.network_id().clone(),
+                multisig_account_id,
                 tx_status_filter,
             )
             .await
