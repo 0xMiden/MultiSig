@@ -105,15 +105,6 @@ async fn create_prebuilt_mock_chain() -> MockChain {
     // Block 1
     mock_chain.prove_next_block().unwrap();
 
-    // Block 2
-    mock_chain.prove_next_block().unwrap();
-
-    // Block 3
-    mock_chain.prove_next_block().unwrap();
-
-    // Block 4
-    mock_chain.prove_next_block().unwrap();
-
     let transaction = Box::pin(
         mock_chain
             .build_tx_context(mock_account, &[note_second.id()], &[])
@@ -125,7 +116,7 @@ async fn create_prebuilt_mock_chain() -> MockChain {
     .await
     .unwrap();
 
-    // Block 5: Consume (nullify) second note
+    // Block 2: Consume (nullify) second note
     mock_chain.add_pending_executed_transaction(&transaction).unwrap();
     mock_chain.prove_next_block().unwrap();
 
