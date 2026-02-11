@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Svg from "../../../../public/svg";
 import { useWalletForm } from "../../../hooks/useWalletForm";
-import { createMultiSigWallet } from "../../../services/walletApi";
 import { useAuth } from "../../../hooks/useAuth";
+import { useMultisig } from "@/contexts/MultisigContext";
+import { toast } from "sonner";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
@@ -14,6 +15,7 @@ export const dynamic = 'force-dynamic';
 const CreateNewAccount = () => {
   const router = useRouter();
   const { setWalletId } = useAuth();
+  const { handleCreate, creating, activeScheme, error: multisigError } = useMultisig();
   const {
     formData,
     currentStep,
@@ -146,8 +148,19 @@ const CreateNewAccount = () => {
     setCreationError(null);
 
     try {
-      const result = await createMultiSigWallet(formData);
-      setWalletId(result.address);
+      // The "public keys" in the form are used as signer commitments
+      const commitments = formData.signerPublicKeys.filter((k: string) => k.trim() !== '');
+      const threshold = parseInt(formData.signatureThreshold, 10);
+
+      await handleCreate(commitments, threshold, undefined, activeScheme);
+
+      // Store the account ID after creation (we get it from context)
+      // The multisig object will be set in context; use the account ID from it
+      const walletId = localStorage.getItem("currentWalletId");
+      if (walletId) {
+        setWalletId(walletId);
+      }
+      toast.success("Multisig account created successfully!");
       router.push("/dashboard/home");
     } catch (error) {
       console.error("Failed to create wallet:", error);

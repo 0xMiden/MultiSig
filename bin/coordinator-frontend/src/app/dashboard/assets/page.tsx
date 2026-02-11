@@ -1,43 +1,42 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import media from "../../../../public/media";
 import Image from "next/image";
 import TokenHoldings from "./components/TokenHoldings";
-
-import { useFungibleAssets } from "@/hooks/useFungibleAssets";
+import { useMultisig } from "@/contexts/MultisigContext";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
 const Assets = () => {
-  const { fungibleAssets, isLoading } = useFungibleAssets();
-  const [fungibleAssetsCount, setFungibleAssetsCount] = useState<number>(0);
-  const [totalBalance, setTotalBalance] = useState<number>(0);
-  const [fungibleAssetsWithPercentage, setFungibleAssetsWithPercentage] = useState<Array<{faucetId: string, balance: string, percentage: number}>>([]);
+  const { detectedConfig, syncingState } = useMultisig();
 
-  useEffect(() => {
-    if (fungibleAssets.length > 0) {
-      // Calculate total balance for percentage calculation
-      const totalBalanceBigInt = fungibleAssets.reduce((sum, asset) => sum + BigInt(asset.balance), BigInt(0));
-      
-      // Calculate total balance in readable format (divided by 1000000)
-      const totalBalanceDisplay = Number(totalBalanceBigInt) / 1000000;
-      setTotalBalance(totalBalanceDisplay);
-      
-      // Add percentage to each asset
-      const assetsWithPercentage = fungibleAssets.map(asset => {
-        const balance = BigInt(asset.balance);
-        const percentage = totalBalanceBigInt > 0 ? Number((balance * BigInt(100)) / totalBalanceBigInt) : 0;
-        return { ...asset, percentage };
-      });
-      
-      setFungibleAssetsWithPercentage(assetsWithPercentage);
-      setFungibleAssetsCount(fungibleAssets.length);
-    } else {
-      setTotalBalance(0);
+  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+
+  const { totalBalance, fungibleAssetsWithPercentage } = useMemo(() => {
+    if (vaultBalances.length === 0) {
+      return { totalBalance: 0, fungibleAssetsWithPercentage: [] };
     }
-  }, [fungibleAssets]);
+
+    const totalBigInt = vaultBalances.reduce((sum, b) => sum + BigInt(b.amount), BigInt(0));
+    const totalDisplay = Number(totalBigInt) / 1000000;
+
+    const withPercentage = vaultBalances.map(b => {
+      const balance = BigInt(b.amount);
+      const percentage = totalBigInt > 0n ? Number((balance * 100n) / totalBigInt) : 0;
+      return { faucetId: b.faucetId, balance: b.amount.toString(), percentage };
+    });
+
+    return { totalBalance: totalDisplay, fungibleAssetsWithPercentage: withPercentage };
+  }, [vaultBalances]);
+
+  const fungibleAssets = useMemo(() => {
+    return vaultBalances.map(b => ({
+      faucetId: b.faucetId,
+      balance: b.amount.toString(),
+    }));
+  }, [vaultBalances]);
 
   return (
     <>
@@ -69,7 +68,7 @@ const Assets = () => {
               <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
                 {totalBalance.toFixed(2)}
               </div>
-              <div className="text-sm text-gray-700">USD</div>
+              <div className="text-sm text-gray-700">{vaultBalances.length} token(s)</div>
             </div>
           </div>
           {/*This Month Div*/}
@@ -86,7 +85,7 @@ const Assets = () => {
             </div>
             <div>
               <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
-                {fungibleAssetsCount}
+                {vaultBalances.length}
               </div>
               <div className="text-sm text-gray-700">Total</div>
             </div>
@@ -104,29 +103,23 @@ const Assets = () => {
               </div>
             </div>
             <div>
-
               <div className="text-sm text-gray-700">
                 <div className="flex items-center space-x-8">
                   {fungibleAssetsWithPercentage.map((asset, index) => (
                     <React.Fragment key={index}>
-                      {/* Asset Block */}
                       <div className="flex flex-col space-y-1">
                         <div className="text-[20px] font-[500] text-gray-800">
-                          Mid {index + 1}
+                          Token {index + 1}
                         </div>
                         <div className="text-[14px] font-bold text-gray-900">
                           {asset.percentage}%
                         </div>
                       </div>
-                      
-                      {/* Vertical Divider (except for last item) */}
                       {index < fungibleAssetsWithPercentage.length - 1 && (
                         <div className="w-[0.5px] h-[27px] bg-[#FF5500]"></div>
                       )}
                     </React.Fragment>
                   ))}
-                  
-                  {/* Show message if no assets */}
                   {fungibleAssetsWithPercentage.length === 0 && (
                     <div className="text-gray-500 text-sm">No tokens found</div>
                   )}
@@ -136,9 +129,8 @@ const Assets = () => {
           </div>
         </div>
         <div className="p-2">
-        <TokenHoldings fungibleAssets={fungibleAssets} isLoading={isLoading} />
-        </div>  
-       
+          <TokenHoldings fungibleAssets={fungibleAssets} isLoading={syncingState} />
+        </div>
       </div>
     </>
   );

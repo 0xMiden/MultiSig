@@ -1,37 +1,28 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import media from "../../../../../public/media";
 import Image from "next/image";
-import { useWalletData } from "@/hooks/useWalletData";
-import { Address, NetworkId, AccountInterface } from "@demox-labs/miden-sdk";
+import { useMultisig } from "@/contexts/MultisigContext";
+import { copyToClipboard, truncateHex } from "@/lib/helpers";
+import { toast } from "sonner";
 
 const General = () => {
-  const { walletData, loading, error } = useWalletData();
+  const { detectedConfig, multisig, syncingState } = useMultisig();
   const signerIcons = [media.signer1, media.signer2, media.signer3];
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const getConvertedWalletId = () => {
-    try {
-      const currentWalletId = localStorage.getItem("currentWalletId");
-      if (!currentWalletId) return null;
-      const walletAddress = Address.fromBech32(currentWalletId);
-      const walletAccountId = walletAddress.accountId();
-      const convertedWalletId = walletAccountId.toBech32(
-        NetworkId.Testnet,
-        AccountInterface.BasicWallet
-      );
-      return convertedWalletId;
-    } catch (error) {
-      console.error("Error converting wallet ID:", error);
-      return localStorage.getItem("currentWalletId");
-    }
-  };
+  const signerCommitments = detectedConfig?.signerCommitments ?? [];
+  const accountId = multisig?.accountId ?? localStorage.getItem("currentWalletId") ?? null;
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (err) {
-      console.error("Failed to copy: ", err);
+  const walletName = useMemo(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem("walletFormData") : null;
+    if (saved) {
+      try { return JSON.parse(saved).walletName || "Multisig Wallet"; } catch { return "Multisig Wallet"; }
     }
+    return "Multisig Wallet";
+  }, []);
+
+  const handleCopy = (text: string) => {
+    copyToClipboard(text, () => toast.success("Copied!"));
   };
 
   return (
@@ -42,8 +33,7 @@ const General = () => {
           ACCOUNT SIGNERS
         </div>
         <div className="flex flex-col gap-4 ">
-          {loading ? (
-            // Loading spinner
+          {syncingState ? (
             <div className="flex items-center justify-center py-8">
               <div className="flex flex-col items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
@@ -52,15 +42,8 @@ const General = () => {
                 </p>
               </div>
             </div>
-          ) : error ? (
-            <div className="flex items-center justify-center py-8">
-              <p className="text-red-500 font-dmmono text-sm font-[400]">
-                Error loading signers: {error}
-              </p>
-            </div>
-          ) : walletData?.approver &&
-            walletData.approver.length > 0 ? (
-            walletData.approver.map((address, index) => (
+          ) : signerCommitments.length > 0 ? (
+            signerCommitments.map((commitment, index) => (
               <div
                 key={index}
                 className="flex flex-row items-center gap-2 border-[0.5px] border-[#00000033] p-2"
@@ -80,12 +63,12 @@ const General = () => {
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-[8px] font-dmmono font-[400] text-[#000000]">
-                      {address}
+                      {truncateHex(commitment, 20, 10)}
                     </span>
                     <button
-                      onClick={() => copyToClipboard(address)}
+                      onClick={() => handleCopy(commitment)}
                       className="p-1 hover:bg-gray-100 rounded transition-colors"
-                      title="Copy address"
+                      title="Copy commitment"
                     >
                       <svg
                         className="w-3 h-3 text-gray-600"
@@ -116,11 +99,9 @@ const General = () => {
       </div>
 
       {/* wallet information and network settings  */}
-
       <div className="w-full h-[250px] flex bg-[#FBFCFD] flex-row border-[0.5px] border-[#00000033] relative">
         <div className="flex flex-col w-1/2 h-full justify-between py-8 items-center ">
           <div className=" text-[16px] text-[#00000099] uppercase font-dmmono font-[500]">
-            {" "}
             Wallet information
           </div>
 
@@ -129,13 +110,13 @@ const General = () => {
               Wallet Name
             </span>
             <span className="text-[14px] font-dmmono font-[500] text-[#000000]">
-              {walletData?.walletFormData?.walletName || "Unknown Wallet"}
+              {walletName}
             </span>
           </div>
 
           <div className="flex flex-col items-center">
             <span className="text-[16px] font-dmmono font-[500] text-[#000000]">
-              Address
+              Account ID
             </span>
             <div className="relative">
               <div className="flex items-center gap-2">
@@ -144,23 +125,14 @@ const General = () => {
                   onMouseEnter={() => setShowTooltip(true)}
                   onMouseLeave={() => setShowTooltip(false)}
                 >
-                  {(() => {
-                    const convertedWalletId = getConvertedWalletId();
-                    if (convertedWalletId && convertedWalletId.length > 10) {
-                      return `${convertedWalletId.slice(
-                        0,
-                        6
-                      )}..${convertedWalletId.slice(-4)}`;
-                    }
-                    return convertedWalletId || "No Wallet ID";
-                  })()}
+                  {accountId ? truncateHex(accountId, 8, 6) : "No Account ID"}
                 </span>
 
-                {getConvertedWalletId() && (
+                {accountId && (
                   <button
-                    onClick={() => copyToClipboard(getConvertedWalletId()!)}
+                    onClick={() => handleCopy(accountId)}
                     className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    title="Copy wallet address"
+                    title="Copy account ID"
                   >
                     <svg
                       className="w-3 h-3 text-gray-600"
@@ -179,10 +151,9 @@ const General = () => {
                 )}
               </div>
 
-              {/* Custom tooltip */}
-              {showTooltip && getConvertedWalletId() && (
+              {showTooltip && accountId && (
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs font-dmmono rounded shadow-lg whitespace-nowrap z-50">
-                  {getConvertedWalletId()}
+                  {accountId}
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
                 </div>
               )}
@@ -195,7 +166,6 @@ const General = () => {
 
         <div className="flex flex-col w-1/2 h-full gap-8 py-8 items-center ">
           <div className=" text-[16px] text-[#00000099] uppercase font-dmmono font-[500]">
-            {" "}
             NETWORK SETTINGS
           </div>
 
@@ -204,7 +174,7 @@ const General = () => {
               Current Network
             </span>
             <span className="text-[14px] font-dmmono font-[500] text-[#000000]">
-              {walletData?.walletFormData?.network || "Unknown Network"}
+              Miden Devnet
             </span>
           </div>
         </div>

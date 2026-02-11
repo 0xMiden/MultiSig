@@ -1,57 +1,42 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import assetValIcon from "../../../../public/media/home/circum_dollar.svg";
 
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
-import { useAppDispatch } from "../../../store/hooks";
-import { useWalletData } from "../../../hooks/useWalletData";
-
-import {
-  fetchPendingTransactions,
-  fetchConfirmedTransactions,
-} from "../../../services/transactionApi";
+import { useMultisig } from "@/contexts/MultisigContext";
 
 export const dynamic = 'force-dynamic';
 
 import { AnimatePresence, motion } from "framer-motion";
 import InitiateFundTransfer from "@/interactions/InitiateFundTransfer";
-import { useFungibleAssets } from "@/hooks/useFungibleAssets";
 import ReceiveFundTransfer from "@/interactions/ReceiveFundTransfer";
 import { ApproveFundTransfer } from "@/interactions/ApproveFundTransfer";
 
 const Page: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { walletData, loading, error } = useWalletData();
-  const { fungibleAssets, isLoading: isLoadingAssets, getFungibleAssets } = useFungibleAssets();
-  const [totalBalance, setTotalBalance] = useState<number>(0);
-  const [isInitiateFundTransferOpen, setIsInitiateFundTransferOpen] =
-    useState(false);
-  const [isReceiveFundTransferOpen, setIsReceiveFundTransferOpen] =
-    useState(false);
-  const [isApproveFundTransferOpen, setIsApproveFundTransferOpen] =
-    useState(false);
+  const { detectedConfig, proposals, syncingState } = useMultisig();
+  const [isInitiateFundTransferOpen, setIsInitiateFundTransferOpen] = useState(false);
+  const [isReceiveFundTransferOpen, setIsReceiveFundTransferOpen] = useState(false);
+  const [isApproveFundTransferOpen, setIsApproveFundTransferOpen] = useState(false);
 
-
-  useEffect(() => {
-    const walletId = localStorage.getItem("currentWalletId");
-    if (walletId) {
-      dispatch(fetchPendingTransactions({ accountId: walletId }));
-      dispatch(fetchConfirmedTransactions({ accountId: walletId }));
+  const walletName = useMemo(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem("walletFormData") : null;
+    if (saved) {
+      try { return JSON.parse(saved).walletName || "Multisig Wallet"; } catch { return "Multisig Wallet"; }
     }
+    return "Multisig Wallet";
   }, []);
 
-  // Calculate total balance from fungible assets
-  useEffect(() => {
-    if (fungibleAssets.length > 0) {
-      const totalBalanceBigInt = fungibleAssets.reduce((sum, asset) => sum + BigInt(asset.balance), BigInt(0));
-      const totalBalanceDisplay = Number(totalBalanceBigInt) / 1000000;
-      setTotalBalance(totalBalanceDisplay);
-    } else {
-      setTotalBalance(0);
-    }
-  }, [fungibleAssets]);
+  const threshold = detectedConfig?.threshold ?? 0;
+  const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
+  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+
+  const totalBalance = useMemo(() => {
+    if (vaultBalances.length === 0) return 0;
+    const total = vaultBalances.reduce((sum, b) => sum + Number(b.amount), 0);
+    return total / 1000000;
+  }, [vaultBalances]);
 
   return (
     <div className="flex flex-col w-full h-full">
@@ -69,7 +54,7 @@ const Page: React.FC = () => {
             <div className="text-[18px] md:text-[24px] font-[500] font-dmmono text-[#000000]">
               {totalBalance.toFixed(2)}
             </div>
-            <div className="text-xs md:text-sm text-gray-700">≈ ${totalBalance.toFixed(2)} USD</div>
+            <div className="text-xs md:text-sm text-gray-700">{vaultBalances.length} token(s) in vault</div>
           </div>
         </div>
         {/*Overview Div*/}
@@ -85,29 +70,21 @@ const Page: React.FC = () => {
               <div className="flex items-center justify-between border-b-[0.5px]">
                 <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Wallet Name</div>
                 <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {loading ? "Loading..." : error ? "-" : walletData?.walletFormData?.walletName || "Multisig Wallet"}
+                  {walletName}
                 </div>
               </div>
               <div className="flex items-center justify-between border-b-[0.5px]">
-                <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Kind</div>
+                <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Signers</div>
                 <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {loading ? "Loading..." : error ? "-" : walletData?.kind || "N/A"}
+                  {signerCount}
                 </div>
               </div>
               <div className="flex items-center justify-between border-b-[0.5px]">
                 <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Threshold</div>
                 <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {loading
-                    ? "Loading..."
-                    : error
-                      ? "-"
-                      : walletData
-                        ? `${walletData.threshold} of ${walletData.approver_number} signatures`
-                        : "N/A"}
+                  {threshold > 0 ? `${threshold} of ${signerCount} signatures` : "N/A"}
                 </div>
               </div>
-
-
             </div>
           </div>
         </div>
@@ -152,13 +129,13 @@ const Page: React.FC = () => {
       {/*Pending Actions Div*/}
       <div className="p-2 md:p-4">
         <PendingActions
-          threshold={walletData?.threshold}
+          threshold={threshold}
           fixedHeight={true}
         />
       </div>
       {/*Recent Transactions Div*/}
       <div className="p-2 md:p-4 flex-1">
-        <RecentTransactions threshold={walletData?.threshold || 0} fixedHeight={true} />
+        <RecentTransactions threshold={threshold} fixedHeight={true} />
       </div>
 
       {/* initiate fund transfer interactions is being called here  */}
@@ -180,9 +157,6 @@ const Page: React.FC = () => {
             >
               <InitiateFundTransfer
                 onCancel={() => setIsInitiateFundTransferOpen(false)}
-                fungibleAssets={fungibleAssets}
-                isLoading={isLoadingAssets}
-                onOpen={getFungibleAssets}
               />
             </motion.div>
           </motion.div>
@@ -207,7 +181,6 @@ const Page: React.FC = () => {
             >
               <ReceiveFundTransfer
                 onCancel={() => setIsReceiveFundTransferOpen(false)}
-                onAssetsUpdated={getFungibleAssets}
               />
             </motion.div>
           </motion.div>
@@ -237,10 +210,6 @@ const Page: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-
-
-
     </div>
   );
 };

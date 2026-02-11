@@ -1,36 +1,26 @@
 "use client";
-import React, { useEffect } from "react";
+import React, { useMemo } from "react";
 import Image from "next/image";
 import media from "../../../../public/media";
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { useWalletData } from "../../../hooks/useWalletData";
-import { useFungibleAssets } from "../../../hooks/useFungibleAssets";
-
-import {
-  fetchPendingTransactions,
-  fetchConfirmedTransactions,
-  fetchTransactionStatsThunk,
-} from "../../../services/transactionApi";
+import { useMultisig } from "@/contexts/MultisigContext";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
 const Transactions: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { fungibleAssets } = useFungibleAssets();
-  const { walletData } = useWalletData();
-  const { stats, loading: statsLoading } = useAppSelector((state) => state.walletStats);
+  const { proposals, detectedConfig } = useMultisig();
 
-  useEffect(() => {
-    const walletId = localStorage.getItem("currentWalletId");
-    if (walletId) {
-      dispatch(fetchPendingTransactions({ accountId: walletId }));
-      dispatch(fetchConfirmedTransactions({ accountId: walletId }));
-      dispatch(fetchTransactionStatsThunk({ accountId: walletId }));
-    }
-  }, [dispatch]);
+  const threshold = detectedConfig?.threshold ?? 0;
+
+  const stats = useMemo(() => {
+    const total = proposals.length;
+    const executed = proposals.filter(p => p.status === 'executed').length;
+    const pending = proposals.filter(p => p.status === 'pending' || p.status === 'ready').length;
+    const successRate = total > 0 ? Math.round((executed / total) * 100) : 0;
+    return { total, executed, pending, successRate };
+  }, [proposals]);
 
   return (
     <div className="flex flex-col p-2 w-[calc(100vw-150px)] font-dmmono">
@@ -45,7 +35,7 @@ const Transactions: React.FC = () => {
       </div>
       {/*Top Cards Div*/}
       <div className="grid grid-cols-12 gap-10 p-2">
-        {/*Total Asset Value Div*/}
+        {/*Total Transactions Div*/}
         <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
           <div className="flex items-left space-x-2 font-dmmono text-black">
             <Image
@@ -54,17 +44,17 @@ const Transactions: React.FC = () => {
               quality={100}
             />
             <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
-              Total Transactions
+              Total Proposals
             </div>
           </div>
           <div>
             <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
-              {statsLoading ? "..." : stats?.total || 0}
+              {stats.total}
             </div>
             <div className="text-sm text-gray-700">All Time</div>
           </div>
         </div>
-        {/*This Month Div*/}
+        {/*Pending Div*/}
         <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
           <div className="flex items-left space-x-2 font-dmmono text-black">
             <Image
@@ -73,14 +63,14 @@ const Transactions: React.FC = () => {
               quality={100}
             />
             <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
-              This Month
+              Pending
             </div>
           </div>
           <div>
             <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
-              {statsLoading ? "..." : stats?.last_month || 0}
+              {stats.pending}
             </div>
-            <div className="text-sm text-gray-700">Last 30 days</div>
+            <div className="text-sm text-gray-700">Awaiting signatures</div>
           </div>
         </div>
         {/*Success Rate Div*/}
@@ -88,25 +78,25 @@ const Transactions: React.FC = () => {
           <div className="flex items-left space-x-2 font-dmmono text-black">
             <Image src={media.assetValIcon} alt="assetValIcon" quality={100} />
             <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
-              Success Rate
+              Execution Rate
             </div>
           </div>
           <div>
             <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
-              {statsLoading ? "..." : stats?.total ? Math.round((stats.total_success / stats.total) * 100) : 0}%
+              {stats.successRate}%
             </div>
-            <div className="text-sm text-gray-700">{stats?.total_success || 0}/{stats?.total || 0} Success</div>
+            <div className="text-sm text-gray-700">{stats.executed}/{stats.total} Executed</div>
           </div>
         </div>
       </div>
 
       {/*Pending Actions Div*/}
       <div className="p-2">
-        <PendingActions threshold={walletData?.threshold} fixedHeight={false} />
+        <PendingActions threshold={threshold} fixedHeight={false} />
       </div>
       {/*Recent Transactions Div*/}
       <div className="p-2">
-        <RecentTransactions threshold={walletData?.threshold || 0} fixedHeight={false} />
+        <RecentTransactions threshold={threshold} fixedHeight={false} />
       </div>
     </div>
   );
