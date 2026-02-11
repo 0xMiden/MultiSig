@@ -7,6 +7,7 @@ import Svg from "../../../../public/svg";
 import { useWalletForm } from "../../../hooks/useWalletForm";
 import { useAuth } from "../../../hooks/useAuth";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { truncateHex } from "@/lib/helpers";
 import { toast } from "sonner";
 
 // Force dynamic rendering to avoid WASM loading issues during build
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic';
 const CreateNewAccount = () => {
   const router = useRouter();
   const { setWalletId } = useAuth();
-  const { handleCreate, creating, activeScheme, error: multisigError } = useMultisig();
+  const { handleCreate, creating, activeScheme, activeCommitment, walletSource, error: multisigError } = useMultisig();
   const {
     formData,
     currentStep,
@@ -38,6 +39,27 @@ const CreateNewAccount = () => {
     signatureThreshold: false,
     totalSigners: false,
   });
+  // Compute the wallet source label for Signer 1
+  const walletSourceLabel = walletSource === 'para'
+    ? 'You (Para)'
+    : walletSource === 'miden-wallet'
+      ? 'You (Miden Wallet)'
+      : 'You (Local)';
+
+  // Auto-populate Signer 1 with the active wallet commitment.
+  // Only dispatch when the values actually change to avoid render loops
+  // (updateSigner/updateSignerPublicKeyField are not memoized).
+  const prevCommitmentRef = useRef<string | null>(null);
+  const prevLabelRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (activeCommitment && (activeCommitment !== prevCommitmentRef.current || walletSourceLabel !== prevLabelRef.current)) {
+      prevCommitmentRef.current = activeCommitment;
+      prevLabelRef.current = walletSourceLabel;
+      updateSigner(0, walletSourceLabel);
+      updateSignerPublicKeyField(0, activeCommitment);
+    }
+  }); // intentionally no deps — runs every render but guards with ref check
+
   const hasRestoredRef = useRef(false);
   useEffect(() => {
     if (hasRestoredRef.current) return;
@@ -49,11 +71,13 @@ const CreateNewAccount = () => {
       Object.entries(parsedData).forEach(([key, value]) => {
         if (key === "signerAddresses") {
           (value as string[]).forEach((address, index) => {
-            updateSigner(index, address);
+            // Skip signer 0 - it's auto-populated from wallet
+            if (index > 0) updateSigner(index, address);
           });
         } else if (key === "signerPublicKeys") {
           (value as string[]).forEach((publicKey, index) => {
-            updateSignerPublicKeyField(index, publicKey);
+            // Skip signer 0 - it's auto-populated from wallet
+            if (index > 0) updateSignerPublicKeyField(index, publicKey);
           });
         } else {
           updateField(key, value as string);
@@ -148,18 +172,15 @@ const CreateNewAccount = () => {
     setCreationError(null);
 
     try {
-      // The "public keys" in the form are used as signer commitments
-      const commitments = formData.signerPublicKeys.filter((k: string) => k.trim() !== '');
+      // Signer 1 (index 0) is "us" — handled internally by handleCreate.
+      // Only pass the "other" signer commitments (index 1+).
+      const otherCommitments = formData.signerPublicKeys
+        .slice(1)
+        .filter((k: string) => k.trim() !== '');
       const threshold = parseInt(formData.signatureThreshold, 10);
 
-      await handleCreate(commitments, threshold, undefined, activeScheme);
+      await handleCreate(otherCommitments, threshold, undefined, activeScheme);
 
-      // Store the account ID after creation (we get it from context)
-      // The multisig object will be set in context; use the account ID from it
-      const walletId = localStorage.getItem("currentWalletId");
-      if (walletId) {
-        setWalletId(walletId);
-      }
       toast.success("Multisig account created successfully!");
       router.push("/dashboard/home");
     } catch (error) {
@@ -393,68 +414,87 @@ const CreateNewAccount = () => {
                         transition={{ duration: 0.25, ease: "easeInOut" }}
                         className="w-full flex flex-col lg:space-y-1 md:space-y-1.5 sm:space-y-1 space-y-1"
                       >
-                        <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
-                          Signer {activeSignerIndex + 1} Address
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={formData.signerAddresses[activeSignerIndex]}
-                            onChange={(e) =>
-                              handleSignerAddressChange(
-                                activeSignerIndex,
-                                e.target.value
-                              )
-                            }
-                            className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
-                          />
-                          {formData.signerAddresses.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleRemoveSignerAddress(activeSignerIndex)
-                              }
-                              aria-label="Remove signer"
-                              title="Remove signer"
-                              className="shrink-0 w-9 h-9 lg:w-11 lg:h-11 md:w-10 md:h-10 sm:w-9 sm:h-9 flex items-center justify-center rounded-md border border-[rgba(217,217,217,1)] text-[rgba(0,0,0,0.6)] hover:text-[#FF5500] hover:border-[#FF5500] hover:bg-[#FF5500]/10 transition"
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 16 16"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M4 4L12 12M12 4L4 12"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
+                        {activeSignerIndex === 0 ? (
+                          <>
+                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
+                              Signer 1 — {walletSourceLabel}
+                            </div>
+                            <div className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] flex items-center text-[rgba(0,0,0,0.55)]">
+                              {activeCommitment ? truncateHex(activeCommitment, 16, 10) : 'No wallet connected'}
+                            </div>
+                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono mt-1">
+                              Commitment
+                            </div>
+                            <div className="bg-[rgba(245,245,245,1)] w-full min-h-[36px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 py-2 font-dmmono font-[500] text-[10px] text-[rgba(0,0,0,0.55)] break-all">
+                              {activeCommitment || 'Generating keys...'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
+                              Signer {activeSignerIndex + 1} Address
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={formData.signerAddresses[activeSignerIndex]}
+                                onChange={(e) =>
+                                  handleSignerAddressChange(
+                                    activeSignerIndex,
+                                    e.target.value
+                                  )
+                                }
+                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                              />
+                              {formData.signerAddresses.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRemoveSignerAddress(activeSignerIndex)
+                                  }
+                                  aria-label="Remove signer"
+                                  title="Remove signer"
+                                  className="shrink-0 w-9 h-9 lg:w-11 lg:h-11 md:w-10 md:h-10 sm:w-9 sm:h-9 flex items-center justify-center rounded-md border border-[rgba(217,217,217,1)] text-[rgba(0,0,0,0.6)] hover:text-[#FF5500] hover:border-[#FF5500] hover:bg-[#FF5500]/10 transition"
+                                >
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path
+                                      d="M4 4L12 12M12 4L4 12"
+                                      stroke="currentColor"
+                                      strokeWidth="1.8"
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
 
-                        <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
-                          Signer {activeSignerIndex + 1} Public Key
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="text"
-                            value={
-                              formData.signerPublicKeys[activeSignerIndex] || ""
-                            }
-                            onChange={(e) =>
-                              handleSignerPublicKeyChange(
-                                activeSignerIndex,
-                                e.target.value
-                              )
-                            }
-                            placeholder="0x..."
-                            className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
-                          />
-                        </div>
+                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
+                              Signer {activeSignerIndex + 1} Commitment
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={
+                                  formData.signerPublicKeys[activeSignerIndex] || ""
+                                }
+                                onChange={(e) =>
+                                  handleSignerPublicKeyChange(
+                                    activeSignerIndex,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="0x..."
+                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                              />
+                            </div>
+                          </>
+                        )}
                       </motion.div>
                     </AnimatePresence>
                   </div>
@@ -470,11 +510,11 @@ const CreateNewAccount = () => {
                           ? "bg-[#FF5500] border-[#FF5500] text-white"
                           : "bg-white border-[rgba(217,217,217,1)] text-[rgba(0,0,0,0.6)] hover:border-[#FF5500] hover:text-[#FF5500]"
                           }`}
-                        aria-label={`Go to signer ${i + 1}`}
-                        title={`Go to signer ${i + 1}`}
+                        aria-label={i === 0 ? "Go to signer 1 (You)" : `Go to signer ${i + 1}`}
+                        title={i === 0 ? "Signer 1 (You)" : `Signer ${i + 1}`}
                       >
                         <span className="font-dmmono font-[500] text-[8px] lg:text-[9px] md:text-[8px] sm:text-[8px]">
-                          {i + 1}
+                          {i === 0 ? "\u2605" : i + 1}
                         </span>
                       </button>
                     ))}
@@ -576,13 +616,19 @@ const CreateNewAccount = () => {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.2, delay: index * 0.05 }}
-                            className="font-dmmono font-[500] lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] text-[rgba(0,0,0,0.55)] bg-[rgba(245,245,245,1)] p-2 rounded hover:bg-[rgba(235,235,235,1)] transition-colors"
+                            className={`font-dmmono font-[500] lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] text-[rgba(0,0,0,0.55)] p-2 rounded transition-colors ${
+                              index === 0 ? 'bg-[#FF5500]/5 border border-[#FF5500]/20' : 'bg-[rgba(245,245,245,1)] hover:bg-[rgba(235,235,235,1)]'
+                            }`}
                           >
                             <div>
-                              Signer {index + 1}: {address || "Not specified"}
+                              {index === 0 ? (
+                                <span>Signer 1: <strong className="text-[#FF5500]">{walletSourceLabel}</strong></span>
+                              ) : (
+                                <span>Signer {index + 1}: {address || "Not specified"}</span>
+                              )}
                             </div>
-                            <div className="text-[10px] opacity-75">
-                              Public Key:{" "}
+                            <div className="text-[10px] opacity-75 break-all">
+                              Commitment:{" "}
                               {formData.signerPublicKeys[index] ||
                                 "Not specified"}
                             </div>

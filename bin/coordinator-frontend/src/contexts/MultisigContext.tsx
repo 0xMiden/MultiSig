@@ -372,6 +372,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       );
       setMultisig(ms);
 
+      // Persist account ID so middleware allows dashboard access
+      if (ms.accountId) {
+        localStorage.setItem('currentWalletId', ms.accountId);
+        document.cookie = `currentWalletId=${ms.accountId}; path=/; max-age=31536000`;
+      }
+
       setRegisteringOnPsm(true);
       try {
         await ms.registerOnPsm();
@@ -431,6 +437,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         ackPublicKey,
       );
       setMultisig(ms);
+
+      // Persist account ID so middleware allows dashboard access
+      if (ms.accountId) {
+        localStorage.setItem('currentWalletId', ms.accountId);
+        document.cookie = `currentWalletId=${ms.accountId}; path=/; max-age=31536000`;
+      }
 
       const { proposals: synced, state, notes, config } = await ms.syncAll();
       setDetectedConfig(config);
