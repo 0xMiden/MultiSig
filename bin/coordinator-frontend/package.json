@@ -9,16 +9,22 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@demox-labs/miden-sdk": "^0.12.3",
-    "@demox-labs/miden-wallet-adapter": "^0.10.0",
     "@demox-labs/miden-wallet-adapter-base": "^0.10.0",
     "@demox-labs/miden-wallet-adapter-miden": "^0.10.0",
+    "@getpara/react-sdk-lite": "^2.2.0",
+    "@miden-sdk/miden-para": "^0.13.0",
+    "@miden-sdk/miden-sdk": "^0.13.0",
+    "@miden-sdk/use-miden-para-react": "^0.13.0",
+    "@openzeppelin/miden-multisig-client": "^0.13.0",
+    "@openzeppelin/psm-client": "^0.13.0",
     "@reduxjs/toolkit": "^2.8.2",
+    "@tanstack/react-query": "^5.0.0",
     "framer-motion": "^12.23.12",
     "next": "15.4.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0",
+    "sonner": "^2.0.7",
     "tailwind-scrollbar": "^3.0.5"
   },
   "devDependencies": {
