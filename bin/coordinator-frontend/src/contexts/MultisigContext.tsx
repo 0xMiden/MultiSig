@@ -18,7 +18,7 @@ import { WebClient } from '@miden-sdk/miden-sdk';
 
 import { normalizeCommitment } from '@/lib/helpers';
 import { formatError, classifyWalletError } from '@/lib/errors';
-import { clearMidenDatabase, createWebClient, initializeSigner as initSigner } from '@/lib/initClient';
+import { clearMidenDatabase, createWebClient, initializeSigner as initSigner, loadSignerKeys, saveSignerKeys } from '@/lib/initClient';
 import {
   initMultisigClient,
   createMultisigAccount,
@@ -314,7 +314,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         await connectToPsm(psmUrl, client);
 
         setGeneratingSigner(true);
-        const signerInfo = initSigner();
+        let signerInfo = await loadSignerKeys();
+        if (!signerInfo) {
+          signerInfo = initSigner();
+          await saveSignerKeys(signerInfo);
+        }
         setSigner(signerInfo);
       } catch (err) {
         setError(formatError(err, 'Initialization failed'));

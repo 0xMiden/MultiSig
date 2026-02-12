@@ -16,6 +16,7 @@ import type { Signer } from '@openzeppelin/psm-client';
 import type { WebClient } from '@miden-sdk/miden-sdk';
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
+import { normalizeCommitment } from '@/lib/helpers';
 
 export interface ExternalSignerParams {
   walletSource: WalletSource;
@@ -69,7 +70,7 @@ export async function createMultisigAccount(
   procedureThresholds?: ProcedureThreshold[],
   signatureScheme: SignatureScheme = 'falcon',
 ): Promise<Multisig> {
-  const signerCommitments = [signerCommitment, ...otherCommitments];
+  const signerCommitments = [signerCommitment, ...otherCommitments].map(normalizeCommitment);
   const config: MultisigConfig = {
     threshold,
     signerCommitments,

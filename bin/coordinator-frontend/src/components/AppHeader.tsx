@@ -10,6 +10,7 @@ export function AppHeader() {
     signer,
     generatingSigner,
     activeScheme,
+    multisig,
     walletSource,
     setWalletSource,
     paraSession,
@@ -168,6 +169,18 @@ export function AppHeader() {
               <div className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
                 <div className="text-[12px] font-[500] mb-2">LOCAL SIGNER KEYS</div>
                 <div className="flex flex-col gap-2">
+                  {multisig?.accountId && (
+                    <div>
+                      <div className="text-[9px] text-gray-400 mb-0.5">Account Address</div>
+                      <div
+                        className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                        onClick={() => handleCopy(multisig.accountId, 'Account address')}
+                        title="Click to copy"
+                      >
+                        {truncateHex(multisig.accountId, 12, 8)}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`px-2 py-0.5 text-[10px] rounded ${
@@ -206,7 +219,7 @@ export function AppHeader() {
                       {truncateHex(signer.ecdsa.commitment, 12, 8)}
                     </div>
                   </div>
-                  <div className="text-[9px] text-gray-400">Click a commitment to copy</div>
+                  <div className="text-[9px] text-gray-400">Click to copy</div>
                 </div>
               </div>
             )}
