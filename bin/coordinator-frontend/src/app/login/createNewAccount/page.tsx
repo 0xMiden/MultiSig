@@ -131,6 +131,8 @@ const CreateNewAccount = () => {
 
   const handleSignerPublicKeyChange = (index: number, value: string) => {
     updateSignerPublicKeyField(index, value);
+    // Auto-sync address from commitment (they're the same value)
+    updateSigner(index, value);
   };
 
   const handleAddSignerAddress = () => {
@@ -397,7 +399,7 @@ const CreateNewAccount = () => {
                     ADD SIGNERS
                   </div>
                   <div className="font-dmmono font-[400] text-[#000000]  lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] ">
-                    Add account addresses that will be authorized to sign
+                    Add signer commitments that will be authorized to sign
                     transactions
                   </div>
                 </div>
@@ -419,12 +421,6 @@ const CreateNewAccount = () => {
                             <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
                               Signer 1 — {walletSourceLabel}
                             </div>
-                            <div className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] flex items-center text-[rgba(0,0,0,0.55)]">
-                              {activeCommitment ? truncateHex(activeCommitment, 16, 10) : 'No wallet connected'}
-                            </div>
-                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono mt-1">
-                              Commitment
-                            </div>
                             <div className="bg-[rgba(245,245,245,1)] w-full min-h-[36px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 py-2 font-dmmono font-[500] text-[10px] text-[rgba(0,0,0,0.55)] break-all">
                               {activeCommitment || 'Generating keys...'}
                             </div>
@@ -432,18 +428,21 @@ const CreateNewAccount = () => {
                         ) : (
                           <>
                             <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
-                              Signer {activeSignerIndex + 1} Address
+                              Signer {activeSignerIndex + 1} Commitment
                             </div>
                             <div className="flex items-center gap-1">
                               <input
                                 type="text"
-                                value={formData.signerAddresses[activeSignerIndex]}
+                                value={
+                                  formData.signerPublicKeys[activeSignerIndex] || ""
+                                }
                                 onChange={(e) =>
-                                  handleSignerAddressChange(
+                                  handleSignerPublicKeyChange(
                                     activeSignerIndex,
                                     e.target.value
                                   )
                                 }
+                                placeholder="0x..."
                                 className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
                               />
                               {formData.signerAddresses.length > 1 && (
@@ -472,26 +471,6 @@ const CreateNewAccount = () => {
                                   </svg>
                                 </button>
                               )}
-                            </div>
-
-                            <div className="uppercase lg:text-[16px] md:text-[14px] sm:text-[13px] text-[12px] font-dmmono">
-                              Signer {activeSignerIndex + 1} Commitment
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={
-                                  formData.signerPublicKeys[activeSignerIndex] || ""
-                                }
-                                onChange={(e) =>
-                                  handleSignerPublicKeyChange(
-                                    activeSignerIndex,
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="0x..."
-                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
-                              />
                             </div>
                           </>
                         )}
@@ -533,9 +512,9 @@ const CreateNewAccount = () => {
                   </button>
 
                   <div className="lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] w-[80%] mx-auto font-dmmono text-center leading-relaxed">
-                    Security Note: Each signer should verify their address and
-                    public key are correct. Incorrect addresses or public keys
-                    cannot be easily changed after deployment.
+                    Security Note: Each signer should verify their commitment is
+                    correct. Incorrect commitments cannot be easily changed
+                    after deployment.
                   </div>
                 </div>
               </motion.div>
@@ -610,7 +589,7 @@ const CreateNewAccount = () => {
                       className="w-full max-h-[110px] overflow-y-auto space-y-2 scrollbar-thin pr-1 select-none"
                     >
                       {formData.signerAddresses.map(
-                        (address: string, index: number) => (
+                        (_: string, index: number) => (
                           <motion.div
                             key={index}
                             initial={{ opacity: 0, y: 10 }}
@@ -624,11 +603,10 @@ const CreateNewAccount = () => {
                               {index === 0 ? (
                                 <span>Signer 1: <strong className="text-[#FF5500]">{walletSourceLabel}</strong></span>
                               ) : (
-                                <span>Signer {index + 1}: {address || "Not specified"}</span>
+                                <span>Signer {index + 1}</span>
                               )}
                             </div>
                             <div className="text-[10px] opacity-75 break-all">
-                              Commitment:{" "}
                               {formData.signerPublicKeys[index] ||
                                 "Not specified"}
                             </div>
