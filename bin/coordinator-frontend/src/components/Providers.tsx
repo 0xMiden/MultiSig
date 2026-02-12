@@ -41,11 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (!mounted) {
-    return (
-      <Provider store={store}>
-        {children}
-      </Provider>
-    );
+    return null;
   }
 
   // Always wrap with ParaProvider so useParaMiden hook has its context.
