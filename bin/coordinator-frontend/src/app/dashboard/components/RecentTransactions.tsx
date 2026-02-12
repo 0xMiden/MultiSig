@@ -87,7 +87,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                      proposal.type === 'remove_signer' ? 'REMOVE SIGNER' :
                      proposal.type === 'change_threshold' ? 'CHANGE THRESHOLD' :
                      proposal.type === 'switch_psm' ? 'SWITCH PSM' :
-                     proposal.type.toUpperCase()}
+                     (proposal.type ?? 'UNKNOWN').toUpperCase()}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
