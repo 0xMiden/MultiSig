@@ -16,8 +16,8 @@ const Transactions: React.FC = () => {
 
   const stats = useMemo(() => {
     const total = proposals.length;
-    const executed = proposals.filter(p => p.status === 'executed').length;
-    const pending = proposals.filter(p => p.status === 'pending' || p.status === 'ready').length;
+    const executed = proposals.filter(p => p.status.type === 'finalized').length;
+    const pending = proposals.filter(p => p.status.type === 'pending' || p.status.type === 'ready').length;
     const successRate = total > 0 ? Math.round((executed / total) * 100) : 0;
     return { total, executed, pending, successRate };
   }, [proposals]);

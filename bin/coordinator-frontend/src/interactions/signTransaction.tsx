@@ -28,7 +28,7 @@ const SignTransaction = ({
 
   const propThreshold = proposal
     ? getEffectiveThreshold(
-        proposal.type,
+        proposal.metadata?.proposalType,
         threshold,
         detectedConfig?.procedureThresholds
       )
@@ -124,11 +124,11 @@ const SignTransaction = ({
               Type
             </span>
             <span className="uppercase text-[12px] font-dmmono font-[500]">
-              {proposal.type === "p2id"
+              {proposal.metadata?.proposalType === "p2id"
                 ? "SEND"
-                : proposal.type === "consume_notes"
+                : proposal.metadata?.proposalType === "consume_notes"
                 ? "RECEIVE"
-                : proposal.type.toUpperCase().replace("_", " ")}
+                : proposal.metadata?.proposalType.toUpperCase().replace("_", " ")}
             </span>
           </div>
           <div className="h-[0.5px] w-full bg-[#00000033]"></div>

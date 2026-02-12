@@ -36,7 +36,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
 
   // Filter to only show pending (not yet executed) proposals
   const pendingProposals = useMemo(() => {
-    return proposals.filter(p => p.status === 'pending' || p.status === 'ready');
+    return proposals.filter(p => p.status.type === 'pending' || p.status.type === 'ready');
   }, [proposals]);
 
   const effectiveThreshold = threshold ?? detectedConfig?.threshold ?? 0;
@@ -100,7 +100,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
         ) : pendingProposals.length > 0 ? (
           pendingProposals.map((proposal) => {
             const propThreshold = getEffectiveThreshold(
-              proposal.type,
+              proposal.metadata?.proposalType,
               effectiveThreshold,
               detectedConfig?.procedureThresholds
             );
@@ -108,7 +108,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
             const isReady = sigCount >= propThreshold;
             const isSigning = signingProposal === proposal.id;
             const isExecuting = executingProposal === proposal.id;
-            const isSend = proposal.type === 'p2id';
+            const isSend = proposal.metadata?.proposalType === 'p2id';
 
             return (
               <div
@@ -121,13 +121,13 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="font-dmmono w-[45%] pl-6 text-[12px] font-[400]">
                   <span className="font-dmmono text-[12px] font-[500]">
-                    {proposal.type === 'p2id' ? 'SEND' :
-                     proposal.type === 'consume_notes' ? 'RECEIVE' :
-                     proposal.type === 'add_signer' ? 'ADD SIGNER' :
-                     proposal.type === 'remove_signer' ? 'REMOVE SIGNER' :
-                     proposal.type === 'change_threshold' ? 'CHANGE THRESHOLD' :
-                     proposal.type === 'switch_psm' ? 'SWITCH PSM' :
-                     proposal.type.toUpperCase()}
+                    {proposal.metadata?.proposalType === 'p2id' ? 'SEND' :
+                     proposal.metadata?.proposalType === 'consume_notes' ? 'RECEIVE' :
+                     proposal.metadata?.proposalType === 'add_signer' ? 'ADD SIGNER' :
+                     proposal.metadata?.proposalType === 'remove_signer' ? 'REMOVE SIGNER' :
+                     proposal.metadata?.proposalType === 'change_threshold' ? 'CHANGE THRESHOLD' :
+                     proposal.metadata?.proposalType === 'switch_psm' ? 'SWITCH PSM' :
+                     (proposal.metadata?.proposalType ?? 'UNKNOWN').toUpperCase()}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>

@@ -22,7 +22,7 @@ export const ApproveFundTransfer = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const pendingProposals = useMemo(() => {
-    return proposals.filter(p => p.status === 'pending' || p.status === 'ready');
+    return proposals.filter(p => p.status.type === 'pending' || p.status.type === 'ready');
   }, [proposals]);
 
   const threshold = detectedConfig?.threshold ?? 0;
@@ -102,7 +102,7 @@ export const ApproveFundTransfer = ({
               <div className="flex flex-col space-y-4">
                 {pendingProposals.map((proposal) => {
                   const propThreshold = getEffectiveThreshold(
-                    proposal.type,
+                    proposal.metadata?.proposalType,
                     threshold,
                     detectedConfig?.procedureThresholds
                   );
@@ -127,9 +127,9 @@ export const ApproveFundTransfer = ({
                       />
                       <div className="flex-1">
                         <div className="font-dmmono text-[14px] font-[500]">
-                          {proposal.type === 'p2id' ? 'SEND' :
-                           proposal.type === 'consume_notes' ? 'RECEIVE' :
-                           proposal.type.toUpperCase().replace('_', ' ')}
+                          {proposal.metadata?.proposalType === 'p2id' ? 'SEND' :
+                           proposal.metadata?.proposalType === 'consume_notes' ? 'RECEIVE' :
+                           (proposal.metadata?.proposalType ?? 'UNKNOWN').toUpperCase().replace('_', ' ')}
                         </div>
                         <div className="font-dmmono text-[10px] text-gray-500">
                           ID: {proposal.id.slice(0, 16)}...

@@ -62,13 +62,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
         ) : allProposals.length > 0 ? (
           allProposals.map((proposal) => {
             const propThreshold = getEffectiveThreshold(
-              proposal.type,
+              proposal.metadata?.proposalType,
               effectiveThreshold,
               detectedConfig?.procedureThresholds
             );
             const sigCount = proposal.signatures?.length ?? 0;
-            const isSend = proposal.type === 'p2id';
-            const isExecuted = proposal.status === 'executed';
+            const isSend = proposal.metadata?.proposalType === 'p2id';
+            const isExecuted = proposal.status.type === 'finalized';
 
             return (
               <div
@@ -81,13 +81,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="font-dmmono w-[45%] pl-6 text-[12px] font-[400]">
                   <span className="font-dmmono text-[12px] font-[500]">
-                    {proposal.type === 'p2id' ? 'SEND Transaction' :
-                     proposal.type === 'consume_notes' ? 'RECEIVE Transaction' :
-                     proposal.type === 'add_signer' ? 'ADD SIGNER' :
-                     proposal.type === 'remove_signer' ? 'REMOVE SIGNER' :
-                     proposal.type === 'change_threshold' ? 'CHANGE THRESHOLD' :
-                     proposal.type === 'switch_psm' ? 'SWITCH PSM' :
-                     (proposal.type ?? 'UNKNOWN').toUpperCase()}
+                    {proposal.metadata?.proposalType === 'p2id' ? 'SEND Transaction' :
+                     proposal.metadata?.proposalType === 'consume_notes' ? 'RECEIVE Transaction' :
+                     proposal.metadata?.proposalType === 'add_signer' ? 'ADD SIGNER' :
+                     proposal.metadata?.proposalType === 'remove_signer' ? 'REMOVE SIGNER' :
+                     proposal.metadata?.proposalType === 'change_threshold' ? 'CHANGE THRESHOLD' :
+                     proposal.metadata?.proposalType === 'switch_psm' ? 'SWITCH PSM' :
+                     (proposal.metadata?.proposalType ?? 'UNKNOWN').toUpperCase()}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
