@@ -164,7 +164,7 @@ pub async fn add_signature(
             })?
             .ok_or(AppError::InvalidNetworkId)?;
 
-        let Signature::RpoFalcon512(signature) =
+        let Signature::Falcon512Rpo(signature) =
             Signature::read_from_bytes(&signature).map_err(|_| AppError::InvalidSignature)?
         else {
             return Err(AppError::InvalidSignature);

@@ -15,9 +15,10 @@ use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
 use miden_client::{
     Client, DebugMode, Felt,
     account::{
-        Account, AccountBuilder, AccountStorageMode, AccountType, NetworkId,
-        component::{AuthRpoFalcon512, BasicFungibleFaucet, BasicWallet},
+        Account, AccountBuilder, AccountStorageMode, AccountType,
+        component::{AuthFalcon512Rpo, BasicFungibleFaucet, BasicWallet},
     },
+    address::NetworkId,
     asset::{FungibleAsset, TokenSymbol},
     auth::AuthSecretKey,
     builder::ClientBuilder,
@@ -37,7 +38,6 @@ use miden_multisig_coordinator_engine::{
     response::{CreateMultisigAccountResponseDissolved, ProposeMultisigTxResponseDissolved},
 };
 use miden_multisig_coordinator_store::MultisigStore;
-use rand::{RngCore, rngs::StdRng};
 use tempfile::TempDir;
 use testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner};
 use testcontainers_modules::postgres::Postgres;
@@ -79,7 +79,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
 
     tokio::time::sleep(Duration::from_secs(5)).await;
 
-    let engine = start_testnet_multisig_engine(&temp_dir.join("multisig")).await;
+    let engine = start_devnet_multisig_engine(&temp_dir.join("multisig")).await;
 
     let approvers = vec![alice_account.id(), bob_account.id(), charlie_account.id()];
 
@@ -111,15 +111,15 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     let consume_notes_tx_request = {
-        let note_ids: Vec<_> = engine
+        let notes: Vec<_> = engine
             .get_consumable_notes(GetConsumableNotesRequest::builder().build())
             .await
             .unwrap()
             .into_iter()
-            .map(|(nr, _)| nr.id())
+            .map(|(nr, _)| nr.try_into().unwrap())
             .collect();
 
-        TransactionRequestBuilder::new().build_consume_notes(note_ids).unwrap()
+        TransactionRequestBuilder::new().build_consume_notes(notes).unwrap()
     };
 
     let propose_request = ProposeMultisigTxRequest::builder()
@@ -156,7 +156,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
     assert!(tx_result.is_some());
 
     let asset_balance = {
-        let (mut client, _) = setup_testnet_client(&temp_dir.join("external")).await;
+        let (mut client, _) = setup_devnet_client(&temp_dir.join("external")).await;
 
         client.import_account_by_id(multisig_account.id()).await.unwrap();
         client.sync_state().await.unwrap();
@@ -164,7 +164,7 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
         let imported_multisig_account_record =
             client.get_account(multisig_account.id()).await.unwrap().unwrap();
 
-        let imported_multisig_account = imported_multisig_account_record.account();
+        let imported_multisig_account: Account = imported_multisig_account_record.try_into().unwrap();
 
         imported_multisig_account.vault().get_balance(ff_account.id()).unwrap()
     };
@@ -177,21 +177,20 @@ async fn setup_fungible_faucet_client(
     symbol: &str,
     decimals: u8,
     max_supply: u64,
-) -> (Client<FilesystemKeyStore<StdRng>>, Account) {
-    let (mut client, keystore) = setup_testnet_client(temp_dir).await;
+) -> (Client<FilesystemKeyStore>, Account) {
+    let (mut client, keystore) = setup_devnet_client(temp_dir).await;
 
-    let mut init_seed = [0u8; 32];
-    client.rng().fill_bytes(&mut init_seed);
+    let init_seed: [u8; 32] = rand::random();
 
     let symbol = TokenSymbol::new(symbol).unwrap();
     let max_supply = Felt::new(max_supply);
 
-    let sk = AuthSecretKey::new_rpo_falcon512();
+    let sk = AuthSecretKey::new_falcon512_rpo();
 
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::FungibleFaucet)
-        .storage_mode(miden_client::account::AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(sk.public_key().to_commitment()))
+        .storage_mode(AccountStorageMode::Public)
+        .with_auth_component(AuthFalcon512Rpo::new(sk.public_key().to_commitment()))
         .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap())
         .build()
         .unwrap();
@@ -204,18 +203,17 @@ async fn setup_fungible_faucet_client(
 
 async fn setup_regular_account_client(
     temp_dir: &Path,
-) -> (Client<FilesystemKeyStore<StdRng>>, Account, SecretKey) {
-    let (mut client, keystore) = setup_testnet_client(temp_dir).await;
+) -> (Client<FilesystemKeyStore>, Account, SecretKey) {
+    let (mut client, keystore) = setup_devnet_client(temp_dir).await;
 
-    let mut init_seed = [0u8; 32];
-    client.rng().fill_bytes(&mut init_seed);
+    let init_seed: [u8; 32] = rand::random();
 
-    let sk = AuthSecretKey::new_rpo_falcon512();
+    let sk = AuthSecretKey::new_falcon512_rpo();
 
     let account = AccountBuilder::new(init_seed)
         .account_type(AccountType::RegularAccountUpdatableCode)
         .storage_mode(AccountStorageMode::Public)
-        .with_auth_component(AuthRpoFalcon512::new(sk.public_key().to_commitment()))
+        .with_auth_component(AuthFalcon512Rpo::new(sk.public_key().to_commitment()))
         .with_component(BasicWallet)
         .build()
         .unwrap();
@@ -223,23 +221,23 @@ async fn setup_regular_account_client(
     client.add_account(&account, false).await.unwrap();
     keystore.add_key(&sk).unwrap();
 
-    let AuthSecretKey::RpoFalcon512(sk) = sk else {
-        panic!("secret key must be rpo falcon 512 scheme");
+    let AuthSecretKey::Falcon512Rpo(sk) = sk else {
+        panic!("secret key must be falcon 512 rpo scheme");
     };
 
     (client, account, sk)
 }
 
-async fn setup_testnet_client(
+async fn setup_devnet_client(
     temp_dir: &Path,
-) -> (Client<FilesystemKeyStore<StdRng>>, FilesystemKeyStore<StdRng>) {
+) -> (Client<FilesystemKeyStore>, FilesystemKeyStore) {
     let keystore =
         FilesystemKeyStore::new(temp_dir.join("keystore")).expect("failed to initialize keystore");
 
     let client = ClientBuilder::new()
-        .grpc_client(&Endpoint::testnet(), Some(20_000))
+        .grpc_client(&Endpoint::devnet(), Some(20_000))
         .sqlite_store(temp_dir.join("store"))
-        .authenticator(keystore.clone().into())
+        .filesystem_keystore(temp_dir.join("keystore").to_str().unwrap())
         .in_debug_mode(DebugMode::Enabled)
         .build()
         .await
@@ -248,7 +246,7 @@ async fn setup_testnet_client(
     (client, keystore)
 }
 
-async fn start_testnet_multisig_engine(temp_dir: &Path) -> MultisigEngine<Started> {
+async fn start_devnet_multisig_engine(temp_dir: &Path) -> MultisigEngine<Started> {
     let db_url = setup_test_db().await;
 
     let multisig_store =
@@ -257,10 +255,10 @@ async fn start_testnet_multisig_engine(temp_dir: &Path) -> MultisigEngine<Starte
             .map(MultisigStore::new)
             .expect("failed to initialize multisig store");
 
-    let engine = MultisigEngine::new(NetworkId::Testnet, multisig_store);
+    let engine = MultisigEngine::new(NetworkId::Devnet, multisig_store);
 
     let config = MultisigClientRuntimeConfig::builder()
-        .node_url("https://rpc.testnet.miden.io:443".parse().unwrap())
+        .node_url("https://rpc.devnet.miden.io:443".parse().unwrap())
         .store_path(temp_dir.join("store"))
         .keystore_path(temp_dir.join("keystore"))
         .timeout(Duration::from_secs(10))

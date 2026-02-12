@@ -29,8 +29,8 @@ anyhow                    = "1"
 bon                       = { default-features = false, version = "3" }
 chrono                    = { default-features = false, version = "0.4" }
 dissolve-derive           = "0.1.4"
-miden-client              = { default-features = false, version = "0.12" }
-miden-client-sqlite-store = "0.12"
+miden-client              = { default-features = false, version = "0.13" }
+miden-client-sqlite-store = "0.13"
 rand                      = "0.9"
 serde                     = { default-features = false, version = "1" }
 serde_with                = { default-features = false, version = "3" }

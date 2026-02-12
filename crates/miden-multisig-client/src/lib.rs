@@ -22,7 +22,7 @@ use miden_client::{
     Client, ClientError, Felt, Word, ZERO,
     account::{
         Account, AccountBuilder, AccountId, AccountStorageMode, AccountType,
-        component::{AuthRpoFalcon512Multisig, AuthRpoFalcon512MultisigConfig, BasicWallet},
+        component::{AuthFalcon512RpoMultisig, AuthFalcon512RpoMultisigConfig, BasicWallet},
     },
     auth::{PublicKeyCommitment, TransactionAuthenticator},
     crypto::Rpo256,
@@ -64,8 +64,8 @@ where
         self.rng().fill_bytes(&mut init_seed);
 
         let multisig_auth_component =
-            AuthRpoFalcon512MultisigConfig::new(approvers, threshold.get())
-                .and_then(AuthRpoFalcon512Multisig::new)
+            AuthFalcon512RpoMultisigConfig::new(approvers, threshold.get())
+                .and_then(AuthFalcon512RpoMultisig::new)
                 .map_err(SetupAccountError::from)?;
 
         let multisig_account = AccountBuilder::new(init_seed)
@@ -88,10 +88,6 @@ impl<AUTH> MultisigClient<AUTH>
 where
     AUTH: TransactionAuthenticator + Sync + 'static,
 {
-    const CONFIG_STORAGE_SLOT_INDEX: u8 = 0;
-
-    const PUB_KEYS_STORAGE_SLOT_INDEX: u8 = 1;
-
     const NUM_APPROVERS_INDEX: usize = 1;
 
     /// Propose a multisig transaction.
@@ -125,7 +121,7 @@ where
         let num_approvers: u32 = {
             let felt = *account
                 .storage()
-                .get_item(Self::CONFIG_STORAGE_SLOT_INDEX)
+                .get_item(AuthFalcon512RpoMultisig::threshold_config_slot())
                 .map_err(|e| {
                     TransactionExecutionError::StorageSlotIndexOutOfBounds(e.to_string().into())
                 })?
@@ -154,7 +150,7 @@ where
                     let pub_key_index_word = Word::from([Felt::from(i), ZERO, ZERO, ZERO]);
                     account
                         .storage()
-                        .get_map_item(Self::PUB_KEYS_STORAGE_SLOT_INDEX, pub_key_index_word)
+                        .get_map_item(AuthFalcon512RpoMultisig::approver_public_keys_slot(), pub_key_index_word)
                         .map_err(|_| TransactionExecutionError::PubKeyStorageSlotMap)?
                 };
                 Rpo256::merge(&[pub_key, msg])

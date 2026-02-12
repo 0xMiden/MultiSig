@@ -297,11 +297,15 @@ where
 
     let signatures = signatures
         .into_iter()
-        .map(|s| s.map(|s| Signature::RpoFalcon512(s).to_prepared_signature(Word::empty())))
+        .map(|s| s.map(|s| Signature::Falcon512Rpo(s).to_prepared_signature(Word::empty())))
         .collect();
 
+    let account = account_record
+        .try_into()
+        .map_err(|e: miden_client::ClientError| MultisigClientRuntimeError::other(e.to_string()))?;
+
     let tx_result = client
-        .submit_new_multisig_transaction(account_record.into(), tx_request, tx_summary, signatures)
+        .submit_new_multisig_transaction(account, tx_request, tx_summary, signatures)
         .await;
 
     let _ = sender

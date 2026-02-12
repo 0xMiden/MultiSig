@@ -10,5 +10,5 @@ workspace = true
 [dependencies]
 miden-client              = { features = ["testing"], workspace = true }
 miden-client-sqlite-store = { workspace = true }
-miden-testing             = "0.12"
+miden-testing             = "0.13"
 rand                      = { workspace = true }

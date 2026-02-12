@@ -1,10 +1,11 @@
 use alloc::boxed::Box;
 
 use miden_client::{
-    auth::SigningInputs,
+    auth::{AuthSchemeId, SigningInputs},
+    keystore::FilesystemKeyStore,
     note::NoteType,
     testing::{
-        common::{self, TestClientKeyStore},
+        common::{self},
         mock::MockRpcApi,
     },
     transaction::TransactionRequestBuilder,
@@ -12,9 +13,7 @@ use miden_client::{
 
 use super::*;
 
-const AUTH_SCHEME_ID: u8 = 0;
-
-type TestMultisigClient = MultisigClient<TestClientKeyStore>;
+type TestMultisigClient = MultisigClient<FilesystemKeyStore>;
 
 #[tokio::test]
 async fn multisig() {
@@ -30,7 +29,7 @@ async fn multisig() {
         &mut signer_a_client,
         AccountStorageMode::Private,
         &authenticator_a,
-        AUTH_SCHEME_ID,
+        AuthSchemeId::Falcon512Rpo,
     )
     .await
     .unwrap();
@@ -40,7 +39,7 @@ async fn multisig() {
         &mut signer_b_client,
         AccountStorageMode::Private,
         &authenticator_b,
-        AUTH_SCHEME_ID,
+        AuthSchemeId::Falcon512Rpo,
     )
     .await
     .unwrap();
@@ -56,7 +55,7 @@ async fn multisig() {
         coordinator_client.deref_mut(),
         AccountStorageMode::Public,
         &coordinator_keystore,
-        AUTH_SCHEME_ID,
+        AuthSchemeId::Falcon512Rpo,
     )
     .await
     .unwrap();
@@ -76,7 +75,7 @@ async fn multisig() {
     coordinator_client.sync_state().await.unwrap();
 
     coordinator_client
-        .import_note(miden_client::note::NoteFile::NoteId(note.id()))
+        .import_notes(&[miden_client::note::NoteFile::NoteId(note.id())])
         .await
         .unwrap();
 
@@ -84,7 +83,7 @@ async fn multisig() {
     let salt = Word::empty();
     let tx_request = TransactionRequestBuilder::new()
         .auth_arg(salt)
-        .build_consume_notes(vec![note.id()])
+        .build_consume_notes(vec![note])
         .unwrap();
 
     // Propose the transaction (should fail with Unauthorized)
@@ -119,7 +118,7 @@ async fn multisig() {
     assert!(tx_result.is_ok());
 }
 
-async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, TestClientKeyStore) {
+async fn setup_multisig_client() -> (TestMultisigClient, MockRpcApi, FilesystemKeyStore) {
     let (client, mock_rpc_api, keystore) =
         miden_multisig_test_utils::create_test_client(std::env::temp_dir()).await;
 

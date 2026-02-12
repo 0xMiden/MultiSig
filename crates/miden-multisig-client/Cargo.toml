@@ -16,5 +16,5 @@ thiserror    = { workspace = true }
 tokio        = { default-features = false, workspace = true }
 
 [dev-dependencies]
-miden-client              = { features = ["testing", "tonic"], version = "0.12" }
+miden-client              = { features = ["testing", "tonic"], version = "0.13" }
 miden-multisig-test-utils = { workspace = true }

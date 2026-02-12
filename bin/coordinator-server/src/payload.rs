@@ -127,7 +127,7 @@ impl From<MultisigTx> for MultisigTxPayload {
             .tx_request(tx_request.to_bytes())
             .tx_summary(tx_summary.to_bytes())
             .tx_summary_commit(tx_summary_commit.to_bytes())
-            .input_note_ids(tx_request.get_input_note_ids().into_iter().map(From::from).collect())
+            .input_note_ids(tx_request.input_note_ids().map(From::from).collect())
             .maybe_signature_count(signature_count)
             .created_at(aux.created_at())
             .updated_at(aux.updated_at())

@@ -13,17 +13,17 @@ use miden_client::{
     builder::ClientBuilder,
     crypto::RpoRandomCoin,
     keystore::FilesystemKeyStore,
-    note::{NoteExecutionMode, NoteTag, NoteType},
+    note::{NoteTag, NoteType},
     testing::{
         NoteBuilder,
-        common::{TestClientKeyStore, create_test_store_path},
+        common::create_test_store_path,
         mock::{MockClient, MockRpcApi},
     },
     transaction::OutputNote,
 };
 use miden_client_sqlite_store::SqliteStore;
 use miden_testing::{MockChain, MockChainBuilder};
-use rand::{Rng, rngs::StdRng};
+use rand::Rng;
 
 // HELPERS
 // ================================================================================================
@@ -38,7 +38,7 @@ use rand::{Rng, rngs::StdRng};
 /// The `keystore_path` controls where keys are stored on disk during the test run.
 pub async fn create_test_client<P>(
     keystore_path: P,
-) -> (MockClient<FilesystemKeyStore<StdRng>>, MockRpcApi, FilesystemKeyStore<StdRng>)
+) -> (MockClient<FilesystemKeyStore>, MockRpcApi, FilesystemKeyStore)
 where
     P: AsRef<Path>,
 {
@@ -51,7 +51,7 @@ where
 
 async fn create_test_client_builder<P>(
     keystore_path: P,
-) -> (ClientBuilder<TestClientKeyStore>, MockRpcApi, FilesystemKeyStore<StdRng>)
+) -> (ClientBuilder<FilesystemKeyStore>, MockRpcApi, FilesystemKeyStore)
 where
     P: AsRef<Path>,
 {
@@ -87,7 +87,7 @@ async fn create_prebuilt_mock_chain() -> MockChain {
 
     let note_first =
         NoteBuilder::new(mock_account.id(), RpoRandomCoin::new([0, 0, 0, 0].map(Felt::new).into()))
-            .tag(NoteTag::for_public_use_case(0, 0, NoteExecutionMode::Local).unwrap().into())
+            .tag(NoteTag::new(0).into())
             .build()
             .unwrap();
     mock_chain_builder.add_output_note(OutputNote::Full(note_first));
@@ -95,7 +95,7 @@ async fn create_prebuilt_mock_chain() -> MockChain {
     let note_second =
         NoteBuilder::new(mock_account.id(), RpoRandomCoin::new([0, 0, 0, 1].map(Felt::new).into()))
             .note_type(NoteType::Private)
-            .tag(NoteTag::for_local_use_case(0, 0).unwrap().into())
+            .tag(NoteTag::new(0).into())
             .build()
             .unwrap();
     mock_chain_builder.add_output_note(OutputNote::Full(note_second.clone()));
