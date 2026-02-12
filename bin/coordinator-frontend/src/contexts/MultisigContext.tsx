@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -381,8 +381,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setRegisteringOnPsm(true);
       try {
         await ms.registerOnPsm();
-        setProposals([]);
-        setConsumableNotes([]);
+        const { proposals: synced, state, notes, config } = await ms.syncAll();
+        setDetectedConfig(config);
+        setPsmState(state);
+        setProposals(synced);
+        setConsumableNotes(notes);
       } catch (psmErr) {
         setError(`Created but failed to register on PSM: ${psmErr instanceof Error ? psmErr.message : 'Unknown'}`);
       } finally {
@@ -460,6 +463,17 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setLoadingAccount(false);
     }
   }, [multisigClient, signer, psmCommitment, psmPublicKey, buildExternalParams]);
+
+  // Auto-load saved account after initialization completes
+  const autoLoadAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (autoLoadAttemptedRef.current) return;
+    if (!multisigClient || !signer || !psmCommitment) return;
+    const savedId = localStorage.getItem('currentWalletId');
+    if (!savedId) return;
+    autoLoadAttemptedRef.current = true;
+    handleLoad(savedId);
+  }, [multisigClient, signer, psmCommitment, handleLoad]);
 
   const handleSync = useCallback(async () => {
     if (!multisig || !webClient) return;
