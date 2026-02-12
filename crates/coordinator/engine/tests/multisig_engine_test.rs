@@ -164,7 +164,8 @@ async fn single_note_consumption_works_using_multisig_engine_to_get_consumable_n
         let imported_multisig_account_record =
             client.get_account(multisig_account.id()).await.unwrap().unwrap();
 
-        let imported_multisig_account: Account = imported_multisig_account_record.try_into().unwrap();
+        let imported_multisig_account: Account =
+            imported_multisig_account_record.try_into().unwrap();
 
         imported_multisig_account.vault().get_balance(ff_account.id()).unwrap()
     };
@@ -228,9 +229,7 @@ async fn setup_regular_account_client(
     (client, account, sk)
 }
 
-async fn setup_devnet_client(
-    temp_dir: &Path,
-) -> (Client<FilesystemKeyStore>, FilesystemKeyStore) {
+async fn setup_devnet_client(temp_dir: &Path) -> (Client<FilesystemKeyStore>, FilesystemKeyStore) {
     let keystore =
         FilesystemKeyStore::new(temp_dir.join("keystore")).expect("failed to initialize keystore");
 

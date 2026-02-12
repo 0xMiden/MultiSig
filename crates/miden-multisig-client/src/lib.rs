@@ -150,7 +150,10 @@ where
                     let pub_key_index_word = Word::from([Felt::from(i), ZERO, ZERO, ZERO]);
                     account
                         .storage()
-                        .get_map_item(AuthFalcon512RpoMultisig::approver_public_keys_slot(), pub_key_index_word)
+                        .get_map_item(
+                            AuthFalcon512RpoMultisig::approver_public_keys_slot(),
+                            pub_key_index_word,
+                        )
                         .map_err(|_| TransactionExecutionError::PubKeyStorageSlotMap)?
                 };
                 Rpo256::merge(&[pub_key, msg])
