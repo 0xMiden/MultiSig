@@ -2,6 +2,9 @@
 
 Next.js web application for managing Miden multisig accounts. Uses the [PSM SDK](https://docs.openzeppelin.com) (`@openzeppelin/miden-multisig-client`) for proposal coordination and a WASM-compiled Miden client (`@miden-sdk/miden-sdk`) running in the browser.
 
+> [!NOTE]
+> After v0.13.x testnet, the frontend only coordinates using [PSM](https://github.com/OpenZeppelin/private-state-manager.git). The coordinator server backend present in this repository is ignored even when running.
+
 ## Prerequisites
 
 - Node.js 18+
@@ -20,7 +23,7 @@ NEXT_PUBLIC_MIDEN_RPC_URL=https://rpc.devnet.miden.io
 NEXT_PUBLIC_PARA_API_KEY=<your-para-api-key>
 NEXT_PUBLIC_PARA_ENVIRONMENT=development
 
-# Coordinator server (optional — only needed if running the backend)
+# Coordinator server (optional — only needed if running the coordinator backend)
 NEXT_PUBLIC_COORDINATOR_API_URL=http://localhost:59059
 NEXT_PUBLIC_EXTERNAL_COORDINATOR_API_URL=http://localhost:59059
 ```
