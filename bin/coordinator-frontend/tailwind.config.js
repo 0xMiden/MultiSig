@@ -15,7 +15,8 @@ module.exports = {
       },
       fontFamily: {
         'dbmono': ['DB Mono', 'monospace'],
-        'dmmono': ['var(--font-dm-mono)', 'monospace'],  // Add this line here
+        'dmmono': ['var(--font-dm-mono)', 'monospace'],
+        'geist': ['var(--font-geist-sans)', 'sans-serif'],
           },
       keyframes: {
         'fade-in': {
