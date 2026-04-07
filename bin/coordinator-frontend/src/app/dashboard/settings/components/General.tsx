@@ -28,16 +28,16 @@ const General = () => {
   return (
     <div className="w-full h-full flex flex-col gap-4 ">
       {/* account signer list  */}
-      <div className="w-full h-full border-[0.5px] border-[#00000033] flex flex-col gap-2 p-4">
-        <div className="text-[16px] font-dmmono font-[500] text-[#00000099]">
-          ACCOUNT SIGNERS
+      <div className="w-full h-full border border-[rgba(0,0,0,0.08)] rounded-[10px] flex flex-col gap-2 p-4">
+        <div className="text-[16px] font-geist font-[500] text-[#00000099]">
+          Account signers
         </div>
         <div className="flex flex-col gap-4 ">
           {syncingState ? (
             <div className="flex items-center justify-center py-8">
               <div className="flex flex-col items-center gap-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
-                <p className="text-[#00000099] font-dmmono text-sm font-[400]">
+                <p className="text-[#00000099] font-geist text-sm font-[400]">
                   Loading signers...
                 </p>
               </div>
@@ -46,7 +46,7 @@ const General = () => {
             signerCommitments.map((commitment, index) => (
               <div
                 key={index}
-                className="flex flex-row items-center gap-2 border-[0.5px] border-[#00000033] p-2"
+                className="flex flex-row items-center gap-2 border border-[rgba(0,0,0,0.08)] rounded-[8px] p-2"
               >
                 <div className="w-[24px] h-[24px] border relative">
                   <Image
@@ -58,11 +58,11 @@ const General = () => {
                 </div>
 
                 <div className="flex flex-col flex-1">
-                  <span className="uppercase text-[12px] font-dmmono font-[500] text-[#000000]">
-                    SIGNER {index + 1}
+                  <span className="text-[12px] font-geist font-[500] text-[#000000]">
+                    Signer {index + 1}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-dmmono font-[400] text-[#000000]">
+                    <span className="text-[8px] font-geist font-[400] text-[#000000]">
                       {truncateHex(commitment, 20, 10)}
                     </span>
                     <button
@@ -90,7 +90,7 @@ const General = () => {
             ))
           ) : (
             <div className="flex items-center justify-center py-8">
-              <p className="text-[#00000099] font-dmmono text-sm font-[400]">
+              <p className="text-[#00000099] font-geist text-sm font-[400]">
                 No signers found
               </p>
             </div>
@@ -99,29 +99,29 @@ const General = () => {
       </div>
 
       {/* wallet information and network settings  */}
-      <div className="w-full h-[250px] flex bg-[#FBFCFD] flex-row border-[0.5px] border-[#00000033] relative">
+      <div className="w-full h-[250px] flex bg-[#FBFCFD] flex-row border border-[rgba(0,0,0,0.08)] rounded-[10px] relative">
         <div className="flex flex-col w-1/2 h-full justify-between py-8 items-center ">
-          <div className=" text-[16px] text-[#00000099] uppercase font-dmmono font-[500]">
+          <div className=" text-[16px] text-[#00000099] font-geist font-[500]">
             Wallet information
           </div>
 
           <div className="flex flex-col items-center">
-            <span className="text-[16px] font-dmmono font-[500] text-[#000000]">
+            <span className="text-[16px] font-geist font-[500] text-[#000000]">
               Wallet Name
             </span>
-            <span className="text-[14px] font-dmmono font-[500] text-[#000000]">
+            <span className="text-[14px] font-geist font-[500] text-[#000000]">
               {walletName}
             </span>
           </div>
 
           <div className="flex flex-col items-center">
-            <span className="text-[16px] font-dmmono font-[500] text-[#000000]">
+            <span className="text-[16px] font-geist font-[500] text-[#000000]">
               Account ID
             </span>
             <div className="relative">
               <div className="flex items-center gap-2">
                 <span
-                  className="text-[14px] font-dmmono font-[500] text-[#000000] cursor-help"
+                  className="text-[14px] font-geist font-[500] text-[#000000] cursor-help"
                   onMouseEnter={() => setShowTooltip(true)}
                   onMouseLeave={() => setShowTooltip(false)}
                 >
@@ -152,7 +152,7 @@ const General = () => {
               </div>
 
               {showTooltip && accountId && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs font-dmmono rounded shadow-lg whitespace-nowrap z-50">
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs font-geist rounded shadow-lg whitespace-nowrap z-50">
                   {accountId}
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
                 </div>
@@ -165,15 +165,15 @@ const General = () => {
         <div className="absolute left-1/2 top-4 bottom-4 w-[0.5px] bg-[#00000033] transform -translate-x-1/2"></div>
 
         <div className="flex flex-col w-1/2 h-full gap-8 py-8 items-center ">
-          <div className=" text-[16px] text-[#00000099] uppercase font-dmmono font-[500]">
-            NETWORK SETTINGS
+          <div className=" text-[16px] text-[#00000099] font-geist font-[500]">
+            Network settings
           </div>
 
           <div className="flex flex-col items-center">
-            <span className="text-[16px] font-dmmono font-[500] text-[#000000]">
+            <span className="text-[16px] font-geist font-[500] text-[#000000]">
               Current Network
             </span>
-            <span className="text-[14px] font-dmmono font-[500] text-[#000000]">
+            <span className="text-[14px] font-geist font-[500] text-[#000000]">
               Miden Devnet
             </span>
           </div>

@@ -23,79 +23,95 @@ const Transactions: React.FC = () => {
   }, [proposals]);
 
   return (
-    <div className="flex flex-col p-2 w-[calc(100vw-150px)] font-dmmono">
+    <div className="flex flex-col p-4 w-full font-geist">
       {/*Heading*/}
-      <div className="p-2">
-        <div className="text-[#000000] text-[24px] font-[500] font-dmmono">
-          TRANSACTION HISTORY
+      <div className="mb-4">
+        <div className="text-[#111] text-[22px] md:text-[24px] font-[600] font-geist">
+          Transaction History
         </div>
-        <div className="text-[16px] text-[#0000007A] font-dmmono font-[500]">
+        <div className="text-[13px] md:text-[14px] text-[rgba(0,0,0,0.5)] font-geist font-[400] mt-1">
           Complete record of your wallet history
         </div>
       </div>
       {/*Top Cards Div*/}
-      <div className="grid grid-cols-12 gap-10 p-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6">
         {/*Total Transactions Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image
-              src={media.totalTransactionsIcon}
-              alt="totalTransactionsIcon"
-              quality={100}
-            />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+        <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 md:p-5 gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+            </div>
+            <div className="font-geist text-[14px] md:text-[15px] text-[#111] font-[600]">
               Total Proposals
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="flex flex-col gap-1 mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] font-geist text-[#111] leading-none">
               {stats.total}
             </div>
-            <div className="text-sm text-gray-700">All Time</div>
+            <div className="text-[11px] md:text-[12px] font-geist text-[rgba(0,0,0,0.45)]">
+              All time
+            </div>
           </div>
         </div>
         {/*Pending Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image
-              src={media.thisMonthIcon}
-              alt="thisMonthIcon"
-              quality={100}
-            />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+        <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 md:p-5 gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
+                <circle cx="12" cy="12" r="9"/>
+                <polyline points="12 7 12 12 15 14"/>
+              </svg>
+            </div>
+            <div className="font-geist text-[14px] md:text-[15px] text-[#111] font-[600]">
               Pending
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="flex flex-col gap-1 mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] font-geist text-[#111] leading-none">
               {stats.pending}
             </div>
-            <div className="text-sm text-gray-700">Awaiting signatures</div>
+            <div className="text-[11px] md:text-[12px] font-geist text-[rgba(0,0,0,0.45)]">
+              Awaiting signatures
+            </div>
           </div>
         </div>
-        {/*Success Rate Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image src={media.assetValIcon} alt="assetValIcon" quality={100} />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+        {/*Execution Rate Div*/}
+        <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 md:p-5 gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <div className="font-geist text-[14px] md:text-[15px] text-[#111] font-[600]">
               Execution Rate
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="flex flex-col gap-1 mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] font-geist text-[#111] leading-none">
               {stats.successRate}%
             </div>
-            <div className="text-sm text-gray-700">{stats.executed}/{stats.total} Executed</div>
+            <div className="text-[11px] md:text-[12px] font-geist text-[rgba(0,0,0,0.45)]">
+              {stats.executed}/{stats.total} Executed
+            </div>
           </div>
         </div>
       </div>
 
       {/*Pending Actions Div*/}
-      <div className="p-2">
+      <div className="mt-4">
         <PendingActions threshold={threshold} fixedHeight={false} />
       </div>
       {/*Recent Transactions Div*/}
-      <div className="p-2">
+      <div className="mt-4">
         <RecentTransactions threshold={threshold} fixedHeight={false} />
       </div>
     </div>

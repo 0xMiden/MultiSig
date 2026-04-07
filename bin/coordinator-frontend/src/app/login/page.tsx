@@ -92,7 +92,7 @@ const Page = () => {
               </div>
             </div>
 
-            <button onClick={() => router.push("/login/createNewAccount")} className="group mt-8 h-[44px] w-full flex flex-row items-center justify-center gap-2 border border-[rgba(0,0,0,0.12)] rounded-[8px] bg-white hover:bg-[#FF5500] transition-colors cursor-pointer">
+            <button onClick={() => router.push("/login/createNewAccount")} className="group mt-8 h-[56px] w-full flex flex-row items-center justify-center gap-2 border border-[rgba(0,0,0,0.12)] rounded-[8px] bg-white hover:bg-[#FF5500] transition-colors cursor-pointer">
               <div className="text-[rgba(255,85,0,1)] group-hover:text-white text-[15px] font-[300] transition-colors">+</div>
               <div className="font-geist text-[rgba(255,85,0,1)] group-hover:text-white text-[13px] md:text-[14px] font-[500] transition-colors">
                 Create Account
@@ -152,7 +152,7 @@ const Page = () => {
               </div>
             </div>
 
-            <button onClick={() => router.push("/login/loadExistingAccount")} className="group mt-8 h-[44px] w-full flex flex-row items-center justify-center gap-2 border border-[rgba(0,0,0,0.12)] rounded-[8px] bg-white hover:bg-[#FF5500] transition-colors cursor-pointer">
+            <button onClick={() => router.push("/login/loadExistingAccount")} className="group mt-8 h-[56px] w-full flex flex-row items-center justify-center gap-2 border border-[rgba(0,0,0,0.12)] rounded-[8px] bg-white hover:bg-[#FF5500] transition-colors cursor-pointer">
               <div className="relative w-[16px] h-[16px]">
                 <Image
                   src={Svg.upload_black}
