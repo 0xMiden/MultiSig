@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useState } from "react";
 import Image from "next/image";
-import assetValIcon from "../../../../public/media/home/circum_dollar.svg";
+import media from "../../../../public/media";
 
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
@@ -45,23 +45,18 @@ const Page: React.FC = () => {
         {/*Total Asset Value Div*/}
         <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 md:p-5 gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
-                <circle cx="12" cy="12" r="9"/>
-                <path d="M14.5 9a2.5 2.5 0 0 0-2.5-2h-1a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4h-1a2.5 2.5 0 0 1-2.5-2"/>
-                <line x1="12" y1="6" x2="12" y2="7"/>
-                <line x1="12" y1="17" x2="12" y2="18"/>
-              </svg>
+            <div className="w-7 h-7 rounded-[8px] bg-brand/10 flex items-center justify-center shrink-0">
+              <Image src={media.assetValIcon} alt="" className="w-[16px] h-[16px]" />
             </div>
-            <div className="font-geist text-[14px] md:text-[15px] text-[#111] font-[600]">
+            <div className="text-[14px] md:text-[15px] text-ink font-[600]">
               Total Asset Value
             </div>
           </div>
           <div className="flex flex-col gap-1 mt-auto">
-            <div className="text-[28px] md:text-[32px] font-[600] font-geist text-[#111] leading-none">
+            <div className="text-[28px] md:text-[32px] font-[600] text-[#111] leading-none">
               {totalBalance.toFixed(2)}
             </div>
-            <div className="text-[11px] md:text-[12px] font-geist text-[rgba(0,0,0,0.45)]">
+            <div className="text-[11px] md:text-[12px] text-[rgba(0,0,0,0.45)]">
               {vaultBalances.length} token(s) in vault
             </div>
           </div>
@@ -69,36 +64,31 @@ const Page: React.FC = () => {
         {/*Overview Div*/}
         <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 md:p-5 gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#FF5500" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[16px] h-[16px]">
-                <rect x="3" y="3" width="7" height="7" rx="1"/>
-                <rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/>
-                <rect x="14" y="14" width="7" height="7" rx="1"/>
-              </svg>
+            <div className="w-7 h-7 rounded-[8px] bg-brand/10 flex items-center justify-center shrink-0">
+              <Image src={media.gridOverviewIcon} alt="" className="w-[16px] h-[16px]" />
             </div>
-            <div className="font-geist text-[14px] md:text-[15px] text-[#111] font-[600]">
+            <div className="text-[14px] md:text-[15px] text-ink font-[600]">
               Overview
             </div>
           </div>
           <div className="flex flex-col gap-2 mt-auto">
             <div className="flex items-center justify-between">
-              <div className="text-[12px] md:text-[13px] font-[500] font-geist text-[#111]">Wallet Name</div>
-              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)] font-geist">
+              <div className="text-[12px] md:text-[13px] font-[500] text-[#111]">Wallet Name</div>
+              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)]">
                 {walletName}
               </div>
             </div>
             <div className="h-px w-full bg-[rgba(0,0,0,0.06)]"></div>
             <div className="flex items-center justify-between">
-              <div className="text-[12px] md:text-[13px] font-[500] font-geist text-[#111]">Signers</div>
-              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)] font-geist">
+              <div className="text-[12px] md:text-[13px] font-[500] text-[#111]">Signers</div>
+              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)]">
                 {signerCount}
               </div>
             </div>
             <div className="h-px w-full bg-[rgba(0,0,0,0.06)]"></div>
             <div className="flex items-center justify-between">
-              <div className="text-[12px] md:text-[13px] font-[500] font-geist text-[#111]">Threshold</div>
-              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)] font-geist">
+              <div className="text-[12px] md:text-[13px] font-[500] text-[#111]">Threshold</div>
+              <div className="text-[12px] md:text-[13px] text-[rgba(0,0,0,0.55)]">
                 {threshold > 0 ? `${threshold} of ${signerCount} signatures` : "N/A"}
               </div>
             </div>
@@ -106,34 +96,34 @@ const Page: React.FC = () => {
         </div>
         {/*Actions Div*/}
         <div className="col-span-4 flex flex-col h-[140px] md:h-[160px]">
-          <div className="flex flex-col justify-between gap-2 items-left space-x-2 h-full font-medium font-geist text-black">
+          <div className="flex flex-col justify-between gap-2 items-left space-x-2 h-full font-medium text-black">
 
             <div className="flex flex-col gap-2 h-full">
               <div className="flex flex-row gap-2 h-1/2">
                 <button
-                  className="w-1/2 relative group overflow-hidden border-[0.5px] border-[#00000033] rounded-[10px] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
+                  className="w-1/2 relative group overflow-hidden border border-border-soft rounded-[10px] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
                   onClick={() => setIsInitiateFundTransferOpen(true)}
                 >
-                  <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+                  <span className="absolute inset-0 bg-brand transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
                   <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
                     Send
                   </span>
                 </button>
                 <button
-                  className="w-1/2 relative group overflow-hidden border-[0.5px] border-[#00000033] rounded-[10px] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
+                  className="w-1/2 relative group overflow-hidden border border-border-soft rounded-[10px] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
                   onClick={() => setIsReceiveFundTransferOpen(true)}
                 >
-                  <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+                  <span className="absolute inset-0 bg-brand transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
                   <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
                     Receive
                   </span>
                 </button>
               </div>
               <button
-                className="w-full relative group overflow-hidden h-1/2 border-[0.5px] border-[#00000033] rounded-[10px] py-1 px-2 text-[12px] md:text-[16px] text-[#000000] font-[400]"
+                className="w-full relative group overflow-hidden h-1/2 border border-border-soft rounded-[10px] py-1 px-2 text-[12px] md:text-[16px] text-[#000000] font-[400]"
                 onClick={() => setIsApproveFundTransferOpen(true)}
               >
-                <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
+                <span className="absolute inset-0 bg-brand transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
                 <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
                   Approve queued transfers
                 </span>

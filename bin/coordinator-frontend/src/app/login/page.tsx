@@ -30,10 +30,10 @@ const Page = () => {
               <Image src={Svg.logo} alt="logo" fill objectFit="contain" />
             </div>
           </div>
-          <div className="text-[24px] md:text-[36px] px-4 font-[500] font-geist tracking-[-0.02em]">
+          <div className="text-[24px] md:text-[36px] px-4 font-[500] tracking-[-0.02em]">
             Multi-Signature Account
           </div>
-          <div className="text-[13px] md:text-[15px] text-[rgba(255,85,0,1)] px-4 tracking-[-0.02em] font-geist">
+          <div className="text-[13px] md:text-[15px] text-[rgba(255,85,0,1)] px-4 tracking-[-0.02em]">
             Secure, Enterprise-Grade Multi-Signature Account Management
           </div>
         </div>
@@ -47,7 +47,7 @@ const Page = () => {
                 +
               </div>
             </div>
-            <div className="text-[18px] md:text-[22px] font-geist font-[600] tracking-[-0.02em] text-[#111]">
+            <div className="text-[18px] md:text-[22px] font-[600] tracking-[-0.02em] text-[#111]">
               Create New Account
             </div>
             <div className="text-[13px] md:text-[14px] font-[400] text-[#000] leading-relaxed mt-2 mb-6 bg-[#f9f9f9] px-3 py-1.5 rounded-[4px]">
@@ -59,7 +59,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   1
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Choose account name and configure signature threshold (e.g., 2-of-3)
                 </div>
               </div>
@@ -68,7 +68,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   2
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Add signer addresses
                 </div>
               </div>
@@ -77,7 +77,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   3
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Deploy multisig account smart contract on Miden network
                 </div>
               </div>
@@ -86,7 +86,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   4
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Share account address with other signers
                 </div>
               </div>
@@ -94,7 +94,7 @@ const Page = () => {
 
             <button onClick={() => router.push("/login/createNewAccount")} className="group mt-8 h-[56px] w-full flex flex-row items-center justify-center gap-2 border border-[rgba(0,0,0,0.12)] rounded-[8px] bg-white hover:bg-[#FF5500] transition-colors cursor-pointer">
               <div className="text-[rgba(255,85,0,1)] group-hover:text-white text-[15px] font-[300] transition-colors">+</div>
-              <div className="font-geist text-[rgba(255,85,0,1)] group-hover:text-white text-[13px] md:text-[14px] font-[500] transition-colors">
+              <div className="text-[rgba(255,85,0,1)] group-hover:text-white text-[13px] md:text-[14px] font-[500] transition-colors">
                 Create Account
               </div>
             </button>
@@ -107,7 +107,7 @@ const Page = () => {
                 <Image src={Svg.upload} alt="upload" fill objectFit="contain" />
               </div>
             </div>
-            <div className="text-[18px] md:text-[22px] font-geist font-[600] tracking-[-0.02em] text-[#111]">
+            <div className="text-[18px] md:text-[22px] font-[600] tracking-[-0.02em] text-[#111]">
               Load Existing Account
             </div>
             <div className="text-[13px] md:text-[14px] font-[400] text-[#000] leading-relaxed mt-2 mb-6 bg-[#f9f9f9] px-3 py-1.5 rounded-[4px]">
@@ -119,7 +119,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   1
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Enter existing multisig account address
                 </div>
               </div>
@@ -128,7 +128,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   2
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Connect your wallet
                 </div>
               </div>
@@ -137,7 +137,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   3
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Verify you&apos;re authorized as a signer to sign transactions
                 </div>
               </div>
@@ -146,7 +146,7 @@ const Page = () => {
                 <span className="shrink-0 mt-[2px] rounded-full w-[20px] h-[20px] bg-[rgba(255,85,0,1)] text-white flex items-center justify-center text-[10px] font-[500]">
                   4
                 </span>
-                <div className="text-[14px] font-geist font-[400] text-[#333] leading-[1.5]">
+                <div className="text-[14px] font-[400] text-[#333] leading-[1.5]">
                   Access account dashboard and transaction history
                 </div>
               </div>
@@ -161,13 +161,13 @@ const Page = () => {
                   objectFit="contain"
                 />
               </div>
-              <div className="font-geist text-[rgba(255,85,0,1)] group-hover:text-white text-[13px] md:text-[14px] font-[500] transition-colors">
+              <div className="text-[rgba(255,85,0,1)] group-hover:text-white text-[13px] md:text-[14px] font-[500] transition-colors">
                 Load Existing Account
               </div>
             </button>
           </div>
         </div>
-        <div className="text-center text-[13px] md:text-[14px] uppercase font-[400] font-geist text-[rgba(0,0,0,0.5)] pb-[20px] md:pb-0">
+        <div className="text-center text-[13px] md:text-[14px] uppercase font-[400] text-[rgba(0,0,0,0.5)] pb-[20px] md:pb-0">
           POWERED BY INICIO LABS & MIDEN
         </div>
         {/* Footer */}
@@ -181,7 +181,7 @@ const Page = () => {
             <div className="relative w-[13px] h-[13px]">
               <Image src={Svg.logo} alt="logo" fill objectFit="contain" />
             </div>
-            <div className="font-geist text-[13px] md:text-[15px] font-[500] tracking-[-3%] uppercase">
+            <div className="text-[13px] md:text-[15px] font-[500] tracking-[-3%] uppercase">
               miden
             </div>
           </a>
