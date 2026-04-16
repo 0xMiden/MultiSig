@@ -20,11 +20,11 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
   };
 
   return (
-    <div className="flex flex-col gap-2 border-[0.5px] border-[#00000033] p-4 font-dmmono w-full">
+    <div className="flex flex-col gap-2 border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4 font-geist w-full">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div className="#00000099 font-[500] text-[#00000099] text-[16px]">
-          TOKEN HOLDINGS
+        <div className="font-[500] text-[#00000099] text-[16px]">
+          Token Holdings
         </div>
       </div>
 
@@ -34,16 +34,16 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
           <div className="flex items-center justify-center py-8">
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 border-2 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-black font-dmmono text-[12px]">Loading tokens...</span>
+              <span className="text-black font-geist text-[12px]">Loading tokens...</span>
             </div>
           </div>
         ) : fungibleAssets.length === 0 ? (
           <div className="flex items-center justify-center py-8">
-            <span className="text-gray-500 font-dmmono text-[12px]">No tokens available</span>
+            <span className="text-gray-500 font-geist text-[12px]">No tokens available</span>
           </div>
         ) : (
           fungibleAssets.map((asset, index) => (
-            <div key={index} className="bg-white border border-gray-200 py-3 px-4 flex items-center justify-between">
+            <div key={index} className="bg-white border border-[rgba(0,0,0,0.08)] rounded-[8px] py-3 px-4 flex items-center justify-between">
               {/* Left Side - Token Info */}
               <div className="flex items-center space-x-3">
                 {/* Token Icon */}
@@ -55,12 +55,12 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
                 />
 
                 {/* Token Details */}
-                <div className="flex flex-col font-dmmono">
+                <div className="flex flex-col font-geist">
                   <div className="flex gap-2 items-center">
-                    <div className="font-[500] text-[12px] text-black uppercase">
+                    <div className="font-[500] text-[12px] text-black">
                       MID{index + 1}
                     </div>
-                    <div className="text-[8px] text-[#0000007D] font-bold font-dmmono">Miden Token</div>
+                    <div className="text-[8px] text-[#0000007D] font-bold font-geist">Miden Token</div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -88,8 +88,8 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
 
               {/* Right Side - Values */}
               <div className="flex flex-col items-end">
-                <div className="text-[12px] font-bold text-[#000000] font-dmmono">{asset.balance/1000000}</div>
-                <div className="text-[8px] text-[#000000] font-dmmono">{asset.balance/1000000} USD</div>
+                <div className="text-[12px] font-bold text-[#000000] font-geist">{asset.balance/1000000}</div>
+                <div className="text-[8px] text-[#000000] font-geist">{asset.balance/1000000} USD</div>
               </div>
             </div>
           ))

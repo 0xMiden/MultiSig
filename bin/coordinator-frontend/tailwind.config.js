@@ -12,10 +12,14 @@ module.exports = {
       colors: {
         background: 'var(--background)',
         foreground: 'var(--foreground)',
+        brand: '#FF5500',
+        ink: '#111',
+        'border-soft': 'rgba(0,0,0,0.08)',
       },
       fontFamily: {
         'dbmono': ['DB Mono', 'monospace'],
-        'dmmono': ['var(--font-dm-mono)', 'monospace'],  // Add this line here
+        'dmmono': ['var(--font-dm-mono)', 'monospace'],
+        'geist': ['var(--font-geist-sans)', 'sans-serif'],
           },
       keyframes: {
         'fade-in': {

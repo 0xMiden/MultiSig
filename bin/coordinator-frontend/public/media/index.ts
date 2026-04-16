@@ -5,6 +5,7 @@ import transactionsIcon from "./Sidebar/transactionsIcon.svg"
 import assetsIcon from "./Sidebar/assetsIcon.svg"
 import assetValIcon from "./home/circum_dollar.svg"
 import actionIcon from "./home/fluent_sparkle-action-24-regular.svg"
+import gridOverviewIcon from "./home/grid_overview.svg"
 import sendIcon from "./pendingActions/Vector (2).svg"
 import redSquareIcon from "./pendingActions/Rectangle 24.svg"
 import peopleIcon from "./pendingActions/material-symbols-light_group-outline.svg"
@@ -20,6 +21,6 @@ import arrow from "./interactions/lets-icons_line-out.svg"
 import tokenIcon from "./assets/Rectangle 25.svg"
 import userIcon from "./pendingActions/Vector (4).svg"
 import receiveIcon from "./Vector (5).svg"
-const media = { greyBox, HomeIcon, settingsIcon, transactionsIcon, assetsIcon, assetValIcon, actionIcon, sendIcon, redSquareIcon, peopleIcon, sentDash, totalTransactionsIcon, thisMonthIcon, searchIcon, signer1, signer2, signer3, warningIcon, arrow, tokenIcon, userIcon, receiveIcon }
+const media = { greyBox, HomeIcon, settingsIcon, transactionsIcon, assetsIcon, assetValIcon, actionIcon, gridOverviewIcon, sendIcon, redSquareIcon, peopleIcon, sentDash, totalTransactionsIcon, thisMonthIcon, searchIcon, signer1, signer2, signer3, warningIcon, arrow, tokenIcon, userIcon, receiveIcon }
 
 export default media
