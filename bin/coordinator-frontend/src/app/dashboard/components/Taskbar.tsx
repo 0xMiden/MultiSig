@@ -70,17 +70,17 @@ const TaskBar: React.FC<TaskBarProps> = () => {
         <div className="w-[220px] flex items-center justify-center shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-[8px] bg-[#DFD8D3] flex items-center justify-center shrink-0">
-            <span className="text-[13px] font-geist font-[600] text-[#FF5500]">
+            <span className="text-[13px] font-[600] text-[#FF5500]">
               {walletName.slice(0, 1).toUpperCase()}
             </span>
           </div>
           <div className="flex flex-col">
-            <div className="text-[13px] text-[#111] font-geist font-[600]">
+            <div className="text-[13px] text-[#111] font-[600]">
               {walletName}
             </div>
             <div className="flex items-center gap-1.5">
               <div
-                className="text-[11px] text-[rgba(0,0,0,0.5)] font-geist font-[400] cursor-help"
+                className="text-[11px] text-[rgba(0,0,0,0.5)] font-[400] cursor-help"
                 title={accountId || "No Account ID"}
               >
                 {accountId ? truncateHex(accountId, 8, 6) : "No Account"}
@@ -111,7 +111,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
           <div className="relative">
             <button
               onClick={() => { setShowPsmEditor(!showPsmEditor); setPsmUrlDraft(psmUrl); }}
-              className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-geist font-[500] transition-colors ${
+              className={`flex items-center gap-1.5 h-8 px-3 rounded-full text-[11px] font-[500] transition-colors ${
                 psmStatus === 'connected'
                   ? 'bg-[rgba(46,161,80,0.08)] text-[rgba(46,161,80,1)] hover:bg-[rgba(46,161,80,0.12)]'
                   : psmStatus === 'connecting'
@@ -129,23 +129,23 @@ const TaskBar: React.FC<TaskBarProps> = () => {
             {/* PSM Endpoint Editor Popover */}
             {showPsmEditor && (
               <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg p-3 w-[320px]">
-                <div className="text-[10px] font-geist font-[500] mb-1">PSM Endpoint</div>
+                <div className="text-[10px] font-[500] mb-1">PSM Endpoint</div>
                 <input
                   type="text"
                   value={psmUrlDraft}
                   onChange={(e) => setPsmUrlDraft(e.target.value)}
-                  className="w-full text-[11px] font-geist border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-[#FF5500]"
+                  className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-[#FF5500]"
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={handlePsmReconnect}
-                    className="flex-1 bg-[#FF5500] text-white text-[10px] font-geist px-2 py-1 rounded hover:bg-[#E04A00] transition-colors"
+                    className="flex-1 bg-[#FF5500] text-white text-[10px] px-2 py-1 rounded hover:bg-[#E04A00] transition-colors"
                   >
                     RECONNECT
                   </button>
                   <button
                     onClick={() => setShowPsmEditor(false)}
-                    className="flex-1 border border-gray-200 text-[10px] font-geist px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+                    className="flex-1 border border-gray-200 text-[10px] px-2 py-1 rounded hover:bg-gray-50 transition-colors"
                   >
                     CANCEL
                   </button>
@@ -158,7 +158,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
           <div className="flex items-center h-8 bg-[rgba(245,245,245,1)] rounded-[8px] p-0.5">
             <button
               onClick={() => setWalletSource('local')}
-              className={`flex items-center px-3 h-full text-[11px] font-geist font-[500] rounded-[6px] transition-all ${
+              className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                 walletSource === 'local'
                   ? 'bg-white text-[#FF5500] shadow-sm'
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
@@ -174,7 +174,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   openParaModal();
                 }
               }}
-              className={`flex items-center px-3 h-full text-[11px] font-geist font-[500] rounded-[6px] transition-all ${
+              className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                 walletSource === 'para'
                   ? 'bg-white text-[#FF5500] shadow-sm'
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
@@ -190,7 +190,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   connectMidenWallet();
                 }
               }}
-              className={`flex items-center px-3 h-full text-[11px] font-geist font-[500] rounded-[6px] transition-all ${
+              className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                 walletSource === 'miden-wallet'
                   ? 'bg-white text-[#FF5500] shadow-sm'
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
@@ -207,7 +207,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
           <div className="relative">
             <button
               onClick={() => setShowSignerKeys(!showSignerKeys)}
-              className="flex items-center gap-2 h-8 px-3 text-[11px] font-geist font-[500] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors"
+              className="flex items-center gap-2 h-8 px-3 text-[11px] font-[500] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors"
               title={activeCommitment || "No commitment"}
             >
               <span className="text-[rgba(0,0,0,0.5)]">{activeScheme.toUpperCase()}</span>
@@ -217,12 +217,12 @@ const TaskBar: React.FC<TaskBarProps> = () => {
             {/* Signer Keys Popover */}
             {showSignerKeys && signer && (
               <div className="absolute top-full right-0 mt-1 z-50 bg-white border border-gray-200 rounded shadow-lg p-3 w-[360px]">
-                <div className="text-[10px] font-geist font-[500] mb-2">Local Signer Keys</div>
+                <div className="text-[10px] font-[500] mb-2">Local Signer Keys</div>
                 <div className="space-y-2">
                   <div>
-                    <div className="text-[9px] font-geist text-gray-500">Falcon Commitment</div>
+                    <div className="text-[9px] text-gray-500">Falcon Commitment</div>
                     <div
-                      className="text-[10px] font-geist bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => copyToClipboard(signer.falcon.commitment, () => toast.success("Falcon commitment copied"))}
                       title="Click to copy"
                     >
@@ -230,9 +230,9 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] font-geist text-gray-500">ECDSA Commitment</div>
+                    <div className="text-[9px] text-gray-500">ECDSA Commitment</div>
                     <div
-                      className="text-[10px] font-geist bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => copyToClipboard(signer.ecdsa.commitment, () => toast.success("ECDSA commitment copied"))}
                       title="Click to copy"
                     >
@@ -242,7 +242,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 </div>
                 <button
                   onClick={() => setShowSignerKeys(false)}
-                  className="mt-2 w-full text-[9px] font-geist border border-gray-200 rounded py-1 hover:bg-gray-50"
+                  className="mt-2 w-full text-[9px] border border-gray-200 rounded py-1 hover:bg-gray-50"
                 >
                   CLOSE
                 </button>
@@ -255,7 +255,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
             <button
               onClick={handleSync}
               disabled={syncingState}
-              className="flex items-center h-8 px-3 text-[11px] font-geist font-[500] text-[#111] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors disabled:opacity-50"
+              className="flex items-center h-8 px-3 text-[11px] font-[500] text-[#111] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors disabled:opacity-50"
               title="Sync state"
             >
               {syncingState ? (

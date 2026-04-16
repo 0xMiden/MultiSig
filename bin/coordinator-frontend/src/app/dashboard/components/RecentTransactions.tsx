@@ -26,13 +26,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
     <div className="flex flex-col gap-2 w-full border rounded-[10px] p-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div className="text-[16px] font-geist font-[500] text-[#00000099]">
+        <div className="text-[16px] font-[500] text-[#00000099]">
           Recent Transactions
         </div>
         {fixedHeight && (
           <button
             onClick={handleViewAll}
-            className="text-[10px] font-geist font-[500] text-[#000000] italic hover:text-[#FF5500] transition-colors cursor-pointer"
+            className="text-[10px] font-[500] text-[#000000] italic hover:text-[#FF5500] transition-colors cursor-pointer"
           >
             View all
           </button>
@@ -54,7 +54,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
-              <p className="text-[#00000099] font-geist text-sm font-[400]">
+              <p className="text-[#00000099] text-sm font-[400]">
                 Syncing...
               </p>
             </div>
@@ -101,13 +101,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="flex w-[15%] space-x-1 flex-row items-center justify-center">
-                  <span className="text-[12px] text-[#FF5500] font-geist font-[400]">
+                  <span className="text-[12px] text-[#FF5500] font-[400]">
                     {sigCount}/{propThreshold} signed
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
-                <div className="w-[10%] text-center text-[12px] font-geist font-[400]">
-                  <span className={`text-[10px] font-geist whitespace-nowrap ${
+                <div className="w-[10%] text-center text-[12px] font-[400]">
+                  <span className={`text-[10px] whitespace-nowrap ${
                     isExecuted ? "text-[#28A857]" : "text-[#FF5500]"
                   }`}>
                     {isExecuted ? "Executed" : "Pending"}
@@ -134,10 +134,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 />
               </svg>
             </div>
-            <p className="text-gray-500 font-geist text-sm font-[400]">
+            <p className="text-gray-500 text-sm font-[400]">
               No recent transactions
             </p>
-            <p className="text-gray-400 font-geist text-xs font-[400] mt-1">
+            <p className="text-gray-400 text-xs font-[400] mt-1">
               Your transaction history will appear here
             </p>
           </div>

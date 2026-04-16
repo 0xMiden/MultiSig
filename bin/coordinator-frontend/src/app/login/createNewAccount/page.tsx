@@ -247,7 +247,7 @@ const CreateNewAccount = () => {
                   return (
                     <div
                       key={step}
-                      className={`flex items-center justify-center rounded-full font-geist font-[500] transition-all duration-300 lg:w-[30px] lg:h-[30px] md:w-[28px] md:h-[28px] w-[26px] h-[26px] lg:text-[12px] text-[11px] shrink-0 ${
+                      className={`flex items-center justify-center rounded-full font-[500] transition-all duration-300 lg:w-[30px] lg:h-[30px] md:w-[28px] md:h-[28px] w-[26px] h-[26px] lg:text-[12px] text-[11px] shrink-0 ${
                         isActive
                           ? 'bg-[#FF5500] text-white shadow-[0_0_0_4px_rgba(255,85,0,0.12)]'
                           : isCompleted
@@ -304,7 +304,7 @@ const CreateNewAccount = () => {
                 </div>
 
                 <div className="w-full flex flex-col lg:space-y-2 md:space-y-1.5 sm:space-y-1 space-y-0.5 ">
-                  <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                  <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                     Account Name
                   </div>
                   <input
@@ -313,13 +313,13 @@ const CreateNewAccount = () => {
                     onChange={(e) =>
                       handleInputChange("walletName", e.target.value)
                     }
-                    className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-geist font-[400] text-[13px]"
+                    className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-[400] text-[13px]"
                   />
                 </div>
 
                 <div className="w-full flex flex-col md:flex-row lg:space-x-8 md:space-x-7 sm:space-y-6 space-y-5 md:space-y-0">
                   <div className="w-full flex flex-col lg:space-y-2 md:space-y-1.5 sm:space-y-1 space-y-0.5">
-                    <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                    <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                       Signature Threshold
                     </div>
                     <input
@@ -345,12 +345,12 @@ const CreateNewAccount = () => {
                         }))
                       }
                       placeholder="Enter number of signatures required"
-                      className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-geist font-[400] text-[13px]"
+                      className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-[400] text-[13px]"
                     />
                   </div>
 
                   <div className="w-full flex flex-col lg:space-y-2 md:space-y-1.5 sm:space-y-1 space-y-0.5">
-                    <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                    <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                       Total Signers
                     </div>
                     <input
@@ -376,27 +376,27 @@ const CreateNewAccount = () => {
                         }))
                       }
                       placeholder="Enter number of signers"
-                      className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-geist font-[400] text-[13px]"
+                      className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[40px] rounded-[6px] px-3 font-[400] text-[13px]"
                     />
                   </div>
                 </div>
 
                 {/* Validation Error Display */}
                 {thresholdError && (
-                  <div className="w-full text-red-600 font-geist text-[12px] mt-2">
+                  <div className="w-full text-red-600 text-[12px] mt-2">
                     {thresholdError}
                   </div>
                 )}
 
                 <div className="w-full flex flex-col lg:space-y-2 md:space-y-1.5 sm:space-y-1 space-y-0.5">
-                  <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                  <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                     Network
                   </div>
                   <input
                     type="text"
                     value={formData.network}
                     disabled
-                    className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] px-3 h-[40px] rounded-[6px] text-[rgba(0,0,0,0.48)] font-geist font-[400] text-[13px] cursor-not-allowed"
+                    className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] px-3 h-[40px] rounded-[6px] text-[rgba(0,0,0,0.48)] font-[400] text-[13px] cursor-not-allowed"
                   />
                 </div>
               </motion.div>
@@ -450,16 +450,16 @@ const CreateNewAccount = () => {
                       >
                         {activeSignerIndex === 0 ? (
                           <>
-                            <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                            <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                               Signer 1 — {walletSourceLabel}
                             </div>
-                            <div className="bg-[rgba(245,245,245,1)] w-full lg:min-h-[56px] md:min-h-[52px] sm:min-h-[48px] min-h-[40px] flex items-center border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 py-2 font-geist font-[500] text-[10px] text-[rgba(0,0,0,0.55)] break-all">
+                            <div className="bg-[rgba(245,245,245,1)] w-full lg:min-h-[56px] md:min-h-[52px] sm:min-h-[48px] min-h-[40px] flex items-center border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 py-2 font-[500] text-[10px] text-[rgba(0,0,0,0.55)] break-all">
                               {activeCommitment || 'Generating keys...'}
                             </div>
                           </>
                         ) : (
                           <>
-                            <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-geist font-[500] text-[#111]">
+                            <div className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
                               Signer {activeSignerIndex + 1} Commitment
                             </div>
                             <div className="flex items-center gap-1">
@@ -475,7 +475,7 @@ const CreateNewAccount = () => {
                                   )
                                 }
                                 placeholder="0x..."
-                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-geist font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
                               />
                               {formData.signerAddresses.length > 1 && (
                                 <button
@@ -536,14 +536,14 @@ const CreateNewAccount = () => {
                   <button
                     onClick={handleAddSignerAddress}
                     disabled={!canAddSigner}
-                    className="bg-[rgba(255,85,0,1)] flex items-center justify-center w-[90%] lg:h-[56px] md:h-[52px] sm:h-[48px] h-[44px] mx-auto rounded-[8px] font-geist font-[500] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-[rgba(255,85,0,1)] flex items-center justify-center w-[90%] lg:h-[56px] md:h-[52px] sm:h-[48px] h-[44px] mx-auto rounded-[8px] font-[500] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {canAddSigner
                       ? "Add Another Signer"
                       : "Max Signers Reached"}
                   </button>
 
-                  <div className="lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] w-[80%] mx-auto font-geist text-center leading-relaxed">
+                  <div className="lg:text-[12px] md:text-[11px] sm:text-[10px] text-[9.5px] w-[80%] mx-auto text-center leading-relaxed">
                     Security Note: Each signer should verify their commitment is
                     correct. Incorrect commitments cannot be easily changed
                     after deployment.
@@ -653,7 +653,7 @@ const CreateNewAccount = () => {
                       )}
                     </div>
                   </div>
-                  <div className="w-full text-[12px] font-geist font-[400] text-[rgba(0,0,0,0.55)] mt-4">
+                  <div className="w-full text-[12px] font-[400] text-[rgba(0,0,0,0.55)] mt-4">
                     Important: Once deployed, these settings cannot be changed.
                     Please ensure all information is correct before proceeding.
                   </div>
@@ -712,13 +712,13 @@ const CreateNewAccount = () => {
                     </div>
                   </div>
 
-                  <div className="w-full lg:text-[13px] text-[12px] font-geist font-[400] text-[rgba(0,0,0,0.55)] mt-4 leading-relaxed">
+                  <div className="w-full lg:text-[13px] text-[12px] font-[400] text-[rgba(0,0,0,0.55)] mt-4 leading-relaxed">
                     Once deployed, these settings cannot be changed. Please ensure all information is correct before proceeding.
                   </div>
 
                   {/* Error Display */}
                   {creationError && (
-                    <div className="w-full text-[12px] font-geist font-[400] mt-4 text-red-600">
+                    <div className="w-full text-[12px] font-[400] mt-4 text-red-600">
                       Error: {creationError}
                     </div>
                   )}
@@ -731,7 +731,7 @@ const CreateNewAccount = () => {
           <div className="w-full lg:h-[56px] md:h-[52px] sm:h-[48px] h-[44px] flex flex-row gap-3">
             <button
               onClick={handlePrevious}
-              className="flex-1 bg-white border border-[rgba(0,0,0,0.15)] rounded-[8px] h-full font-geist font-[500] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-[#111] hover:bg-[rgba(0,0,0,0.03)] transition-colors"
+              className="flex-1 bg-white border border-[rgba(0,0,0,0.15)] rounded-[8px] h-full font-[500] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-[#111] hover:bg-[rgba(0,0,0,0.03)] transition-colors"
             >
               Previous
             </button>
@@ -749,7 +749,7 @@ const CreateNewAccount = () => {
                     filledSignersCount < totalSignersNum ||
                     filledPublicKeysCount < totalSignersNum))
               }
-              className="flex-1 bg-[rgba(255,85,0,1)] rounded-[8px] h-full font-[500] font-geist lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-[rgba(255,85,0,1)] rounded-[8px] h-full font-[500] lg:text-[14px] md:text-[13px] sm:text-[12px] text-[11px] text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {currentStep === 4
                 ? isCreating

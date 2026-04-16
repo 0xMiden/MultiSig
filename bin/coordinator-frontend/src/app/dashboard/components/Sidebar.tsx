@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
             </div>
             {!collapsed && (
               <div
-                className={`text-[13px] font-geist font-[500] whitespace-nowrap ${
+                className={`text-[13px] font-[500] whitespace-nowrap ${
                   isActive(page.path) ? "text-[#FF5500]" : "text-[#111]"
                 }`}
               >
@@ -112,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
             </svg>
           </div>
           {!collapsed && (
-            <div className="text-[13px] font-geist font-[500] whitespace-nowrap text-gray-700 hover:text-red-500">
+            <div className="text-[13px] font-[500] whitespace-nowrap text-gray-700 hover:text-red-500">
               Logout
             </div>
           )}
