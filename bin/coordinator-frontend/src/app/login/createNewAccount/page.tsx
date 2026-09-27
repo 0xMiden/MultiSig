@@ -1,13 +1,9 @@
 "use client";
-import Image from "next/image";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import Svg from "../../../../public/svg";
 import { useWalletForm } from "../../../hooks/useWalletForm";
-import { useAuth } from "../../../hooks/useAuth";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { truncateHex } from "@/lib/helpers";
 import { toast } from "sonner";
 
 // Force dynamic rendering to avoid WASM loading issues during build
@@ -15,8 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const CreateNewAccount = () => {
   const router = useRouter();
-  const { setWalletId } = useAuth();
-  const { handleCreate, creating, activeScheme, activeCommitment, walletSource, error: multisigError } = useMultisig();
+  const { handleCreate, activeScheme, activeCommitment, walletSource, error: multisigError } = useMultisig();
   const {
     formData,
     currentStep,
@@ -125,10 +120,6 @@ const CreateNewAccount = () => {
     updateField("totalSigners", value);
   };
 
-  const handleSignerAddressChange = (index: number, value: string) => {
-    updateSigner(index, value);
-  };
-
   const handleSignerPublicKeyChange = (index: number, value: string) => {
     updateSignerPublicKeyField(index, value);
     // Auto-sync address from commitment (they're the same value)
@@ -150,7 +141,6 @@ const CreateNewAccount = () => {
   };
 
   const [activeSignerIndex, setActiveSignerIndex] = useState(0);
-  const [step3ScrollTop, setStep3ScrollTop] = useState(0);
   const step3ScrollRef = useRef<HTMLDivElement>(null);
 
   const [showTooltip, setShowTooltip] = useState(false);
@@ -200,9 +190,6 @@ const CreateNewAccount = () => {
 
   const handleJumpToSigner = (index: number) => {
     setActiveSignerIndex(index);
-  };
-  const handleStep3Scroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setStep3ScrollTop(e.currentTarget.scrollTop);
   };
   const handleCreateWallet = async () => {
     setIsCreating(true);
@@ -553,7 +540,7 @@ const CreateNewAccount = () => {
                                   )
                                 }
                                 placeholder="0x..."
-                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                                className="bg-[rgba(245,245,245,1)] w-full lg:h-[44px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 font-[500] text-[12px] focus:outline-hidden focus:ring-2 focus:ring-[#FF5500]/60"
                               />
                               {formData.signerAddresses.length > 1 && (
                                 <button
@@ -702,7 +689,6 @@ const CreateNewAccount = () => {
                     </div>
                     <div
                       ref={step3ScrollRef}
-                      onScroll={handleStep3Scroll}
                       style={{ paddingBottom: "10px" }}
                       className="w-full max-h-[110px] overflow-y-auto space-y-2 scrollbar-thin pr-1 select-none"
                     >
@@ -795,9 +781,9 @@ const CreateNewAccount = () => {
                   </div>
 
                   {/* Error Display */}
-                  {creationError && (
-                    <div className="w-full text-[12px] font-[400] mt-4 text-red-600">
-                      Error: {creationError}
+                  {(creationError || multisigError) && (
+                    <div role="alert" className="w-full text-[12px] font-[400] mt-4 text-red-600">
+                      Error: {creationError || multisigError}
                     </div>
                   )}
                 </div>

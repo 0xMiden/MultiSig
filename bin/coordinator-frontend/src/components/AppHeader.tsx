@@ -65,7 +65,7 @@ export function AppHeader() {
         <div className="relative" ref={walletRef}>
           <button
             onClick={() => setWalletPopoverOpen(!walletPopoverOpen)}
-            className={`px-3 py-1 border rounded text-[11px] font-[500] uppercase transition-colors ${
+            className={`px-3 py-1 border rounded-sm text-[11px] font-[500] uppercase transition-colors ${
               (paraSession.connected || midenWalletSession.connected)
                 ? 'border-[#FF5500] text-[#FF5500] hover:bg-[#FF5500]/5'
                 : 'border-[#00000033] hover:border-[#FF5500]'
@@ -78,13 +78,13 @@ export function AppHeader() {
             {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
           {walletPopoverOpen && (
-            <div className="absolute right-0 top-full mt-1 w-[280px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
+            <div className="absolute right-0 top-full mt-1 w-[280px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
               <div className="text-[12px] font-[500] mb-2">WALLET SOURCE</div>
               <div className="flex flex-col gap-1.5">
                 {process.env.NODE_ENV !== 'production' && (
                   <button
                     onClick={() => { setWalletSource('local'); setWalletPopoverOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[11px] rounded border ${
+                    className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border ${
                       walletSource === 'local' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                     }`}
                   >
@@ -95,7 +95,7 @@ export function AppHeader() {
                 {paraSession.connected ? (
                   <button
                     onClick={() => { setWalletSource('para'); setWalletPopoverOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[11px] rounded border ${
+                    className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border ${
                       walletSource === 'para' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                     }`}
                   >
@@ -104,7 +104,7 @@ export function AppHeader() {
                 ) : (
                   <button
                     onClick={() => { openParaModal(); setWalletPopoverOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-[11px] rounded border border-[#00000019] hover:border-[#FF5500]"
+                    className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
                     CONNECT PARA WALLET
                   </button>
@@ -122,7 +122,7 @@ export function AppHeader() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => { setWalletSource('miden-wallet'); setWalletPopoverOpen(false); }}
-                      className={`flex-1 text-left px-3 py-2 text-[11px] rounded border ${
+                      className={`flex-1 text-left px-3 py-2 text-[11px] rounded-sm border ${
                         walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                       }`}
                     >
@@ -138,7 +138,7 @@ export function AppHeader() {
                 ) : (
                   <button
                     onClick={() => { connectMidenWallet(); setWalletPopoverOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-[11px] rounded border border-[#00000019] hover:border-[#FF5500]"
+                    className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
                     CONNECT MIDEN WALLET
                   </button>
@@ -163,19 +163,19 @@ export function AppHeader() {
           <div className="relative" ref={keysRef}>
             <button
               onClick={() => setKeysPopoverOpen(!keysPopoverOpen)}
-              className="px-3 py-1 border border-[#00000033] rounded text-[11px] font-[500] uppercase hover:border-[#FF5500] transition-colors"
+              className="px-3 py-1 border border-[#00000033] rounded-sm text-[11px] font-[500] uppercase hover:border-[#FF5500] transition-colors"
             >
               KEYS ({activeScheme})
             </button>
             {keysPopoverOpen && (
-              <div className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
+              <div className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
                 <div className="text-[12px] font-[500] mb-2">LOCAL SIGNER KEYS</div>
                 <div className="flex flex-col gap-2">
                   {multisig?.accountId && (
                     <div>
                       <div className="text-[9px] text-gray-400 mb-0.5">Account Address</div>
                       <div
-                        className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                        className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                         onClick={() => handleCopy(multisig.accountId, 'Account address')}
                         title="Click to copy"
                       >
@@ -185,7 +185,7 @@ export function AppHeader() {
                   )}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-[10px] rounded ${
+                      <span className={`px-2 py-0.5 text-[10px] rounded-sm ${
                         activeScheme === 'falcon' && walletSource === 'local' ? 'bg-[#FF5500] text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
                         FALCON
@@ -195,7 +195,7 @@ export function AppHeader() {
                       )}
                     </div>
                     <div
-                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => handleCopy(signer.falcon.commitment, 'Falcon commitment')}
                       title="Click to copy"
                     >
@@ -204,7 +204,7 @@ export function AppHeader() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-[10px] rounded ${
+                      <span className={`px-2 py-0.5 text-[10px] rounded-sm ${
                         activeScheme === 'ecdsa' && walletSource === 'local' ? 'bg-[#FF5500] text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
                         ECDSA
@@ -214,7 +214,7 @@ export function AppHeader() {
                       )}
                     </div>
                     <div
-                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => handleCopy(signer.ecdsa.commitment, 'ECDSA commitment')}
                       title="Click to copy"
                     >
@@ -232,7 +232,7 @@ export function AppHeader() {
         <div className="relative" ref={guardianRef}>
           <button
             onClick={() => setGuardianPopoverOpen(!guardianPopoverOpen)}
-            className={`px-3 py-1 rounded text-[11px] font-[500] uppercase transition-colors ${
+            className={`px-3 py-1 rounded-sm text-[11px] font-[500] uppercase transition-colors ${
               guardianStatus === 'connected'
                 ? 'bg-green-600 text-white hover:bg-green-700'
                 : guardianStatus === 'connecting'
@@ -243,7 +243,7 @@ export function AppHeader() {
             GUARDIAN {guardianStatus === 'connected' ? '●' : guardianStatus === 'connecting' ? '◐' : '○'}
           </button>
           {guardianPopoverOpen && (
-            <div className="absolute right-0 top-full mt-1 w-[320px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
+            <div className="absolute right-0 top-full mt-1 w-[320px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
               <div className="text-[12px] font-[500] mb-1">GUARDIAN CONFIGURATION</div>
               <div className="text-[10px] text-gray-500 mb-3">
                 {guardianStatus === 'connected' ? 'Connected to Guardian server' :
@@ -255,12 +255,12 @@ export function AppHeader() {
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   placeholder="https://guardian-stg.openzeppelin.com"
-                  className="w-full px-2 py-1.5 border border-[#00000019] rounded text-[11px] focus:outline-none focus:border-[#FF5500]"
+                  className="w-full px-2 py-1.5 border border-[#00000019] rounded-sm text-[11px] focus:outline-hidden focus:border-[#FF5500]"
                 />
               </div>
               <button
                 onClick={handleGuardianSave}
-                className="px-3 py-1.5 bg-[#FF5500] text-white text-[11px] rounded hover:bg-[#E04A00] transition-colors"
+                className="px-3 py-1.5 bg-[#FF5500] text-white text-[11px] rounded-sm hover:bg-[#E04A00] transition-colors"
               >
                 SAVE & RECONNECT
               </button>

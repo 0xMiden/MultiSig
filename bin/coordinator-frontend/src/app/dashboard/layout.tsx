@@ -9,6 +9,7 @@ import ReceiveModal from "./home/components/ReceiveModal";
 import { DashboardUIProvider, useDashboardUI } from "@/contexts/DashboardUIContext";
 import { ChatLauncher, type ActionType } from "medina-agent";
 import "medina-agent/styles.css";
+import AccountStatusBanner from "./components/AccountStatusBanner";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
@@ -64,6 +65,7 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
         </aside>
 
         <main className="flex-1 overflow-y-auto p-4 scrollbar-hidden" style={{ scrollbarGutter: 'stable' }}>
+          <AccountStatusBanner />
           {children}
         </main>
       </div>

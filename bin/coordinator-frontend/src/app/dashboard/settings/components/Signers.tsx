@@ -157,7 +157,7 @@ const Signers = () => {
                   className="flex flex-row items-center gap-3 rounded-[8px] border border-[rgba(0,0,0,0.08)] p-3 bg-white"
                 >
                   {/* Avatar */}
-                  <div className="w-8 h-8 rounded-[8px] bg-[rgba(0,0,0,0.04)] relative flex-shrink-0 overflow-hidden flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-[8px] bg-[rgba(0,0,0,0.04)] relative shrink-0 overflow-hidden flex items-center justify-center">
                     <Image
                       src={signerIcons[index % signerIcons.length]}
                       alt="signer"
@@ -180,7 +180,7 @@ const Signers = () => {
                       </span>
                       <button
                         onClick={() => handleCopy(commitment)}
-                        className="p-1 hover:bg-gray-100 rounded-[4px] transition-colors flex-shrink-0"
+                        className="p-1 hover:bg-gray-100 rounded-[4px] transition-colors shrink-0"
                         title="Copy commitment"
                       >
                         <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,7 +195,7 @@ const Signers = () => {
                     onClick={() => setCommitmentToRemove(commitment)}
                     disabled={!canRemove || creatingProposal}
                     title={canRemove ? "Propose removing this signer" : "Cannot remove the only signer"}
-                    className="flex-shrink-0 px-3 py-1.5 text-[11px] font-[500] rounded-[8px] border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="shrink-0 px-3 py-1.5 text-[11px] font-[500] rounded-[8px] border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     Remove
                   </button>
@@ -227,14 +227,14 @@ const Signers = () => {
             value={newCommitment}
             onChange={(e) => setNewCommitment(e.target.value)}
             placeholder="0x..."
-            className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 font-mono text-[12px] text-[#111] focus:outline-none focus:ring-1 focus:ring-[#FF5500] bg-white placeholder:text-[rgba(0,0,0,0.3)]"
+            className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 font-mono text-[12px] text-[#111] focus:outline-hidden focus:ring-1 focus:ring-[#FF5500] bg-white placeholder:text-[rgba(0,0,0,0.3)]"
           />
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={increaseThreshold}
               onChange={(e) => setIncreaseThreshold(e.target.checked)}
-              className="accent-[#FF5500] w-4 h-4 rounded"
+              className="accent-[#FF5500] w-4 h-4 rounded-sm"
             />
             <span className="text-[12px] font-[400] text-[rgba(0,0,0,0.6)]">
               Also increase threshold ({currentThreshold} → {currentThreshold + 1})

@@ -13,11 +13,44 @@ import {
   type SignatureScheme,
 } from '@openzeppelin/miden-multisig-client';
 import type { Signer } from '@openzeppelin/guardian-client';
-import { AccountId, NoteTag, TransactionSummary, type Note, type MidenClient } from '@miden-sdk/miden-sdk';
+import {
+  AccountId,
+  NoteTag,
+  NoteType,
+  TransactionSummary,
+  type Note,
+  type MidenClient,
+} from '@miden-sdk/miden-sdk';
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
-import { MIDEN_RPC_URL, GUARDIAN_ENDPOINT } from '@/config/psm';
+import { MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+
+const registrationRequests = new Map<string, Promise<void>>();
+
+/**
+ * Registers a locally tracked account through the SDK. The SDK checks whether
+ * the node already allows it before spending an invitation code. On devnet the
+ * registration also requests the public funding note used by its first transaction.
+ */
+export function registerAccountOnNode(
+  midenClient: MidenClient,
+  accountId: string,
+  invitationCode = MIDEN_REGISTRATION_CODE,
+): Promise<void> {
+  const key = accountId.toLowerCase();
+  const existing = registrationRequests.get(key);
+  if (existing) return existing;
+
+  const request = midenClient.accounts.register({
+    account: accountId,
+    invitationCode,
+  });
+
+  registrationRequests.set(key, request);
+  request.finally(() => registrationRequests.delete(key)).catch(() => undefined);
+  return request;
+}
 
 export interface ExternalSignerParams {
   walletSource: WalletSource;
@@ -72,7 +105,10 @@ export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
     .outputNotes()
     .notes()
     .map((note) => note.intoFull())
-    .filter((note): note is Note => note !== undefined);
+    .filter(
+      (note): note is Note =>
+        note !== undefined && note.metadata().noteType() === NoteType.Private,
+    );
 }
 
 /**
@@ -85,8 +121,9 @@ export async function relayPrivateNote(
   midenClient: MidenClient,
   note: Note,
   recipientId: string,
+  scanAfterBlockNum: number,
 ): Promise<void> {
-  await midenClient.notes.sendPrivate({ note, to: recipientId });
+  await midenClient.notes.sendPrivate({ note, to: recipientId, scanAfterBlockNum });
 }
 
 export async function registerAccountNoteTag(
@@ -128,7 +165,6 @@ export async function createMultisigAccount(
     signerCommitments,
     guardianCommitment,
     guardianPublicKey,
-    guardianEnabled: true,
     procedureThresholds,
     storageMode: 'private',
     signatureScheme,

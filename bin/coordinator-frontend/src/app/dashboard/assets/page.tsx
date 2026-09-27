@@ -12,7 +12,10 @@ export const dynamic = 'force-dynamic';
 const Assets = () => {
   const { detectedConfig, syncingState } = useMultisig();
 
-  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+  const vaultBalances = useMemo(
+    () => detectedConfig?.vaultBalances ?? [],
+    [detectedConfig?.vaultBalances],
+  );
 
   const { totalBalance, fungibleAssetsWithPercentage } = useMemo(() => {
     if (vaultBalances.length === 0) {

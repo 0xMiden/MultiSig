@@ -33,7 +33,7 @@ const Security = () => {
             {process.env.NODE_ENV !== 'production' && (
               <button
                 onClick={() => setWalletSource('local')}
-                className={`px-4 py-2 text-[12px] border rounded ${
+                className={`px-4 py-2 text-[12px] border rounded-sm ${
                   walletSource === 'local' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-gray-200 hover:border-[#FF5500]'
                 }`}
               >
@@ -45,7 +45,7 @@ const Security = () => {
                 if (paraSession.connected) setWalletSource('para');
                 else openParaModal();
               }}
-              className={`px-4 py-2 text-[12px] border rounded ${
+              className={`px-4 py-2 text-[12px] border rounded-sm ${
                 walletSource === 'para' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-gray-200 hover:border-[#FF5500]'
               }`}
             >
@@ -56,7 +56,7 @@ const Security = () => {
                 if (midenWalletSession.connected) setWalletSource('miden-wallet');
                 else connectMidenWallet();
               }}
-              className={`px-4 py-2 text-[12px] border rounded ${
+              className={`px-4 py-2 text-[12px] border rounded-sm ${
                 walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-gray-200 hover:border-[#FF5500]'
               }`}
             >
@@ -65,10 +65,10 @@ const Security = () => {
           </div>
 
           {/* Active Commitment */}
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-gray-50 p-3 rounded-sm">
             <div className="text-[10px] text-gray-500 uppercase mb-1">Active Commitment ({activeScheme})</div>
             <div
-              className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded break-all"
+              className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded-sm break-all"
               onClick={() => activeCommitment && handleCopy(activeCommitment)}
               title="Click to copy"
             >
@@ -80,7 +80,7 @@ const Security = () => {
           {midenWalletSession.connected && walletSource === 'miden-wallet' && (
             <button
               onClick={disconnectMidenWallet}
-              className="mt-3 px-4 py-2 text-[12px] border border-red-300 text-red-600 rounded hover:bg-red-50"
+              className="mt-3 px-4 py-2 text-[12px] border border-red-300 text-red-600 rounded-sm hover:bg-red-50"
             >
               DISCONNECT MIDEN WALLET
             </button>
@@ -92,20 +92,20 @@ const Security = () => {
           <div className="border border-gray-200 rounded-[10px] p-6">
             <h3 className="text-[16px] font-[500] mb-4">LOCAL SIGNER KEYS</h3>
             <div className="space-y-3">
-              <div className="bg-gray-50 p-3 rounded">
+              <div className="bg-gray-50 p-3 rounded-sm">
                 <div className="text-[10px] text-gray-500 uppercase mb-1">Falcon Commitment</div>
                 <div
-                  className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded break-all"
+                  className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded-sm break-all"
                   onClick={() => handleCopy(signer.falcon.commitment)}
                   title="Click to copy"
                 >
                   {signer.falcon.commitment}
                 </div>
               </div>
-              <div className="bg-gray-50 p-3 rounded">
+              <div className="bg-gray-50 p-3 rounded-sm">
                 <div className="text-[10px] text-gray-500 uppercase mb-1">ECDSA Commitment</div>
                 <div
-                  className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded break-all"
+                  className="text-[11px] cursor-pointer hover:bg-gray-100 p-1 rounded-sm break-all"
                   onClick={() => handleCopy(signer.ecdsa.commitment)}
                   title="Click to copy"
                 >

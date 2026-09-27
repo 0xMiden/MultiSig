@@ -1,9 +1,10 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toHexAccountId } from "@/lib/helpers";
 import { toast } from "sonner";
+import { useDashboardUI } from "@/contexts/DashboardUIContext";
 
 interface SendModalProps {
   open: boolean;
@@ -11,6 +12,7 @@ interface SendModalProps {
 }
 
 const SendModal = ({ open, onClose }: SendModalProps) => {
+  const { sendProposalDraft, clearSendProposalDraft } = useDashboardUI();
   const {
     handleCreateP2idProposal,
     handleSendPrivateNote,
@@ -25,13 +27,24 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
   const [success, setSuccess] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
 
+  useEffect(() => {
+    if (!open || !sendProposalDraft) return;
+    setFormData({
+      recipientId: sendProposalDraft.recipientId,
+      amount: sendProposalDraft.amount,
+      faucetId: sendProposalDraft.faucetId,
+    });
+    setIsPrivate(sendProposalDraft.isPrivate);
+    clearSendProposalDraft();
+  }, [clearSendProposalDraft, open, sendProposalDraft]);
+
   const isSendingPrivately =
     isPrivate && privateSendProgress.step !== "idle" && privateSendProgress.step !== "error";
 
-  const closeAndReset = () => {
+  const closeAndReset = useCallback(() => {
     resetPrivateSendProgress();
     onClose();
-  };
+  }, [onClose, resetPrivateSendProgress]);
 
   useEffect(() => {
     if (privateSendProgress.step === "done") {
@@ -41,9 +54,12 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [privateSendProgress.step]);
+  }, [closeAndReset, privateSendProgress.step]);
 
-  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+  const vaultBalances = useMemo(
+    () => detectedConfig?.vaultBalances ?? [],
+    [detectedConfig?.vaultBalances],
+  );
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
 
@@ -87,6 +103,9 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
         >
           <motion.div
             key="send-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="send-funds-title"
             onClick={e => e.stopPropagation()}
             initial={{ y: 8, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
@@ -96,11 +115,13 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(0,0,0,0.06)]">
-              <div className="text-[16px] font-[600] text-[#111]">
+              <div id="send-funds-title" className="text-[16px] font-[600] text-[#111]">
                 Send Funds
               </div>
               <button
+                type="button"
                 onClick={closeAndReset}
+                aria-label="Close send funds"
                 className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-gray-100 text-[rgba(0,0,0,0.4)] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -112,7 +133,7 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
             {/* Body */}
             <div className="px-5 py-4 flex flex-col gap-4">
               {(error || privateSendProgress.error) && (
-                <div className="rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
+                <div role="alert" className="rounded-[8px] border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-600">
                   {error || privateSendProgress.error}
                 </div>
               )}
@@ -164,7 +185,7 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
                   value={formData.recipientId}
                   onChange={e => setFormData(p => ({ ...p, recipientId: e.target.value }))}
                   placeholder="0x..."
-                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 font-mono text-[12px] text-[#111] placeholder:text-[rgba(0,0,0,0.3)] focus:outline-none focus:ring-1 focus:ring-[#FF5500] bg-white"
+                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 font-mono text-[12px] text-[#111] placeholder:text-[rgba(0,0,0,0.3)] focus:outline-hidden focus:ring-1 focus:ring-[#FF5500] bg-white"
                 />
               </div>
 
@@ -176,7 +197,7 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
                 <select
                   value={formData.faucetId}
                   onChange={e => setFormData(p => ({ ...p, faucetId: e.target.value }))}
-                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 text-[12px] text-[#111] focus:outline-none focus:ring-1 focus:ring-[#FF5500] bg-white"
+                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 text-[12px] text-[#111] focus:outline-hidden focus:ring-1 focus:ring-[#FF5500] bg-white"
                 >
                   <option value="">Select token…</option>
                   {vaultBalances.map((b, i) => (
@@ -202,7 +223,7 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
                   value={formData.amount}
                   onChange={e => setFormData(p => ({ ...p, amount: e.target.value }))}
                   placeholder="0.00"
-                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 text-[12px] text-[#111] placeholder:text-[rgba(0,0,0,0.3)] focus:outline-none focus:ring-1 focus:ring-[#FF5500] bg-white"
+                  className="w-full h-10 rounded-[8px] border border-[rgba(0,0,0,0.08)] px-3 text-[12px] text-[#111] placeholder:text-[rgba(0,0,0,0.3)] focus:outline-hidden focus:ring-1 focus:ring-[#FF5500] bg-white"
                 />
               </div>
 

@@ -54,7 +54,7 @@ const Settings = () => {
         <div className="w-full h-10 flex bg-[rgba(245,245,245,1)] rounded-[10px] p-1 relative overflow-hidden shrink-0">
           {/* Sliding white indicator */}
           <div
-            className="absolute top-1 bottom-1 left-1 bg-white rounded-[8px] shadow-sm transition-transform duration-300 ease-in-out pointer-events-none"
+            className="absolute top-1 bottom-1 left-1 bg-white rounded-[8px] shadow-xs transition-transform duration-300 ease-in-out pointer-events-none"
             style={{
               width: `calc((100% - 8px) / ${tabs.length})`,
               transform: `translateX(${tabs.findIndex((tab) => tab.id === activeTab) * 100}%)`,

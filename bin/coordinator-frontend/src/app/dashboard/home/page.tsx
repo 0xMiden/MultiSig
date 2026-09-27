@@ -24,7 +24,10 @@ const Page: React.FC = () => {
 
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
-  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+  const vaultBalances = useMemo(
+    () => detectedConfig?.vaultBalances ?? [],
+    [detectedConfig?.vaultBalances],
+  );
 
   const totalBalance = useMemo(() => {
     if (vaultBalances.length === 0) return 0;
@@ -87,13 +90,13 @@ const Page: React.FC = () => {
         <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] gap-2">
           <div className="flex gap-2 flex-1">
             <button
-              onClick={openSendModal}
+              onClick={() => openSendModal()}
               className="flex-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white text-[14px] font-[500] text-[#111] hover:bg-gray-50 transition-colors"
             >
               Send
             </button>
             <button
-              onClick={openReceiveModal}
+              onClick={() => openReceiveModal()}
               className="flex-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white text-[14px] font-[500] text-[#111] hover:bg-gray-50 transition-colors"
             >
               Receive

@@ -58,7 +58,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
   const copyBech32 = () => {
     if (!accountId) return;
     try {
-      const bech32 = AccountId.fromHex(accountId).toBech32(NetworkId.testnet(), AccountInterface.BasicWallet);
+      const bech32 = AccountId.fromHex(accountId).toBech32(NetworkId.devnet(), AccountInterface.BasicWallet);
       copyToClipboard(bech32, () => {
         setIsBech32Copied(true);
         setTimeout(() => setIsBech32Copied(false), 2000);
@@ -100,7 +100,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 </div>
                 <button
                   onClick={copyAccountId}
-                  className="flex items-center justify-center w-4 h-4 bg-gray-100 hover:bg-gray-200 rounded transition-colors duration-150"
+                  className="flex items-center justify-center w-4 h-4 bg-gray-100 hover:bg-gray-200 rounded-sm transition-colors duration-150"
                   title="Copy hex account ID"
                 >
                   {isCopied ? (
@@ -116,7 +116,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 <button
                   onClick={copyBech32}
                   disabled={!accountId}
-                  className="flex items-center justify-center px-1 h-4 bg-gray-100 hover:bg-gray-200 rounded transition-colors duration-150 text-[7px] font-[500] disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center justify-center px-1 h-4 bg-gray-100 hover:bg-gray-200 rounded-sm transition-colors duration-150 text-[7px] font-[500] disabled:opacity-40 disabled:cursor-not-allowed"
                   title="Copy bech32 address"
                 >
                   {isBech32Copied ? (
@@ -160,18 +160,18 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   type="text"
                   value={guardianUrlDraft}
                   onChange={(e) => setGuardianUrlDraft(e.target.value)}
-                  className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 mb-2 focus:outline-none focus:ring-1 focus:ring-[#FF5500]"
+                  className="w-full text-[11px] border border-gray-200 rounded-sm px-2 py-1 mb-2 focus:outline-hidden focus:ring-1 focus:ring-[#FF5500]"
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={handleGuardianReconnect}
-                    className="flex-1 bg-[#FF5500] text-white text-[10px] px-2 py-1 rounded hover:bg-[#E04A00] transition-colors"
+                    className="flex-1 bg-[#FF5500] text-white text-[10px] px-2 py-1 rounded-sm hover:bg-[#E04A00] transition-colors"
                   >
                     RECONNECT
                   </button>
                   <button
                     onClick={() => setShowGuardianEditor(false)}
-                    className="flex-1 border border-gray-200 text-[10px] px-2 py-1 rounded hover:bg-gray-50 transition-colors"
+                    className="flex-1 border border-gray-200 text-[10px] px-2 py-1 rounded-sm hover:bg-gray-50 transition-colors"
                   >
                     CANCEL
                   </button>
@@ -187,7 +187,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 onClick={() => setWalletSource('local')}
                 className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                   walletSource === 'local'
-                    ? 'bg-white text-[#FF5500] shadow-sm'
+                    ? 'bg-white text-[#FF5500] shadow-xs'
                     : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
                 }`}
               >
@@ -201,7 +201,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
               }}
               className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                 walletSource === 'para'
-                  ? 'bg-white text-[#FF5500] shadow-sm'
+                  ? 'bg-white text-[#FF5500] shadow-xs'
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
               }`}
             >
@@ -214,7 +214,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
               }}
               className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
                 walletSource === 'miden-wallet'
-                  ? 'bg-white text-[#FF5500] shadow-sm'
+                  ? 'bg-white text-[#FF5500] shadow-xs'
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
               }`}
             >
@@ -242,7 +242,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   <div>
                     <div className="text-[9px] text-gray-500">Falcon Commitment</div>
                     <div
-                      className="text-[10px] bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 p-1 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => copyToClipboard(signer.falcon.commitment, () => toast.success("Falcon commitment copied"))}
                       title="Click to copy"
                     >
@@ -252,7 +252,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   <div>
                     <div className="text-[9px] text-gray-500">ECDSA Commitment</div>
                     <div
-                      className="text-[10px] bg-gray-50 p-1 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 p-1 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => copyToClipboard(signer.ecdsa.commitment, () => toast.success("ECDSA commitment copied"))}
                       title="Click to copy"
                     >
@@ -262,7 +262,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 </div>
                 <button
                   onClick={() => setShowSignerKeys(false)}
-                  className="mt-2 w-full text-[9px] border border-gray-200 rounded py-1 hover:bg-gray-50"
+                  className="mt-2 w-full text-[9px] border border-gray-200 rounded-sm py-1 hover:bg-gray-50"
                 >
                   CLOSE
                 </button>

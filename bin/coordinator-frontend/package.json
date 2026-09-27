@@ -2,48 +2,48 @@
   "name": "miden_wallet",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
-    "@demox-labs/miden-wallet-adapter-base": "^0.10.0",
-    "@demox-labs/miden-wallet-adapter-miden": "^0.10.0",
-    "@getpara/react-sdk-lite": "^2.32.0",
-    "@miden-sdk/miden-para": "^0.15.1",
-    "@miden-sdk/miden-sdk": "0.15.9",
-    "@miden-sdk/use-miden-para-react": "^0.15.1",
-    "@openzeppelin/guardian-client": "^0.16.1",
-    "@openzeppelin/miden-multisig-client": "^0.16.1",
+    "@getpara/react-sdk-lite": "3.20.0",
+    "@getpara/web-sdk": "3.20.0",
+    "@miden-sdk/miden-sdk": "0.17.0-rc.3",
+    "@miden-sdk/miden-wallet-adapter-base": "0.17.0-rc.3",
+    "@miden-sdk/miden-wallet-adapter-miden": "0.17.0-rc.3",
+    "@miden-sdk/para": "0.17.0-rc.3",
+    "@miden-sdk/para-react": "0.17.0-rc.3",
+    "@miden-sdk/react": "0.17.0-rc.3",
+    "@openzeppelin/guardian-client": "0.18.0-rc.1",
+    "@openzeppelin/miden-multisig-client": "0.18.0-rc.1",
     "@reduxjs/toolkit": "^2.8.2",
     "@tanstack/react-query": "^5.0.0",
     "framer-motion": "^12.23.12",
-    "medina-agent": "^0.1.0",
+    "medina-agent": "file:vendor/medina-agent-0.1.0.tgz",
     "next": "15.4.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0",
     "sonner": "^2.0.7",
-    "tailwind-scrollbar": "^3.0.5"
+    "tailwind-scrollbar": "4.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "autoprefixer": "^10.4.16",
-    "copy-webpack-plugin": "^13.0.0",
+    "@tailwindcss/postcss": "4.3.3",
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "postcss": "^8.4.32",
-    "tailwindcss": "^3.4.0",
+    "tailwindcss": "4.3.3",
     "typescript": "^5"
-  },
-  "overrides": {
-    "@openzeppelin/miden-multisig-client": {
-      "@miden-sdk/miden-sdk": "$@miden-sdk/miden-sdk"
-    }
   }
 }

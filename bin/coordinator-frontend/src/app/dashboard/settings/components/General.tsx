@@ -67,7 +67,7 @@ const General = () => {
                     </span>
                     <button
                       onClick={() => handleCopy(commitment)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      className="p-1 hover:bg-gray-100 rounded-sm transition-colors"
                       title="Copy commitment"
                     >
                       <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +121,7 @@ const General = () => {
                 {accountId && (
                   <button
                     onClick={() => handleCopy(accountId)}
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    className="p-1 hover:bg-gray-100 rounded-sm transition-colors"
                     title="Copy account ID"
                   >
                     <svg className="w-3 h-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

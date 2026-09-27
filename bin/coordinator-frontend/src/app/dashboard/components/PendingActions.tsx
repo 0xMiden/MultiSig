@@ -1,63 +1,26 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import media from "../../../../public/media";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { toast } from "sonner";
-import { AnimatePresence, motion } from "framer-motion";
 import { PendingActionsProps } from "@/types";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import { getProposalActionState } from "@/lib/proposalActions";
+import { ProposalActionButton } from "@/components/ProposalActionButton";
 
 const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight = false }) => {
   const router = useRouter();
   const {
     proposals,
     detectedConfig,
-    handleSignProposal,
-    handleExecuteProposal,
-    signingProposal,
-    executingProposal,
+    activeCommitment,
     syncingState,
   } = useMultisig();
-
-  const [notification, setNotification] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-
-  const showNotification = (type: "success" | "error", message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification(null);
-    }, 3000);
-  };
 
   // Filter to only show pending (not yet executed) proposals
   const pendingProposals = useMemo(() => {
     return proposals.filter(p => p.status === 'pending' || p.status === 'ready');
   }, [proposals]);
-
-  const effectiveThreshold = threshold ?? detectedConfig?.threshold ?? 0;
-
-  const handleSign = async (proposalId: string) => {
-    try {
-      await handleSignProposal(proposalId);
-      toast.success("Proposal signed successfully!");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showNotification("error", `Signing failed: ${msg}`);
-    }
-  };
-
-  const handleExecute = async (proposalId: string) => {
-    try {
-      await handleExecuteProposal(proposalId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showNotification("error", `Execution failed: ${msg}`);
-    }
-  };
 
   const handleViewAll = () => {
     router.push('/dashboard/transactions');
@@ -100,25 +63,18 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           </div>
         ) : pendingProposals.length > 0 ? (
           pendingProposals.map((proposal) => {
-            // Prefer the threshold snapshot frozen on the proposal at creation time
-            // (metadata.requiredSignatures) over recomputing it from the account's
-            // *current* threshold — otherwise an already-signed/executed proposal
-            // can appear to need more signatures after the threshold later changes.
-            const propThreshold = proposal.metadata?.requiredSignatures ?? getEffectiveThreshold(
-              proposal.metadata?.proposalType,
-              effectiveThreshold,
-              detectedConfig?.procedureThresholds
+            const action = getProposalActionState(
+              proposal,
+              detectedConfig,
+              activeCommitment,
+              threshold ?? 0,
             );
-            const sigCount = proposal.signatures?.length ?? 0;
-            const isReady = sigCount >= propThreshold;
-            const isSigning = signingProposal === proposal.id;
-            const isExecuting = executingProposal === proposal.id;
             const isSend = proposal.metadata?.proposalType === 'p2id';
 
             return (
               <div
                 key={proposal.id}
-                className="flex h-[64px] w-full flex-row items-center border border-[rgba(0,0,0,0.08)] rounded-[8px] flex-shrink-0 overflow-hidden"
+                className="flex h-[64px] w-full flex-row items-center border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0 overflow-hidden"
               >
                 <div className="w-[10%] text-center text-[12px] font-[400]">
                   {proposal.id.slice(0, 8)}...
@@ -147,57 +103,30 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="flex w-[15%] space-x-1 flex-row items-center justify-center">
                   <span className="text-[12px] font-[400]">
-                    {sigCount}/{propThreshold} signed
+                    {action.signatureCount}/{action.requiredSignatures || "—"} signed
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="flex items-center justify-center w-[10%]">
-                  {isReady ? (
-                    <div className="bg-[#28A857] text-white p-1.5 text-[8px] font-[400] rounded-full px-2">
-                      READY
-                    </div>
-                  ) : (
-                    <div className="bg-[#FF5500] text-white p-1.5 text-[8px] font-[400] rounded-full px-2">
-                      {propThreshold - sigCount} NEEDED
-                    </div>
-                  )}
+                  <div
+                    title={action.statusLabel}
+                    className={`px-2 py-1 text-center text-[8px] font-[500] rounded-full ${
+                      action.action === "execute"
+                        ? "bg-[#28A857] text-white"
+                        : proposal.verification.status === "failed"
+                          ? "bg-red-50 text-red-700"
+                          : "bg-[#FF5500] text-white"
+                    }`}
+                  >
+                    {action.action === "execute"
+                      ? "READY"
+                      : proposal.verification.status === "failed"
+                        ? "CHECK"
+                        : `${Math.max(0, action.requiredSignatures - action.signatureCount)} NEEDED`}
+                  </div>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
-                {isReady ? (
-                  <button
-                    onClick={() => handleExecute(proposal.id)}
-                    disabled={isExecuting}
-                    className={`w-[10%] text-center text-[12px] font-[400] ${
-                      isExecuting ? "opacity-50 cursor-not-allowed" : "hover:bg-green-50 text-green-700"
-                    }`}
-                  >
-                    {isExecuting ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <div className="animate-spin rounded-full h-3 w-3 border border-gray-400 border-t-transparent"></div>
-                        <span>...</span>
-                      </div>
-                    ) : (
-                      "EXECUTE"
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleSign(proposal.id)}
-                    disabled={isSigning}
-                    className={`w-[10%] text-center text-[12px] font-[400] ${
-                      isSigning ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-100"
-                    }`}
-                  >
-                    {isSigning ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <div className="animate-spin rounded-full h-3 w-3 border border-gray-400 border-t-transparent"></div>
-                        <span>Signing...</span>
-                      </div>
-                    ) : (
-                      "SIGN"
-                    )}
-                  </button>
-                )}
+                <ProposalActionButton proposal={proposal} className="mx-1 w-[10%] px-1" />
               </div>
             );
           })
@@ -227,25 +156,6 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
           </div>
         )}
       </div>
-
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg font-dmmono text-sm font-medium ${notification.type === "success"
-              ? "bg-green-500 text-white"
-              : "bg-red-500 text-white"
-              }`}
-          >
-            <div className="flex items-center gap-2">
-              <span>{notification.message}</span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

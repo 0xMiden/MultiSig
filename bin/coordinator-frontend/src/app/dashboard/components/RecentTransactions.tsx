@@ -77,7 +77,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
             return (
               <div
                 key={proposal.id}
-                className="flex h-[64px] w-full flex-row items-center relative border border-[rgba(0,0,0,0.08)] rounded-[8px] flex-shrink-0"
+                className="flex h-[64px] w-full flex-row items-center relative border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0"
               >
                 <div className="font-geist w-[10%] text-center text-[12px] font-[400]">
                   {proposal.id.slice(0, 8)}...

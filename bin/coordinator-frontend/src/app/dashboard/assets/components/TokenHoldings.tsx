@@ -69,7 +69,7 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
                     </div>
                     <button
                       onClick={() => copyToClipboard(asset.faucetId, index)}
-                      className="flex items-center justify-center w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded transition-colors duration-150"
+                      className="flex items-center justify-center w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded-sm transition-colors duration-150"
                       title="Copy address"
                     >
                       {copiedIndex === index ? (
@@ -88,8 +88,8 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
 
               {/* Right Side - Values */}
               <div className="flex flex-col items-end">
-                <div className="text-[12px] font-[600] text-[#000000]">{asset.balance/1000000}</div>
-                <div className="text-[8px] text-[rgba(0,0,0,0.45)]">{asset.balance/1000000} USD</div>
+                <div className="text-[12px] font-[600] text-[#000000]">{Number(asset.balance) / 1000000}</div>
+                <div className="text-[8px] text-[rgba(0,0,0,0.45)]">{Number(asset.balance) / 1000000} USD</div>
               </div>
             </div>
           ))

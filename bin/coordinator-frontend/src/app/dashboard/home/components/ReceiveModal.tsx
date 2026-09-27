@@ -1,8 +1,9 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toast } from "sonner";
+import { useDashboardUI } from "@/contexts/DashboardUIContext";
 
 interface ReceiveModalProps {
   open: boolean;
@@ -10,6 +11,7 @@ interface ReceiveModalProps {
 }
 
 const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
+  const { receiveProposalDraft, clearReceiveProposalDraft } = useDashboardUI();
   const { consumableNotes, proposals, handleCreateConsumeNotesProposal, creatingProposal } = useMultisig();
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
 
@@ -20,7 +22,10 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
       // the local note store can lag behind on-chain state right after execute
       // (especially under the para/delegated-signing flow), so an already-
       // executed note can briefly still show up from getConsumableNotes().
-      if (p.metadata.proposalType === "consume_notes") {
+      if (
+        p.metadata.proposalType === "consume_notes"
+        && !(p.verification.status === "failed" && !p.verification.retryable)
+      ) {
         for (const id of p.metadata.noteIds) ids.add(id);
       }
     }
@@ -31,6 +36,13 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
     () => (consumableNotes ?? []).filter(n => !proposedNoteIds.has(n.id)),
     [consumableNotes, proposedNoteIds]
   );
+
+  useEffect(() => {
+    if (!open || receiveProposalDraft.length === 0) return;
+    const available = new Set(notes.map((note) => note.id));
+    setSelectedNoteIds(receiveProposalDraft.filter((noteId) => available.has(noteId)));
+    clearReceiveProposalDraft();
+  }, [clearReceiveProposalDraft, notes, open, receiveProposalDraft]);
 
   const handleSelectAll = () => {
     setSelectedNoteIds(selectedNoteIds.length === notes.length ? [] : notes.map(n => n.id));
@@ -67,6 +79,9 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
         >
           <motion.div
             key="receive-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="receive-notes-title"
             onClick={e => e.stopPropagation()}
             initial={{ y: 8, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
@@ -76,9 +91,11 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(0,0,0,0.06)] shrink-0">
-              <div className="text-[16px] font-[600] text-[#111]">Receive Notes</div>
+              <div id="receive-notes-title" className="text-[16px] font-[600] text-[#111]">Receive Notes</div>
               <button
+                type="button"
                 onClick={onClose}
+                aria-label="Close receive notes"
                 className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-gray-100 text-[rgba(0,0,0,0.4)] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

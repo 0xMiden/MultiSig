@@ -6,31 +6,6 @@ import type { SignerInfo } from '@/types/psm';
 const SIGNER_DB_NAME = 'MultisigSignerKeys';
 const SIGNER_STORE_NAME = 'keys';
 
-export async function clearMidenDatabase(dbName = MIDEN_DB_NAME): Promise<void> {
-  // deleteDatabase silently fires `onblocked` (and then `onsuccess` only once
-  // all connections close) when another tab/worker still holds the DB open.
-  // Previously we resolved on `onblocked` — that meant the stale DB was never
-  // wiped, and when we re-created MidenClient against a new network the cached
-  // genesis digest from the previous network was still in the store, causing
-  // the node to reject our accept header. Wait (with a timeout) for actual
-  // deletion, and surface a clear error if it never completes.
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(dbName);
-    let blocked = false;
-    const timeout = setTimeout(() => {
-      if (blocked) {
-        reject(new Error(
-          `Cannot clear Miden DB "${dbName}" — another tab or worker is holding it open. ` +
-          `Close all other tabs on this origin and reload.`
-        ));
-      }
-    }, 5000);
-    request.onsuccess = () => { clearTimeout(timeout); resolve(); };
-    request.onerror = () => { clearTimeout(timeout); reject(request.error); };
-    request.onblocked = () => { blocked = true; /* keep waiting for onsuccess */ };
-  });
-}
-
 function openSignerDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(SIGNER_DB_NAME, 1);

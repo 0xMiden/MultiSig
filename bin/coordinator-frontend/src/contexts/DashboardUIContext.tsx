@@ -4,14 +4,25 @@ import React, { createContext, useContext, useState } from "react";
 
 export type SettingsTab = "general" | "security" | "signers" | "notifications" | "transactionguard";
 
+export interface SendProposalDraft {
+  recipientId: string;
+  faucetId: string;
+  amount: string;
+  isPrivate: boolean;
+}
+
 interface DashboardUIContextValue {
   isSendModalOpen: boolean;
-  openSendModal: () => void;
+  sendProposalDraft: SendProposalDraft | null;
+  openSendModal: (draft?: SendProposalDraft) => void;
   closeSendModal: () => void;
+  clearSendProposalDraft: () => void;
 
   isReceiveModalOpen: boolean;
-  openReceiveModal: () => void;
+  receiveProposalDraft: string[];
+  openReceiveModal: (noteIds?: string[]) => void;
   closeReceiveModal: () => void;
+  clearReceiveProposalDraft: () => void;
 
   settingsTab: SettingsTab;
   setSettingsTab: (tab: SettingsTab) => void;
@@ -21,18 +32,30 @@ const DashboardUIContext = createContext<DashboardUIContextValue | undefined>(un
 
 export function DashboardUIProvider({ children }: { children: React.ReactNode }) {
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [sendProposalDraft, setSendProposalDraft] = useState<SendProposalDraft | null>(null);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
+  const [receiveProposalDraft, setReceiveProposalDraft] = useState<string[]>([]);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
 
   return (
     <DashboardUIContext.Provider
       value={{
         isSendModalOpen,
-        openSendModal: () => setIsSendModalOpen(true),
+        sendProposalDraft,
+        openSendModal: (draft) => {
+          setSendProposalDraft(draft ?? null);
+          setIsSendModalOpen(true);
+        },
         closeSendModal: () => setIsSendModalOpen(false),
+        clearSendProposalDraft: () => setSendProposalDraft(null),
         isReceiveModalOpen,
-        openReceiveModal: () => setIsReceiveModalOpen(true),
+        receiveProposalDraft,
+        openReceiveModal: (noteIds) => {
+          setReceiveProposalDraft(noteIds ?? []);
+          setIsReceiveModalOpen(true);
+        },
         closeReceiveModal: () => setIsReceiveModalOpen(false),
+        clearReceiveProposalDraft: () => setReceiveProposalDraft([]),
         settingsTab,
         setSettingsTab,
       }}

@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toast } from "sonner";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import { getProposalActionState } from "@/lib/proposalActions";
+import { ProposalActionButton } from "@/components/ProposalActionButton";
 
 interface ApproveModalProps {
   open: boolean;
@@ -19,10 +20,8 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
   const {
     proposals,
     detectedConfig,
+    activeCommitment,
     handleSignProposal,
-    handleExecuteProposal,
-    signingProposal,
-    executingProposal,
     syncingState,
   } = useMultisig();
 
@@ -33,10 +32,19 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
     [proposals]
   );
 
-  const threshold = detectedConfig?.threshold ?? 0;
+  const signableProposals = useMemo(
+    () => pendingProposals.filter(
+      (proposal) => getProposalActionState(proposal, detectedConfig, activeCommitment).action === "sign",
+    ),
+    [activeCommitment, detectedConfig, pendingProposals],
+  );
 
   const handleSelectAll = () => {
-    setSelectedIds(selectedIds.length === pendingProposals.length ? [] : pendingProposals.map(p => p.id));
+    setSelectedIds(
+      selectedIds.length === signableProposals.length
+        ? []
+        : signableProposals.map((proposal) => proposal.id),
+    );
   };
 
   const handleToggle = (id: string) => {
@@ -44,12 +52,20 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
   };
 
   const handleSignSelected = async () => {
+    let signed = 0;
+    let failed = 0;
     for (const id of selectedIds) {
-      try { await handleSignProposal(id); }
-      catch { toast.error(`Failed to sign ${id.slice(0, 8)}…`); }
+      try {
+        await handleSignProposal(id);
+        signed += 1;
+      } catch {
+        failed += 1;
+      }
     }
     setSelectedIds([]);
-    toast.success("Signed selected proposals");
+    if (signed > 0 && failed === 0) toast.success(`Signed ${signed} proposal${signed === 1 ? "" : "s"}`);
+    else if (signed > 0) toast.warning(`Signed ${signed}; ${failed} failed`);
+    else toast.error(`Could not sign ${failed} selected proposal${failed === 1 ? "" : "s"}`);
   };
 
   const proposalLabel = (type?: string) => {
@@ -70,6 +86,9 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
         >
           <motion.div
             key="approve-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="approve-transfers-title"
             onClick={e => e.stopPropagation()}
             initial={{ y: 8, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
@@ -80,13 +99,15 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(0,0,0,0.06)] shrink-0">
               <div>
-                <div className="text-[16px] font-[600] text-[#111]">Approve Transfers</div>
+                <div id="approve-transfers-title" className="text-[16px] font-[600] text-[#111]">Approve Transfers</div>
                 <div className="text-[11px] text-[rgba(0,0,0,0.4)] mt-0.5">
                   {pendingProposals.length} pending proposal{pendingProposals.length !== 1 ? "s" : ""}
                 </div>
               </div>
               <button
+                type="button"
                 onClick={onClose}
+                aria-label="Close approvals"
                 className="w-7 h-7 flex items-center justify-center rounded-[6px] hover:bg-gray-100 text-[rgba(0,0,0,0.4)] transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,21 +129,9 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
                 </div>
               ) : (
                 pendingProposals.map(proposal => {
-                  // Prefer the threshold snapshot frozen on the proposal at creation
-                  // time (metadata.requiredSignatures) over recomputing it from the
-                  // account's *current* threshold — otherwise an already-signed/
-                  // executed proposal can appear to need more signatures after the
-                  // threshold later changes.
-                  const propThreshold = proposal.metadata?.requiredSignatures ?? getEffectiveThreshold(
-                    proposal.metadata?.proposalType,
-                    threshold,
-                    detectedConfig?.procedureThresholds
-                  );
-                  const sigCount = proposal.signatures?.length ?? 0;
-                  const isReady = sigCount >= propThreshold;
-                  const isSigning = signingProposal === proposal.id;
-                  const isExecuting = executingProposal === proposal.id;
+                  const action = getProposalActionState(proposal, detectedConfig, activeCommitment);
                   const isSelected = selectedIds.includes(proposal.id);
+                  const selectable = action.action === "sign";
 
                   return (
                     <div
@@ -132,9 +141,13 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
                       }`}
                     >
                       <button
+                        type="button"
                         onClick={() => handleToggle(proposal.id)}
+                        disabled={!selectable}
+                        aria-label={`${isSelected ? "Deselect" : "Select"} ${proposalLabel(proposal.metadata?.proposalType)} proposal`}
                         className={`w-4 h-4 rounded-[4px] border-[1.5px] flex items-center justify-center shrink-0 transition-colors ${
                           isSelected ? "border-[#FF5500] bg-[#FF5500]" : "border-[rgba(0,0,0,0.2)]"
+                        } ${!selectable ? "opacity-30 cursor-not-allowed" : ""
                         }`}
                       >
                         {isSelected && (
@@ -155,35 +168,20 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
 
                       {/* Signature progress */}
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <div className="text-[11px] text-[rgba(0,0,0,0.4)]">{sigCount}/{propThreshold} signed</div>
+                        <div className="text-[11px] tabular-nums text-[rgba(0,0,0,0.4)]">
+                          {action.signatureCount}/{action.requiredSignatures || "—"} signed
+                        </div>
                         <div className="flex gap-1">
-                          {Array.from({ length: propThreshold }).map((_, i) => (
+                          {Array.from({ length: action.requiredSignatures }).map((_, i) => (
                             <div
                               key={i}
-                              className={`w-2 h-2 rounded-full ${i < sigCount ? "bg-[#28A857]" : "bg-[rgba(0,0,0,0.1)]"}`}
+                              className={`w-2 h-2 rounded-full ${i < action.signatureCount ? "bg-[#28A857]" : "bg-[rgba(0,0,0,0.1)]"}`}
                             />
                           ))}
                         </div>
                       </div>
 
-                      {/* Action button */}
-                      {isReady ? (
-                        <button
-                          onClick={() => handleExecuteProposal(proposal.id)}
-                          disabled={isExecuting}
-                          className="h-8 px-3 rounded-[6px] bg-[#28A857] hover:bg-[#239E4C] text-white text-[11px] font-[500] disabled:opacity-40 transition-colors shrink-0"
-                        >
-                          {isExecuting ? "…" : "Execute"}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleSignProposal(proposal.id)}
-                          disabled={isSigning}
-                          className="h-8 px-3 rounded-[6px] bg-[#FF5500] hover:bg-[#E64A00] text-white text-[11px] font-[500] disabled:opacity-40 transition-colors shrink-0"
-                        >
-                          {isSigning ? "…" : "Sign"}
-                        </button>
-                      )}
+                      <ProposalActionButton proposal={proposal} className="shrink-0" />
                     </div>
                   );
                 })
@@ -203,9 +201,12 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
               <div className="flex items-center justify-between px-5 py-4 border-t border-[rgba(0,0,0,0.06)] shrink-0">
                 <button
                   onClick={handleSelectAll}
+                  disabled={signableProposals.length === 0}
                   className="h-9 px-4 rounded-[8px] border border-[rgba(0,0,0,0.08)] text-[12px] font-[500] text-[rgba(0,0,0,0.6)] hover:bg-gray-50 transition-colors"
                 >
-                  {selectedIds.length === pendingProposals.length ? "Deselect all" : `Select all (${pendingProposals.length})`}
+                  {selectedIds.length === signableProposals.length && signableProposals.length > 0
+                    ? "Deselect all"
+                    : `Select signable (${signableProposals.length})`}
                 </button>
 
                 {selectedIds.length > 0 && (

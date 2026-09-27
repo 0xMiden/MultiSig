@@ -21,6 +21,7 @@ import {
   type ProcedureThreshold,
   type ParaSigningContext,
   AccountInspector,
+  isProposalActionable,
 } from "@openzeppelin/miden-multisig-client";
 import { GuardianHttpError } from "@openzeppelin/guardian-client";
 import { AccountId, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
@@ -28,7 +29,6 @@ import { AccountId, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 import { normalizeCommitment } from "@/lib/helpers";
 import { formatError, classifyWalletError } from "@/lib/errors";
 import {
-  clearMidenDatabase,
   createMidenClient,
   initializeSigner as initSigner,
   loadSignerKeys,
@@ -42,14 +42,16 @@ import {
   registerAccountNoteTag,
   getOutputNotesFromTxSummary,
   relayPrivateNote,
+  registerAccountOnNode,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
 import { GUARDIAN_ENDPOINT } from "@/config/psm";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
+import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
-import { MidenWalletAdapter } from "@demox-labs/miden-wallet-adapter-miden";
+import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 
 // Temporary debug instrumentation for the receive-funds vault investigation.
 // Logs fully-expanded JSON (via a BigInt-safe replacer) instead of console's
@@ -115,49 +117,6 @@ function isPendingCandidateError(error: unknown): boolean {
   );
 }
 
-// Guardian is eventually consistent after pushDelta — it can keep returning an
-// executed proposal as 'pending' with full cosigner signatures for a while.
-// fromDelta then maps that to 'ready', which puts the already-executed proposal
-// back in PENDING ACTIONS with an EXECUTE button. Persist executed proposal IDs
-// locally so we can pin them to 'finalized' across reloads and sync clicks.
-const EXECUTED_PROPOSALS_KEY = "executedProposalIds";
-
-function getExecutedIds(accountId: string | null | undefined): Set<string> {
-  if (typeof window === "undefined" || !accountId) return new Set();
-  try {
-    const raw = localStorage.getItem(
-      `${EXECUTED_PROPOSALS_KEY}:${accountId.toLowerCase()}`,
-    );
-    if (!raw) return new Set();
-    return new Set((JSON.parse(raw) as string[]).map((id) => id.toLowerCase()));
-  } catch {
-    return new Set();
-  }
-}
-
-function addExecutedId(accountId: string, proposalId: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    const key = `${EXECUTED_PROPOSALS_KEY}:${accountId.toLowerCase()}`;
-    const existing = getExecutedIds(accountId);
-    existing.add(proposalId.toLowerCase());
-    localStorage.setItem(key, JSON.stringify(Array.from(existing)));
-  } catch {
-    /* quota / storage unavailable — non-fatal */
-  }
-}
-
-function applyExecutedOverride<T extends { id: string; status: string }>(
-  proposals: T[],
-  accountId: string | null | undefined,
-): T[] {
-  const executed = getExecutedIds(accountId);
-  if (executed.size === 0) return proposals;
-  return proposals.map((p) =>
-    executed.has(p.id.toLowerCase()) ? { ...p, status: "finalized" } : p,
-  );
-}
-
 export type PrivateSendStep =
   | "idle"
   | "creating-proposal"
@@ -172,6 +131,18 @@ export interface PrivateSendProgress {
   error?: string;
 }
 
+export type AccountFundingPhase =
+  | "idle"
+  | "registering"
+  | "waiting-for-note"
+  | "funding-available"
+  | "error";
+
+export interface AccountFundingState {
+  phase: AccountFundingPhase;
+  message?: string;
+}
+
 interface MultisigContextValue {
   // Core state
   midenClient: MidenClient | null;
@@ -180,6 +151,7 @@ interface MultisigContextValue {
   multisig: Multisig | null;
   error: string | null;
   pendingCandidateWarning: string | null;
+  accountFunding: AccountFundingState;
 
   // Guardian state
   guardianUrl: string;
@@ -229,6 +201,8 @@ interface MultisigContextValue {
     signatureScheme?: SignatureScheme,
   ) => Promise<void>;
   handleSync: () => Promise<void>;
+  retryAccountFunding: () => Promise<void>;
+  retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
   handleExecuteProposal: (proposalId: string) => Promise<void>;
   handleCreateP2idProposal: (
@@ -318,6 +292,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [pendingCandidateWarning, setPendingCandidateWarning] = useState<
     string | null
   >(null);
+  const [accountFunding, setAccountFunding] = useState<AccountFundingState>({
+    phase: "idle",
+  });
 
   const [guardianUrl, setGuardianUrl] = useState(GUARDIAN_ENDPOINT);
   const [guardianStatus, setGuardianStatus] = useState<
@@ -362,7 +339,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   });
   const [paraModalOpen, setParaModalOpen] = useState(false);
 
-  const { session: paraSession, paraClient, getWalletId } = useParaSession();
+  const { session: paraSession, paraClient, getWalletId, error: paraError } = useParaSession();
   const [midenWalletAdapter, setMidenWalletAdapter] = useState(
     () => new MidenWalletAdapter({ appName: "Miden Multisig" }),
   );
@@ -379,6 +356,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       toast.error(midenWalletConnectError);
     }
   }, [midenWalletConnectError]);
+
+  useEffect(() => {
+    if (paraError) toast.error(`Para connection failed: ${paraError}`);
+  }, [paraError]);
 
   useEffect(() => {
     if (paraSession.connected) {
@@ -466,6 +447,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     async (url: string, clientParam?: MidenClient): Promise<void> => {
       setGuardianStatus("connecting");
       setError(null);
+      if (!url.trim()) {
+        setGuardianStatus("error");
+        setError("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.");
+        return;
+      }
       try {
         const mc = clientParam ?? midenClient;
         if (!mc) {
@@ -513,7 +499,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             const config = AccountInspector.fromAccount(reloadedMs.account);
             setGuardianState(state);
             setDetectedConfig(config);
-            setProposals(applyExecutedOverride(synced, reloadedMs.accountId));
+            setProposals(synced);
             setConsumableNotes(notes);
             toast.success("Account loaded from Guardian");
           } catch (loadErr) {
@@ -535,7 +521,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
                 const config = AccountInspector.fromAccount(multisig.account);
                 setGuardianState(state);
                 setDetectedConfig(config);
-                setProposals(applyExecutedOverride(synced, multisig.accountId));
+                setProposals(synced);
                 setConsumableNotes(notes);
                 toast.success("Account registered on new Guardian");
               } catch (registerErr) {
@@ -567,8 +553,6 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const init = async () => {
       try {
-        await clearMidenDatabase();
-
         const client = await createMidenClient();
         setMidenClient(client);
 
@@ -591,6 +575,60 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const requestAccountFunding = useCallback(
+    async (targetMultisig?: Multisig): Promise<void> => {
+      const account = targetMultisig ?? multisig;
+      if (!account || !midenClient) {
+        throw new Error("The Miden client and multisig account must be ready before funding.");
+      }
+
+      setAccountFunding({ phase: "registering" });
+      try {
+        try {
+          await registerAccountOnNode(midenClient, account.accountId);
+        } catch (registrationError) {
+          const message = formatError(registrationError).toUpperCase();
+          if (
+            !message.includes("ALREADY_REGISTERED")
+            && !message.includes("ACCOUNT_ALREADY_ALLOWED")
+          ) {
+            throw registrationError;
+          }
+        }
+
+        setAccountFunding({ phase: "waiting-for-note" });
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          await midenClient.sync();
+          const notes = await account.getConsumableNotes();
+          setConsumableNotes(notes);
+          if (notes.length > 0) {
+            setAccountFunding({ phase: "funding-available" });
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+        }
+
+        throw new Error(
+          "Registration completed, but the funding note has not appeared yet. Sync and retry funding shortly.",
+        );
+      } catch (fundingError) {
+        const message = formatError(fundingError, "Account funding failed");
+        setAccountFunding({ phase: "error", message });
+        throw fundingError;
+      }
+    },
+    [midenClient, multisig],
+  );
+
+  const retryAccountFunding = useCallback(async () => {
+    try {
+      await requestAccountFunding();
+      toast.success("Funding note is ready to receive");
+    } catch (fundingError) {
+      toast.error(formatError(fundingError, "Account funding failed"));
+    }
+  }, [requestAccountFunding]);
+
   const handleCreate = useCallback(
     async (
       otherSignerCommitments: string[],
@@ -598,6 +636,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       procedureThresholds?: ProcedureThreshold[],
       signatureScheme: SignatureScheme = "falcon",
     ) => {
+      if (!guardianUrl.trim()) {
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        setError(msg);
+        throw new Error(msg);
+      }
       if (!multisigClient || !signer || !guardianCommitment) {
         const msg = "Client not initialized. Try reconnecting to Guardian.";
         setError(msg);
@@ -667,12 +710,17 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
               /* tag may already exist */
             }
             try {
+              await requestAccountFunding(ms);
+            } catch {
+              // Keep the newly-created account available so funding can be retried.
+            }
+            try {
               await midenClient.sync();
             } catch {
               /* non-fatal */
             }
             try {
-              await midenClient.notes.fetchPrivate({ mode: "all" });
+              await midenClient.notes.fetchPrivate();
             } catch {
               /* no private notes or transport unavailable */
             }
@@ -685,7 +733,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           const config = AccountInspector.fromAccount(ms.account);
           setDetectedConfig(config);
           setGuardianState(state);
-          setProposals(applyExecutedOverride(synced, ms.accountId));
+          setProposals(synced);
           setConsumableNotes(notes);
         } catch (guardianErr) {
           setError(
@@ -708,15 +756,23 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [
       multisigClient,
       signer,
+      guardianUrl,
       guardianCommitment,
       guardianPublicKey,
       walletSource,
       buildExternalParams,
+      midenClient,
+      requestAccountFunding,
     ],
   );
 
   const handleLoad = useCallback(
     async (accountId: string, signatureScheme: SignatureScheme = "falcon") => {
+      if (!guardianUrl.trim()) {
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        setError(msg);
+        throw new Error(msg);
+      }
       if (!multisigClient || !signer) {
         setError("Client not initialized. Try reconnecting to Guardian.");
         return;
@@ -776,7 +832,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             /* non-fatal */
           }
           try {
-            await midenClient.notes.fetchPrivate({ mode: "all" });
+            await midenClient.notes.fetchPrivate();
           } catch {
             /* no private notes or transport unavailable */
           }
@@ -790,7 +846,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         const config = AccountInspector.fromAccount(ms.account);
         setDetectedConfig(config);
         setGuardianState(state);
-        setProposals(applyExecutedOverride(synced, ms.accountId));
+        setProposals(synced);
         setConsumableNotes(notes);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown";
@@ -807,6 +863,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [
       multisigClient,
       signer,
+      guardianUrl,
       guardianCommitment,
       walletSource,
       buildExternalParams,
@@ -871,8 +928,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         await midenClient.sync();
       }
-      try {
-        await midenClient.notes.fetchPrivate({ mode: "all" });
+        try {
+          await midenClient.notes.fetchPrivate();
       } catch {
         /* no private notes or transport unavailable */
       }
@@ -891,7 +948,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       });
       setGuardianState(state);
       setDetectedConfig(config);
-      setProposals(applyExecutedOverride(synced, multisig.accountId));
+      setProposals(synced);
       setConsumableNotes(notes);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -934,6 +991,37 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     }
   }, [multisig, midenClient]);
 
+  const retryProposalVerification = useCallback(
+    async () => {
+      await handleSync();
+    },
+    [handleSync],
+  );
+
+  const automaticVerificationRetries = useRef(new Set<string>());
+  useEffect(() => {
+    for (const proposal of proposals) {
+      if (
+        proposal.verification.status === "verified"
+        || proposal.verification.status === "failed" && !proposal.verification.retryable
+        || proposal.status === "finalized"
+      ) {
+        automaticVerificationRetries.current.delete(proposal.id);
+      }
+    }
+
+    const retryable = proposals.filter(
+      (proposal) =>
+        proposal.verification.status === "failed"
+        && proposal.verification.retryable
+        && !automaticVerificationRetries.current.has(proposal.id),
+    );
+    if (retryable.length === 0 || syncingState) return;
+
+    retryable.forEach((proposal) => automaticVerificationRetries.current.add(proposal.id));
+    void handleSync();
+  }, [handleSync, proposals, syncingState]);
+
   const handleCreateAddSignerProposal = useCallback(
     async (commitment: string, increaseThreshold: boolean) => {
       if (!multisig) return;
@@ -953,11 +1041,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         const newThreshold = increaseThreshold
           ? multisig.threshold + 1
           : undefined;
-        await multisig.createAddSignerProposal(
-          normalizedCommitment,
-          undefined,
-          newThreshold,
-        );
+        await multisig.createAddSignerProposal(normalizedCommitment, { newThreshold });
         setProposals(multisig.listProposals());
         toast.success("Add signer proposal created");
       } catch (err) {
@@ -986,11 +1070,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPendingCandidateWarning(null);
       try {
-        await multisig.createRemoveSignerProposal(
-          signerToRemove,
-          undefined,
-          newThreshold,
-        );
+        await multisig.createRemoveSignerProposal(signerToRemove, { newThreshold });
         setProposals(multisig.listProposals());
         toast.success("Remove signer proposal created");
       } catch (err) {
@@ -1056,6 +1136,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       try {
         await multisig.createConsumeNotesProposal(noteIds);
         setProposals(multisig.listProposals());
+        if (accountFunding.phase === "funding-available") {
+          setAccountFunding({ phase: "idle" });
+        }
         toast.success("Consume notes proposal created");
       } catch (err) {
         if (isPendingCandidateError(err)) {
@@ -1072,7 +1155,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setCreatingProposal(false);
       }
     },
-    [multisig, consumableNotes],
+    [accountFunding.phase, multisig, consumableNotes],
   );
 
   const handleCreateP2idProposal = useCallback(
@@ -1122,11 +1205,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPendingCandidateWarning(null);
       try {
+        const scanAfterBlockNum = await midenClient.getSyncHeight();
         const proposal = await multisig.createP2idProposal(
           recipientId,
           faucetId,
           amount,
-          undefined,
           { noteType: NoteType.Private },
         );
         setProposals(multisig.listProposals());
@@ -1139,7 +1222,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         });
 
         for (const note of notes) {
-          await relayPrivateNote(midenClient, note, recipientId);
+          await relayPrivateNote(midenClient, note, recipientId, scanAfterBlockNum);
           setPrivateSendProgress((prev) => ({
             ...prev,
             relayedNotes: prev.relayedNotes + 1,
@@ -1205,6 +1288,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setSigningProposal(proposalId);
       setError(null);
       try {
+        const synced = await multisig.syncProposals();
+        setProposals(synced);
+        const fresh = synced.find((proposal) => proposal.id === proposalId);
+        if (!fresh) throw new Error("Proposal no longer exists on Guardian.");
+        const action = getProposalActionState(fresh, detectedConfig, activeCommitment);
+        if (action.action !== "sign") {
+          throw new Error(action.statusLabel);
+        }
         await multisig.signProposal(proposalId);
         setProposals(multisig.listProposals());
       } catch (err) {
@@ -1218,7 +1309,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setSigningProposal(null);
       }
     },
-    [multisig, walletSource],
+    [activeCommitment, detectedConfig, multisig, walletSource],
   );
 
   const handleExecuteProposal = useCallback(
@@ -1233,24 +1324,20 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         // previous execute, Guardian's proposal state can diverge from the local
         // cache — re-syncing here ensures getDeltaProposal inside executeProposal
         // finds a current, signed proposal instead of returning 404.
-        try {
-          await multisig.syncProposals();
-          setProposals(multisig.listProposals());
-        } catch {
-          /* non-fatal; let execute raise a clearer error */
-        }
-
-        const fresh = multisig.listProposals().find((p) => p.id === proposalId);
+        const synced = await multisig.syncProposals();
+        setProposals(synced);
+        const fresh = synced.find((p) => p.id === proposalId);
         if (!fresh) {
           throw new Error(
             "Proposal no longer exists on Guardian. This usually means the account state " +
               "has advanced since this proposal was created. Try creating a new proposal.",
           );
         }
-        if (fresh.status !== "ready") {
+        if (!isProposalActionable(fresh)) {
           throw new Error(
-            `Proposal is not ready to execute (status: ${fresh.status}). ` +
-              "Make sure enough signers have signed on Guardian.",
+            fresh.verification.status === "failed"
+              ? `Proposal verification failed: ${fresh.verification.message}`
+              : `Proposal is not ready to execute (status: ${fresh.status}).`,
           );
         }
 
@@ -1263,6 +1350,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         });
 
         await multisig.executeProposal(proposalId);
+        setProposals(multisig.listProposals());
         toast.success("Proposal executed successfully");
 
         // Checkpoint: local transaction execution just ran. This reads the vault
@@ -1276,10 +1364,6 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           cachedAccountVault: rawVaultSnapshot(multisig.account),
           liveAccountVault: await getLiveAccountSnapshot(multisig),
         });
-
-        // Persist execution locally so reloads and sync-button clicks keep treating
-        // this proposal as finalized even if Guardian is slow to transition it.
-        addExecutedId(multisig.accountId, proposalId);
 
         // Sync after execution
         if (midenClient) {
@@ -1305,7 +1389,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             });
             setGuardianState(state);
             setDetectedConfig(config);
-            setProposals(applyExecutedOverride(synced, multisig.accountId));
+            setProposals(synced);
             setConsumableNotes(notes);
           } catch (syncErr) {
             const message =
@@ -1341,16 +1425,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
                   "This can happen right after executing a transaction. Please wait a moment and sync again.",
               );
             }
-            setProposals((prev) =>
-              applyExecutedOverride(prev, multisig.accountId),
-            );
           } finally {
             setSyncingState(false);
           }
-        } else {
-          setProposals((prev) =>
-            applyExecutedOverride(prev, multisig.accountId),
-          );
         }
       } catch (err) {
         const message = formatError(err, "Execute failed");
@@ -1363,6 +1440,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           setError(message);
           toast.error(message);
         }
+        throw err;
       } finally {
         setExecutingProposal(null);
       }
@@ -1456,6 +1534,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       multisig,
       error,
       pendingCandidateWarning,
+      accountFunding,
 
       guardianUrl,
       guardianStatus,
@@ -1492,6 +1571,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreate,
       handleLoad,
       handleSync,
+      retryAccountFunding,
+      retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
       handleCreateP2idProposal,
@@ -1535,6 +1616,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       multisig,
       error,
       pendingCandidateWarning,
+      accountFunding,
       guardianUrl,
       guardianStatus,
       guardianCommitment,
@@ -1562,6 +1644,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreate,
       handleLoad,
       handleSync,
+      retryAccountFunding,
+      retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
       handleCreateP2idProposal,

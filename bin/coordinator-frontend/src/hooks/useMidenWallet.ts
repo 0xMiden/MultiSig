@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { MessageSignerWalletAdapter } from '@demox-labs/miden-wallet-adapter-base';
+import type { MessageSignerWalletAdapter } from '@miden-sdk/miden-wallet-adapter-base';
 import {
   WalletAdapterNetwork,
   PrivateDataPermission,
-} from '@demox-labs/miden-wallet-adapter-base';
+} from '@miden-sdk/miden-wallet-adapter-base';
 import { PublicKeyFormat } from '@openzeppelin/miden-multisig-client';
 import type { ExternalWalletState } from '@/wallets/types';
 
@@ -23,7 +23,8 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
   useEffect(() => {
     if (!adapter) return;
 
-    const handleConnect = (_address: string) => {
+    const handleConnect = (address: string) => {
+      void address;
       const pk = adapter.publicKey;
       if (!pk) {
         setConnectError('Miden Wallet connected but did not provide a public key');
@@ -90,7 +91,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     try {
       await adapter.connect(
         PrivateDataPermission.UponRequest,
-        WalletAdapterNetwork.Testnet,
+        WalletAdapterNetwork.Devnet,
       );
     } finally {
       connectingRef.current = false;
