@@ -75,7 +75,7 @@ const TransactionDetails = () => {
               network
               </span>
               <span className="font-dmmono text-[12px] font-[500] uppercase">
-                miden testnet
+                miden devnet
               </span>
             </div>
 

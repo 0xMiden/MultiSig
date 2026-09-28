@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import media from "../../public/media";
 import Image from "next/image";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { toHexAccountId } from "@/lib/helpers";
 import { toast } from "sonner";
 
 interface InitiateFundTransferProps {
@@ -11,7 +12,7 @@ interface InitiateFundTransferProps {
 
 const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
   const {
-    handleCreateSendProposal,
+    handleCreateP2idProposal,
     creatingProposal,
     detectedConfig,
   } = useMultisig();
@@ -25,7 +26,10 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isTransactionInitiated, setIsTransactionInitiated] = useState(false);
 
-  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+  const vaultBalances = useMemo(
+    () => detectedConfig?.vaultBalances ?? [],
+    [detectedConfig?.vaultBalances],
+  );
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
 
@@ -61,7 +65,8 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
 
     try {
       const amount = BigInt(Math.round(Number(formData.amount) * 1000000));
-      await handleCreateSendProposal(formData.recipientId.trim(), formData.faucetId.trim(), amount);
+      const recipientHex = toHexAccountId(formData.recipientId.trim());
+      await handleCreateP2idProposal(recipientHex, formData.faucetId.trim(), amount);
       setIsTransactionInitiated(true);
       toast.success("Send proposal created!");
       setTimeout(() => onCancel?.(), 1500);
@@ -92,7 +97,7 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
               value={formData.recipientId}
               onChange={(e) => handleInputChange("recipientId", e.target.value)}
               placeholder="0x..."
-              className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 pr-10 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+              className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 pr-10 font-dmmono font-[500] text-[12px] focus:outline-hidden focus:ring-2 focus:ring-[#FF5500]/60"
             />
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
               <Image src={media.warningIcon} alt="warning" width={16} height={16} />
@@ -109,7 +114,7 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
               <select
                 value={formData.faucetId}
                 onChange={(e) => handleInputChange("faucetId", e.target.value)}
-                className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px] focus:outline-hidden focus:ring-2 focus:ring-[#FF5500]/60"
               >
                 <option value="">Select token...</option>
                 {vaultBalances.map((b, i) => (
@@ -132,7 +137,7 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
                 value={formData.amount}
                 onChange={(e) => handleInputChange("amount", e.target.value)}
                 placeholder="Enter amount"
-                className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px] focus:outline-none focus:ring-2 focus:ring-[#FF5500]/60"
+                className="bg-[#FFFFFF] w-full lg:h-[40px] md:h-[40px] sm:h-[36px] h-[32px] border-[1.09px] border-[rgba(217,217,217,1)] px-3 font-dmmono font-[500] text-[12px] focus:outline-hidden focus:ring-2 focus:ring-[#FF5500]/60"
               />
             </div>
           </div>

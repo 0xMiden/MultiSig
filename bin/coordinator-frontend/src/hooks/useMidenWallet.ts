@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { MessageSignerWalletAdapter } from '@demox-labs/miden-wallet-adapter-base';
+import type { MessageSignerWalletAdapter } from '@miden-sdk/miden-wallet-adapter-base';
 import {
   WalletAdapterNetwork,
   PrivateDataPermission,
-} from '@demox-labs/miden-wallet-adapter-base';
+} from '@miden-sdk/miden-wallet-adapter-base';
 import { PublicKeyFormat } from '@openzeppelin/miden-multisig-client';
 import type { ExternalWalletState } from '@/wallets/types';
 
@@ -23,22 +23,33 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
   useEffect(() => {
     if (!adapter) return;
 
-    const handleConnect = (_address: string) => {
+    const handleConnect = (address: string) => {
+      void address;
       const pk = adapter.publicKey;
       if (!pk) {
         setConnectError('Miden Wallet connected but did not provide a public key');
         return;
       }
-      const { scheme, publicKeyHex, commitment } = PublicKeyFormat.parse(pk);
+      const { publicKeyHex, commitment } = PublicKeyFormat.parse(pk);
+      // Miden Wallet keys are ECDSA; the length-based heuristic in PublicKeyFormat.parse
+      // mislabels 32-byte keys as falcon, so force the scheme it actually uses.
+      const scheme = 'ecdsa' as const;
       if (!commitment) {
         setConnectError(`Failed to derive commitment from ${scheme} public key (len=${pk.length})`);
         return;
       }
+      // For a 32-byte key, PublicKeyFormat.parse takes its Falcon-commitment
+      // branch and returns publicKeyHex === commitment, not a real secp256k1
+      // point — passing that to MidenWalletSigner as an explicit key fails its
+      // curve-point validation. Only trust publicKeyHex when the raw key is
+      // actually EC-point-shaped; otherwise leave it null so the signer instead
+      // recovers the real key from a produced signature.
+      const isValidEcdsaPointLength = pk.length === 33 || pk.length === 65;
       setConnectError(null);
       setSession({
         source: 'miden-wallet',
         connected: true,
-        publicKey: publicKeyHex,
+        publicKey: isValidEcdsaPointLength ? publicKeyHex : null,
         commitment,
         scheme,
       });
@@ -80,7 +91,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     try {
       await adapter.connect(
         PrivateDataPermission.UponRequest,
-        WalletAdapterNetwork.Testnet,
+        WalletAdapterNetwork.Devnet,
       );
     } finally {
       connectingRef.current = false;
@@ -89,6 +100,9 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
 
   const disconnect = useCallback(async () => {
     if (!adapter) return;
+    // Reset the connecting guard so any hung connect() attempt doesn't
+    // permanently block future reconnects.
+    connectingRef.current = false;
     await adapter.disconnect();
   }, [adapter]);
 

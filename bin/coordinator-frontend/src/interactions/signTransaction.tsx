@@ -1,8 +1,8 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { toast } from "sonner";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import { getProposalActionState } from "@/lib/proposalActions";
+import { ProposalActionButton } from "@/components/ProposalActionButton";
 
 const SignTransaction = ({
   transactionId,
@@ -14,52 +14,20 @@ const SignTransaction = ({
   const {
     proposals,
     detectedConfig,
-    handleSignProposal,
-    handleExecuteProposal,
+    activeCommitment,
     signingProposal,
     executingProposal,
   } = useMultisig();
-
-  const threshold = detectedConfig?.threshold ?? 0;
 
   const proposal = useMemo(() => {
     return proposals.find((p) => p.id === transactionId);
   }, [proposals, transactionId]);
 
-  const propThreshold = proposal
-    ? getEffectiveThreshold(
-        proposal.metadata?.proposalType,
-        threshold,
-        detectedConfig?.procedureThresholds
-      )
-    : threshold;
-  const sigCount = proposal?.signatures?.length ?? 0;
-  const isReady = sigCount >= propThreshold;
+  const action = proposal
+    ? getProposalActionState(proposal, detectedConfig, activeCommitment)
+    : null;
   const isSigning = signingProposal === transactionId;
   const isExecuting = executingProposal === transactionId;
-
-  const handleSign = async () => {
-    try {
-      await handleSignProposal(transactionId);
-      toast.success("Proposal signed successfully");
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to sign proposal"
-      );
-    }
-  };
-
-  const handleExecute = async () => {
-    try {
-      await handleExecuteProposal(transactionId);
-      toast.success("Proposal executed successfully");
-      onCancel?.();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to execute proposal"
-      );
-    }
-  };
 
   const handleCancel = () => {
     onCancel?.();
@@ -137,7 +105,7 @@ const SignTransaction = ({
               Signatures
             </span>
             <span className="text-[12px] font-dmmono font-[500]">
-              {sigCount}/{propThreshold}
+              {action?.signatureCount}/{action?.requiredSignatures || "—"}
             </span>
           </div>
           <div className="h-[0.5px] w-full bg-[#00000033]"></div>
@@ -147,10 +115,10 @@ const SignTransaction = ({
             </span>
             <span
               className={`text-[12px] font-dmmono font-[500] uppercase ${
-                isReady ? "text-[#28A857]" : "text-[#FF5500]"
+                action?.action === "execute" ? "text-[#28A857]" : "text-[#FF5500]"
               }`}
             >
-              {isReady ? "READY TO EXECUTE" : "PENDING SIGNATURES"}
+              {action?.statusLabel}
             </span>
           </div>
         </div>
@@ -164,49 +132,10 @@ const SignTransaction = ({
           >
             cancel
           </button>
-          {isReady ? (
-            <button
-              onClick={handleExecute}
-              disabled={isExecuting}
-              className={`relative group overflow-hidden flex-1 px-2 uppercase h-full font-[500] font-dmmono lg:text-[14px] md:text-[14px] sm:text-[12px] text-[11px] ${
-                isExecuting
-                  ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                  : "bg-[#28A857] text-[rgba(255,255,255,1)]"
-              }`}
-            >
-              <span
-                className={`absolute inset-0 transform scale-x-0 origin-left transition-transform duration-300 ease-out ${
-                  isExecuting
-                    ? "bg-gray-500"
-                    : "bg-[#1E8A42] group-hover:scale-x-100"
-                }`}
-              ></span>
-              <span className="relative z-10">
-                {isExecuting ? "EXECUTING..." : "EXECUTE"}
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={handleSign}
-              disabled={isSigning}
-              className={`relative group overflow-hidden flex-1 px-2 uppercase h-full font-[500] font-dmmono lg:text-[14px] md:text-[14px] sm:text-[12px] text-[11px] ${
-                isSigning
-                  ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-                  : "bg-[rgba(255,85,0,1)] text-[rgba(255,255,255,1)]"
-              }`}
-            >
-              <span
-                className={`absolute inset-0 transform scale-x-0 origin-left transition-transform duration-300 ease-out ${
-                  isSigning
-                    ? "bg-gray-500"
-                    : "bg-[#E64A00] group-hover:scale-x-100"
-                }`}
-              ></span>
-              <span className="relative z-10">
-                {isSigning ? "SIGNING..." : "SIGN"}
-              </span>
-            </button>
-          )}
+          <ProposalActionButton
+            proposal={proposal}
+            className="flex-1 h-full uppercase font-dmmono lg:text-[14px] md:text-[14px] sm:text-[12px] text-[11px]"
+          />
         </div>
       </div>
     </div>

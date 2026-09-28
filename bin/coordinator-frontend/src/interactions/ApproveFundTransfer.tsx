@@ -2,7 +2,8 @@
 import React, { useMemo, useState } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toast } from "sonner";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import { getProposalActionState } from "@/lib/proposalActions";
+import { ProposalActionButton } from "@/components/ProposalActionButton";
 
 export const ApproveFundTransfer = ({
   onCancel,
@@ -12,26 +13,29 @@ export const ApproveFundTransfer = ({
   const {
     proposals,
     detectedConfig,
+    activeCommitment,
     handleSignProposal,
-    handleExecuteProposal,
-    signingProposal,
-    executingProposal,
     syncingState,
   } = useMultisig();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const pendingProposals = useMemo(() => {
-    return proposals.filter(p => p.status.type === 'pending' || p.status.type === 'ready');
+    return proposals.filter(p => p.status === 'pending' || p.status === 'ready');
   }, [proposals]);
 
-  const threshold = detectedConfig?.threshold ?? 0;
+  const signableProposals = useMemo(
+    () => pendingProposals.filter(
+      (proposal) => getProposalActionState(proposal, detectedConfig, activeCommitment).action === "sign",
+    ),
+    [activeCommitment, detectedConfig, pendingProposals],
+  );
 
   const handleSelectAll = () => {
-    if (selectedIds.length === pendingProposals.length) {
+    if (selectedIds.length === signableProposals.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(pendingProposals.map(p => p.id));
+      setSelectedIds(signableProposals.map(p => p.id));
     }
   };
 
@@ -44,15 +48,20 @@ export const ApproveFundTransfer = ({
   };
 
   const handleSignSelected = async () => {
+    let signed = 0;
+    let failed = 0;
     for (const id of selectedIds) {
       try {
         await handleSignProposal(id);
-      } catch (err) {
-        toast.error(`Failed to sign ${id.slice(0, 8)}...`);
+        signed += 1;
+      } catch {
+        failed += 1;
       }
     }
     setSelectedIds([]);
-    toast.success("Signed selected proposals");
+    if (signed > 0 && failed === 0) toast.success(`Signed ${signed} proposal${signed === 1 ? "" : "s"}`);
+    else if (signed > 0) toast.warning(`Signed ${signed}; ${failed} failed`);
+    else toast.error(`Could not sign ${failed} selected proposal${failed === 1 ? "" : "s"}`);
   };
 
   if (syncingState) {
@@ -82,14 +91,15 @@ export const ApproveFundTransfer = ({
 
           <div className="flex flex-row items-center justify-between">
             <span className="font-dmmono text-[14px] font-[500] text-[rgba(0,0,0,1)] uppercase">
-              pending your signature ({pendingProposals.length})
+              pending your signature ({signableProposals.length})
             </span>
 
             <button
               onClick={handleSelectAll}
+              disabled={signableProposals.length === 0}
               className="bg-[#28A857] hover:bg-[#28A857]/80 text-[7.59px] text-white font-dmmono font-[500] px-2 py-1 transition-colors uppercase"
             >
-              SELECT All ({pendingProposals.length})
+              SELECT All ({signableProposals.length})
             </button>
           </div>
 
@@ -101,16 +111,9 @@ export const ApproveFundTransfer = ({
             <>
               <div className="flex flex-col space-y-4">
                 {pendingProposals.map((proposal) => {
-                  const propThreshold = getEffectiveThreshold(
-                    proposal.metadata?.proposalType,
-                    threshold,
-                    detectedConfig?.procedureThresholds
-                  );
-                  const sigCount = proposal.signatures?.length ?? 0;
-                  const isReady = sigCount >= propThreshold;
-                  const isSigning = signingProposal === proposal.id;
-                  const isExecuting = executingProposal === proposal.id;
+                  const action = getProposalActionState(proposal, detectedConfig, activeCommitment);
                   const isSelected = selectedIds.includes(proposal.id);
+                  const selectable = action.action === "sign";
 
                   return (
                     <div
@@ -123,6 +126,8 @@ export const ApproveFundTransfer = ({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggle(proposal.id)}
+                        disabled={!selectable}
+                        aria-label={`Select proposal ${proposal.id}`}
                         className="mr-3"
                       />
                       <div className="flex-1">
@@ -136,25 +141,9 @@ export const ApproveFundTransfer = ({
                         </div>
                       </div>
                       <div className="font-dmmono text-[12px] mr-4">
-                        {sigCount}/{propThreshold} signed
+                        {action.signatureCount}/{action.requiredSignatures || "—"} signed
                       </div>
-                      {isReady ? (
-                        <button
-                          onClick={() => handleExecuteProposal(proposal.id)}
-                          disabled={isExecuting}
-                          className="bg-[#28A857] text-white px-3 py-1 text-[10px] font-dmmono disabled:opacity-50"
-                        >
-                          {isExecuting ? "..." : "EXECUTE"}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleSignProposal(proposal.id)}
-                          disabled={isSigning}
-                          className="bg-[#FF5500] text-white px-3 py-1 text-[10px] font-dmmono disabled:opacity-50"
-                        >
-                          {isSigning ? "..." : "SIGN"}
-                        </button>
-                      )}
+                      <ProposalActionButton proposal={proposal} />
                     </div>
                   );
                 })}

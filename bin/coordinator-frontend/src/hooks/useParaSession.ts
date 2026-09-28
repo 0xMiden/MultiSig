@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useParaMiden } from '@miden-sdk/use-miden-para-react';
+import { useParaMiden } from '@miden-sdk/para-react';
 import { tryComputeEcdsaCommitmentHex, EcdsaFormat } from '@openzeppelin/miden-multisig-client';
 import { MIDEN_RPC_URL } from '@/config/psm';
 import type { ExternalWalletState } from '@/wallets/types';
@@ -44,7 +44,7 @@ export function useParaSession() {
   const paraMiden = useParaMiden(MIDEN_RPC_URL, 'public', {}, false);
   const derivingRef = useRef(false);
 
-  const { para: paraClient, evmWallets } = paraMiden;
+  const { para: paraClient, evmWallets, error: paraError } = paraMiden;
 
   useEffect(() => {
     if (!evmWallets?.length) {
@@ -88,6 +88,7 @@ export function useParaSession() {
     session,
     paraClient,
     paraMiden,
+    error: paraError || null,
     getWalletId,
   };
 }

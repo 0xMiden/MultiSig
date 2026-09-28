@@ -1,16 +1,17 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import General from "./components/General";
 import Security from "./components/Security";
 import Signers from "./components/Signers";
 import Notifications from "./components/Notifications";
 import Transactionguard from "./components/Transactionguard";
+import { useDashboardUI } from "@/contexts/DashboardUIContext";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState("general");
+  const { settingsTab: activeTab, setSettingsTab: setActiveTab } = useDashboardUI();
 
   const tabs = [
     { id: "general", label: "GENERAL" },
@@ -18,7 +19,7 @@ const Settings = () => {
     { id: "signers", label: "SIGNERS" },
     { id: "notifications", label: "NOTIFICATIONS" },
     { id: "transactionguard", label: "TRANSACTION GUARD" },
-  ];
+  ] as const;
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -41,43 +42,34 @@ const Settings = () => {
     <>
       <div className="flex flex-col w-full h-full space-y-4 p-6">
         <div className="flex flex-col w-full">
-          <span className="uppercase text-[24px] font-dmmono font-[500] text-[#000000]">
-            SETTINGS
+          <span className="text-[22px] md:text-[24px] font-[600] text-[#111]">
+            Settings
           </span>
-          <span className="text-[16px] font-dmmono font-[500] text-[#0000007A]">
+          <span className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
             Configure multisig account preferences and security
           </span>
         </div>
 
-        {/* tab menu */}
-        <div className="w-full h-[56px] grid grid-cols-5 border-[0.5px] border-[#00000033] uppercase relative overflow-hidden rounded-sm">
-          {/* Animated background indicator */}
+        {/* Tab bar — flex instead of grid so h-10 is enforced on children */}
+        <div className="w-full h-10 flex bg-[rgba(245,245,245,1)] rounded-[10px] p-1 relative overflow-hidden shrink-0">
+          {/* Sliding white indicator */}
           <div
-            className="absolute top-0 left-0 h-[56px] bg-[#FF5500] rounded-sm shadow-sm transition-transform duration-300 ease-in-out"
+            className="absolute top-1 bottom-1 left-1 bg-white rounded-[8px] shadow-xs transition-transform duration-300 ease-in-out pointer-events-none"
             style={{
-              width: `${100 / tabs.length}%`,
-              transform: `translateX(${tabs.findIndex((tab) => tab.id === activeTab) * 100
-                }%)`,
+              width: `calc((100% - 8px) / ${tabs.length})`,
+              transform: `translateX(${tabs.findIndex((tab) => tab.id === activeTab) * 100}%)`,
             }}
           />
 
-          {tabs.map((tab, index) => (
+          {tabs.map((tab) => (
             <div
               key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-              }}
-              className={`flex items-center  h-[56px] justify-center cursor-pointer text-[16px] font-dmmono font-[500] transition-all duration-300 relative z-10 select-none ${activeTab === tab.id
-                  ? "text-white font-semibold"
-                  : "text-black hover:text-gray-700"
-                }`}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex items-center justify-center cursor-pointer text-[13px] font-[500] transition-colors duration-150 relative z-10 select-none whitespace-nowrap ${
+                activeTab === tab.id ? "text-[#111]" : "text-[rgba(0,0,0,0.5)] hover:text-[#111]"
+              }`}
             >
-              <span
-                className={`transition-colors duration-150 ${activeTab === tab.id ? "text-white" : "text-black"
-                  }`}
-              >
-                {tab.label}
-              </span>
+              {tab.label}
             </div>
           ))}
         </div>
