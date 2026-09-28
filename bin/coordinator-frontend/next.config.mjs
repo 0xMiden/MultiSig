@@ -14,7 +14,14 @@ const nextConfig = {
   generateBuildId: async () => {
     return 'build-id'
   },
-  webpack: (config, { webpack }) => {
+  webpack: (config, { webpack, dev }) => {
+    if (dev) {
+      config.module.rules.push({
+        test: /(?:Cargo-[^/]+|web-client-methods-worker)\.js$/,
+        include: path.join(__dirname, 'node_modules/@miden-sdk/miden-sdk/dist'),
+        use: [path.join(__dirname, 'scripts/miden-diagnostics-loader.cjs')],
+      });
+    }
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,

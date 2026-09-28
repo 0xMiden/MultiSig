@@ -12,20 +12,52 @@ export function rpcDiagnosticLog(event: string, data: unknown): void {
 
 export async function traceMidenStore<T>(method: string, args: unknown[], call: () => Promise<T>): Promise<T> {
   const lookup = `${session}-store-${++counter}`;
-  const context = { lookup, method, database: args[0], accountIds: args[1] };
+  // Never dump state payloads: they can contain account seeds, code, and notes.
+  const state = args[1] as Record<string, unknown> | undefined;
+  const write = method.startsWith('apply');
+  const context = { lookup, method, database: args[0],
+    accountIds: method === 'applyFullAccountState' ? state?.accountId
+      : method === 'applyTransactionBatch' ? undefined : args[1],
+    nonce: method === 'applyFullAccountState' ? state?.nonce : method === 'applyAccountPatch' ? args[2] : undefined,
+    commitment: method === 'applyFullAccountState' ? state?.accountCommitment
+      : method === 'applyAccountPatch' ? args[11] : undefined,
+    batch: method === 'applyTransactionBatch' && Array.isArray(args[1]) ? args[1].map(payload => ({
+      transactionId: payload.transactionRecord?.id,
+      accountId: payload.accountState?.accountId ?? payload.accountState?.account?.accountId,
+      nonce: payload.accountState?.nonce ?? payload.accountState?.account?.nonce,
+      kind: payload.accountState?.kind,
+    })) : undefined,
+    activeWrites: [...activeStoreWrites],
+  };
+  const started = Date.now();
+  if (write) activeStoreWrites.add(lookup);
   rpcDiagnosticLog('store.START', context);
   try {
     const result = await call();
     rpcDiagnosticLog('store.RESULT', { ...context, found: result != null,
+      ms: Date.now() - started,
+      header: method === 'getAccountHeader' || method === 'getAccountHeaderByCommitment'
+        ? headerMetadata(result) : undefined,
       count: Array.isArray(result) ? result.length : undefined });
     return result;
   } catch (error) {
-    rpcDiagnosticLog('store.FAIL', { ...context, message: String(error) });
+    rpcDiagnosticLog('store.FAIL', { ...context, ms: Date.now() - started, message: String(error) });
     throw error;
+  } finally {
+    activeStoreWrites.delete(lookup);
   }
 }
 
-// Minimal protobuf reader for the v0.16 AccountRequest envelope. Other fields
+const activeStoreWrites = new Set<string>();
+function headerMetadata(value: unknown) {
+  const header = value as Record<string, unknown> | null;
+  if (!header) return null;
+  return { id: header.id, nonce: header.nonce, codeRoot: header.codeRoot,
+    storageRoot: header.storageRoot, vaultRoot: header.vaultRoot,
+    locked: header.locked, watched: header.watched };
+}
+
+// Minimal protobuf reader for the AccountRequest envelope. Other fields
 // (storage keys, account code, vault assets) are skipped and never logged.
 function fields(bytes: Uint8Array): Map<number, Uint8Array | number> {
   let offset = 0;
@@ -75,11 +107,27 @@ export function decodeAccountRequest(bytes: Uint8Array) {
   const request = fields(frame.payload);
   const idEnvelope = request.get(1);
   const id = idEnvelope instanceof Uint8Array ? fields(idEnvelope).get(1) : undefined;
+  let accountIdHex: string | null = null;
+  // 0.17 AccountId.v1 contains suffix/prefix Felt messages with fixed64 values.
+  // Keep the legacy serialized ID separate; never interpret protobuf bytes as an ID.
+  if (id instanceof Uint8Array) {
+    try {
+      const v1 = fields(id);
+      const felt = (field: number) => {
+        const envelope = v1.get(field);
+        const value = envelope instanceof Uint8Array ? fields(envelope).get(1) : undefined;
+        if (!(value instanceof Uint8Array) || value.length !== 8) throw new Error('not v1');
+        return new DataView(value.buffer, value.byteOffset, 8).getBigUint64(0, true).toString(16).padStart(16, '0');
+      };
+      accountIdHex = `0x${felt(2)}${felt(1).slice(0, 14)}`;
+    } catch { /* Legacy encoding or unavailable; retain only explicitly labelled wire bytes. */ }
+  }
   const blockEnvelope = request.get(2);
   const block = blockEnvelope instanceof Uint8Array ? fields(blockEnvelope).get(1) ?? 0 : null;
   return {
     // Wire encoding explicitly labelled; store logs also contain SDK account IDs.
-    serializedAccountIdHex: id instanceof Uint8Array ? `0x${Array.from(id, b => b.toString(16).padStart(2, '0')).join('')}` : null,
+    accountIdHex,
+    serializedAccountIdHex: accountIdHex === null && id instanceof Uint8Array ? `0x${Array.from(id, b => b.toString(16).padStart(2, '0')).join('')}` : null,
     requestedBlock: block,
     atChainTip: blockEnvelope === undefined,
     detailsRequested: request.has(3),

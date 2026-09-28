@@ -25,27 +25,49 @@ import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
 import { MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
+import { registerDevnetAccount } from './devnetRegistration';
 
 const registrationRequests = new Map<string, Promise<void>>();
 
 /**
- * Registers a locally tracked account through the SDK. The SDK checks whether
- * the node already allows it before spending an invitation code. On devnet the
- * registration also requests the public funding note used by its first transaction.
+ * Devnet funding requires the direct RPC: the high-level SDK short-circuits
+ * when the network allows every account, without requesting a funding note.
  */
 export function registerAccountOnNode(
   midenClient: MidenClient,
   accountId: string,
   invitationCode = MIDEN_REGISTRATION_CODE,
 ): Promise<void> {
-  const key = accountId.toLowerCase();
+  const key = `${MIDEN_RPC_URL}:${accountId.toLowerCase()}`;
   const existing = registrationRequests.get(key);
   if (existing) return existing;
 
-  const request = midenClient.accounts.register({
-    account: accountId,
-    invitationCode,
-  });
+  const request = (async () => {
+    const devnet = MIDEN_RPC_URL === 'devnet' || /^https:\/\/rpc\.devnet\.miden\.io(?::443)?\/?$/.test(MIDEN_RPC_URL);
+    diagnosticLog('registration.START', { accountId, mode: devnet ? 'devnet-direct-rpc' : 'sdk' });
+    try {
+      if (devnet) {
+        await registerDevnetAccount(accountId, invitationCode, (identity) => {
+          diagnosticLog('registration.NETWORK_IDENTITY', { accountId, ...identity });
+        });
+      } else if (!(await midenClient.accounts.isAllowed(accountId))) {
+        await midenClient.accounts.register({ account: accountId, invitationCode });
+      }
+      diagnosticLog('registration.OK', { accountId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const duplicate = /\bALREADY_REGISTERED\b|\balready registered\b/i.test(message);
+      const allowed = /\bACCOUNT_ALREADY_ALLOWED\b|\balready allowed on the network\b/i.test(message);
+      // Confirm the node accepts this account; never swallow unrelated failures.
+      if ((duplicate || (!devnet && allowed)) && await midenClient.accounts.isAllowed(accountId)) {
+        diagnosticLog('registration.ALREADY_ALLOWED', { accountId, fundingConfirmed: false });
+        return;
+      }
+      diagnosticLog('registration.FAIL', { accountId, error: diagnosticError(error) });
+      throw error;
+    }
+  })();
 
   registrationRequests.set(key, request);
   request.finally(() => registrationRequests.delete(key)).catch(() => undefined);
@@ -169,7 +191,9 @@ export async function createMultisigAccount(
     storageMode: 'private',
     signatureScheme,
   };
-  return multisigClient.create(config, signer);
+  const multisig = await multisigClient.create(config, signer);
+  instrumentMultisig(multisig, multisigClient);
+  return multisig;
 }
 
 export async function loadMultisigAccount(
@@ -177,5 +201,7 @@ export async function loadMultisigAccount(
   accountId: string,
   signer: Signer,
 ): Promise<Multisig> {
-  return multisigClient.load(accountId, signer);
+  const multisig = await multisigClient.load(accountId, signer);
+  instrumentMultisig(multisig, multisigClient);
+  return multisig;
 }

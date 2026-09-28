@@ -5,6 +5,14 @@ module.exports = function (source) {
   const hooks = [
     ['getAccountHeader', 'dbId, accountId'],
     ['getForeignAccountCode', 'dbId, accountIds'],
+    ['getAccountHeaderByCommitment', 'dbId, accountCommitment'],
+    ['getAccountCode', 'dbId, codeRoot'],
+    ['getAccountStorage', 'dbId, accountId, slotNames'],
+    ['getAccountStorageMaps', 'dbId, accountId'],
+    ['getAccountVaultAssets', 'dbId, accountId, vaultKeys'],
+    ['applyFullAccountState', 'dbId, accountState'],
+    ['applyTransactionBatch', 'dbId, payloads'],
+    ['applyAccountPatch', 'dbId, accountId, nonce, updatedSlots, changedMapEntries, changedAssets, codeRoot, storageRoot, vaultRoot, committed, commitment'],
   ];
   let result = source;
   let wrappers = '';

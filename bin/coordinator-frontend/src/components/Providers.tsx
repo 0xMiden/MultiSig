@@ -10,7 +10,7 @@ import { store } from '../store';
 import { MultisigProvider, useMultisig } from '../contexts/MultisigContext';
 import { PARA_API_KEY, PARA_ENVIRONMENT } from '@/config/psm';
 
-import '@getpara/react-sdk-lite/styles.css';
+
 
 const queryClient = new QueryClient();
 const paraEnv = PARA_ENVIRONMENT === 'production' ? Environment.PROD : Environment.DEV;

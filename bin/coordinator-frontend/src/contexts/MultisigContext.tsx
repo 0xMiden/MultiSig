@@ -52,6 +52,7 @@ import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
+import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
 
 // Temporary debug instrumentation for the receive-funds vault investigation.
 // Logs fully-expanded JSON (via a BigInt-safe replacer) instead of console's
@@ -584,24 +585,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
       setAccountFunding({ phase: "registering" });
       try {
-        try {
-          await registerAccountOnNode(midenClient, account.accountId);
-        } catch (registrationError) {
-          const message = formatError(registrationError).toUpperCase();
-          if (
-            !message.includes("ALREADY_REGISTERED")
-            && !message.includes("ACCOUNT_ALREADY_ALLOWED")
-          ) {
-            throw registrationError;
-          }
-        }
+        await registerAccountOnNode(midenClient, account.accountId);
 
         setAccountFunding({ phase: "waiting-for-note" });
         for (let attempt = 0; attempt < 8; attempt += 1) {
           await midenClient.sync();
           const notes = await account.getConsumableNotes();
           setConsumableNotes(notes);
-          if (notes.length > 0) {
+          const feeFaucet = await midenClient.feeFaucetId();
+          const feeFaucetHex = feeFaucet.toString().toLowerCase();
+          feeFaucet.free();
+          if (notes.some(note => note.assets.some(asset =>
+            asset.faucetId.toLowerCase() === feeFaucetHex && asset.amount > 0n))) {
             setAccountFunding({ phase: "funding-available" });
             return;
           }
@@ -1134,6 +1129,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPendingCandidateWarning(null);
       try {
+        if (midenClient) await logReceiveFunding(midenClient, multisig, selectedNotes);
         await multisig.createConsumeNotesProposal(noteIds);
         setProposals(multisig.listProposals());
         if (accountFunding.phase === "funding-available") {
@@ -1141,6 +1137,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
         toast.success("Consume notes proposal created");
       } catch (err) {
+        diagnosticLog('receive.FAIL', { accountId: multisig.accountId, noteIds, error: diagnosticError(err) });
         if (isPendingCandidateError(err)) {
           setPendingCandidateWarning(
             "A previous transaction is still being processed on-chain. " +
@@ -1155,7 +1152,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setCreatingProposal(false);
       }
     },
-    [accountFunding.phase, multisig, consumableNotes],
+    [accountFunding.phase, multisig, consumableNotes, midenClient],
   );
 
   const handleCreateP2idProposal = useCallback(

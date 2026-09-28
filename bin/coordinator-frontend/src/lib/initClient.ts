@@ -2,6 +2,7 @@ import { MidenClient, AuthSecretKey } from '@miden-sdk/miden-sdk';
 import { MIDEN_DB_NAME, MIDEN_RPC_URL, MIDEN_NOTE_TRANSPORT_URL } from '@/config/psm';
 import { normalizeCommitment } from '@/lib/helpers';
 import type { SignerInfo } from '@/types/psm';
+import { instrumentPublicClient } from './midenDiagnostics';
 
 const SIGNER_DB_NAME = 'MultisigSignerKeys';
 const SIGNER_STORE_NAME = 'keys';
@@ -84,11 +85,13 @@ export async function createMidenClient(rpcUrl = MIDEN_RPC_URL): Promise<MidenCl
   // advances the cursor past the current tip, causing the client to miss
   // public notes minted before tag registration. Tags are added in
   // handleCreate/handleLoad/handleSync and the first sync happens there.
-  return MidenClient.create({
+  const client = await MidenClient.create({
     rpcUrl,
     noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
     storeName: MIDEN_DB_NAME,
   });
+  instrumentPublicClient(client);
+  return client;
 }
 
 /** @deprecated Use createMidenClient */

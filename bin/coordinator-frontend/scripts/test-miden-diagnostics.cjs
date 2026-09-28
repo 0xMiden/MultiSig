@@ -44,6 +44,20 @@ test('decodes only account ID, block and details presence; handles block zero an
   assert.throws(() => api.decodeAccountRequest(new Uint8Array([0, 1])));
 });
 
+test('decodes 0.17 AccountIdV1 fixed64 prefix/suffix without precision loss', () => {
+  const { api } = runtime();
+  const felt = (hex) => {
+    const bytes = new Uint8Array(9);
+    bytes[0] = 9;
+    new DataView(bytes.buffer).setBigUint64(1, BigInt(hex), true);
+    return bytes;
+  };
+  const id = [10, 9, ...felt('0x113c2cad2a7b2f00'), 18, 9, ...felt('0x428aa7f6dd374841')];
+  const decoded = api.decodeAccountRequest(frame(new Uint8Array([10, 24, 10, 22, ...id])));
+  assert.equal(decoded.accountIdHex, '0x428aa7f6dd374841113c2cad2a7b2f');
+  assert.equal(decoded.serializedAccountIdHex, null);
+});
+
 test('fetch observes binary/text gRPC without consuming caller bodies or changing arguments', async () => {
   for (const text of [false, true]) {
     let calls = 0;
@@ -90,6 +104,32 @@ test('production does not install fetch hook', () => {
   const { api, scope } = runtime(original, 'production');
   api.installMidenRpcDiagnostics();
   assert.equal(scope.fetch, original);
+});
+
+test('account write diagnostics correlate overlapping writes without exposing payloads', async () => {
+  const { api, logs } = runtime(async () => new Response());
+  const state = { accountId: 'account', nonce: '7', accountCommitment: 'commitment',
+    accountSeed: 'SECRET_SEED', storageSlots: ['SECRET_STORAGE'], assets: ['SECRET_ASSETS'] };
+  const failure = new Error('PrematureCommitError');
+  await assert.rejects(api.traceMidenStore('applyFullAccountState', ['db', state], async () => {
+    const header = { id: 'account', nonce: '6', codeRoot: 'code-root', accountSeed: 'SECRET_SEED' };
+    assert.equal(await api.traceMidenStore('getAccountHeader', ['db', 'account'], async () => header), header);
+    await api.traceMidenStore('getAccountHeaderByCommitment', ['db', 'old-commitment'], async () => undefined);
+    throw failure;
+  }), e => e === failure);
+  await api.traceMidenStore('applyTransactionBatch', ['db', [{ transactionRecord: { id: 'tx-id', details: 'SECRET_TX' },
+    accountState: { kind: 'full', account: state } }]], async () => undefined);
+  const all = logs.join('\n');
+  assert(!all.includes('SECRET_'));
+  assert(all.includes('old-commitment'));
+  assert(all.includes('"found":false'));
+  assert(all.includes('"nonce":"6"'));
+  assert(all.includes('tx-id'));
+  const events = logs.map(line => JSON.parse(line.slice(line.indexOf('{'))));
+  const read = events.find(e => e.data.method === 'getAccountHeader');
+  assert.equal(read.data.activeWrites.length, 1);
+  const batch = events.find(e => e.data.method === 'applyTransactionBatch');
+  assert.equal(batch.data.activeWrites.length, 0);
 });
 
 test('loader instruments both installed SDK realms; rejects unknown SDK layout', () => {
