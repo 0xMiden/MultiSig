@@ -1,5 +1,6 @@
 import {
-  type Multisig,
+  Multisig,
+  AccountInspector,
   type MultisigClient,
   type MultisigConfig,
   type ProcedureThreshold,
@@ -208,6 +209,42 @@ export async function loadMultisigAccount(
   signer: Signer,
 ): Promise<Multisig> {
   const multisig = await multisigClient.load(accountId, signer);
+  instrumentMultisig(multisig, multisigClient);
+  return multisig;
+}
+
+/** Restore an unused local account after Guardian registration was interrupted. */
+export async function loadPendingMultisigAccount(
+  multisigClient: MultisigClient,
+  midenClient: MidenClient,
+  accountId: string,
+  signer: Signer,
+): Promise<Multisig> {
+  const account = await midenClient.accounts.get(accountId);
+  if (!account || account.nonce().asInt() !== 0n) {
+    throw new Error('No unused local account is available for Guardian registration recovery');
+  }
+  const signerCommitments = AccountInspector.getSignerPublicKeyCommitments(account);
+  if (!signerCommitments.map(normalizeCommitment).includes(normalizeCommitment(signer.commitment))) {
+    throw new Error('The selected signer is not authorized for this local account');
+  }
+  const guardianCommitment = AccountInspector.getGuardianPublicKeyCommitment(account);
+  const guardian = multisigClient.guardianClient;
+  const pubkey = await guardian.getPubkey(signer.scheme);
+  if (normalizeCommitment(pubkey.commitment) !== normalizeCommitment(guardianCommitment)) {
+    throw new Error('The local account belongs to a different Guardian');
+  }
+  const detected = AccountInspector.fromAccount(account);
+  const config: MultisigConfig = {
+    threshold: detected.threshold,
+    signerCommitments,
+    guardianCommitment,
+    guardianPublicKey: pubkey.pubkey,
+    signatureScheme: signer.scheme,
+    procedureThresholds: Array.from(detected.procedureThresholds, ([procedure, threshold]) => ({ procedure, threshold })),
+  };
+  guardian.setSigner(signer);
+  const multisig = new Multisig(account, config, guardian, signer, midenClient, accountId, MIDEN_RPC_URL);
   instrumentMultisig(multisig, multisigClient);
   return multisig;
 }

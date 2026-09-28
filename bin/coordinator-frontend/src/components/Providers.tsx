@@ -54,6 +54,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ParaProvider
+        waitForReady={Boolean(PARA_API_KEY)}
         paraClientConfig={{ apiKey: PARA_API_KEY || 'placeholder', env: paraEnv }}
         config={{ appName: 'Miden Multisig' }}
       >

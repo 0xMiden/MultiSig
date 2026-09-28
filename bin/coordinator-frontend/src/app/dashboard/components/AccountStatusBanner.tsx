@@ -21,8 +21,10 @@ const AccountStatusBanner = () => {
     detectedConfig,
     loadingAccount,
     registeringOnGuardian,
+    guardianRegistrationRequired,
     syncingState,
     handleSync,
+    retryGuardianRegistration,
     retryAccountFunding,
   } = useMultisig();
 
@@ -33,7 +35,8 @@ const AccountStatusBanner = () => {
   if (!error && !pendingCandidateWarning && !configMissing && accountFunding.phase === "idle") return null;
 
   const retry = () => {
-    handleSync().catch(() => {
+    const operation = guardianRegistrationRequired ? retryGuardianRegistration : handleSync;
+    operation().catch(() => {
       /* handleSync already reports failures through `error` */
     });
   };
@@ -87,7 +90,7 @@ const AccountStatusBanner = () => {
             disabled={busy}
             className="min-h-8 shrink-0 text-[12px] font-[500] text-red-700 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50"
           >
-            {busy ? "Retrying…" : "Retry"}
+            {busy ? "Retrying…" : guardianRegistrationRequired ? "Retry Guardian registration" : "Retry"}
           </button>
         </div>
       )}
@@ -109,7 +112,7 @@ const AccountStatusBanner = () => {
             disabled={busy}
             className="min-h-8 shrink-0 text-[12px] font-[500] text-[#FF5500] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF5500] disabled:opacity-50"
           >
-            {busy ? "Retrying…" : "Retry"}
+            {busy ? "Retrying…" : guardianRegistrationRequired ? "Retry Guardian registration" : "Retry"}
           </button>
         </div>
       )}

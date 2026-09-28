@@ -38,6 +38,7 @@ import {
   initMultisigClient,
   createMultisigAccount,
   loadMultisigAccount,
+  loadPendingMultisigAccount,
   createSigner,
   registerAccountNoteTag,
   getOutputNotesFromTxSummary,
@@ -185,6 +186,7 @@ interface MultisigContextValue {
   // Loading flags
   creating: boolean;
   registeringOnGuardian: boolean;
+  guardianRegistrationRequired: boolean;
   loadingAccount: boolean;
   syncingState: boolean;
   creatingProposal: boolean;
@@ -204,6 +206,7 @@ interface MultisigContextValue {
     signatureScheme?: SignatureScheme,
   ) => Promise<void>;
   handleSync: () => Promise<void>;
+  retryGuardianRegistration: () => Promise<void>;
   retryAccountFunding: () => Promise<void>;
   retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
@@ -311,6 +314,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   const [creating, setCreating] = useState(false);
   const [registeringOnGuardian, setRegisteringOnGuardian] = useState(false);
+  const [guardianRegistrationRequired, setGuardianRegistrationRequired] = useState(false);
+  const registrationRetryInProgress = useRef(false);
   const [loadingAccount, setLoadingAccount] = useState(false);
   const [detectedConfig, setDetectedConfig] =
     useState<DetectedMultisigConfig | null>(null);
@@ -354,6 +359,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     if (walletSource === "ledger") disconnectLedger();
     // Multisig instances bind their signer at construction; require an explicit reload.
     setMultisig(null); setGuardianState(null); setDetectedConfig(null);
+    setGuardianRegistrationRequired(false);
     setProposals([]); setConsumableNotes([]);
     localStorage.setItem("currentWalletSource", source);
     setWalletSourceState(source);
@@ -367,6 +373,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (walletSource === "ledger" && !ledger.signer) {
       setMultisig(null); setGuardianState(null); setDetectedConfig(null);
+      setGuardianRegistrationRequired(false);
       setProposals([]); setConsumableNotes([]);
     }
   }, [walletSource, ledger.signer, multisig]);
@@ -686,6 +693,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
 
       setCreating(true);
+      setGuardianRegistrationRequired(false);
       setError(null);
       try {
         setSigner((prev) =>
@@ -741,8 +749,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
 
         setRegisteringOnGuardian(true);
+        let registeredOnGuardian = false;
         try {
+          setGuardianRegistrationRequired(true);
           await ms.registerOnGuardian();
+          registeredOnGuardian = true;
+          setGuardianRegistrationRequired(false);
           if (midenClient && ms.accountId) {
             try {
               await registerAccountNoteTag(midenClient, ms.accountId);
@@ -777,7 +789,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           setConsumableNotes(notes);
         } catch (guardianErr) {
           setError(
-            `Created but failed to register on Guardian: ${guardianErr instanceof Error ? guardianErr.message : "Unknown"}`,
+            `${registeredOnGuardian ? "Registered on Guardian but failed to sync" : "Created but failed to register on Guardian"}: ${guardianErr instanceof Error ? guardianErr.message : "Unknown"}`,
           );
         } finally {
           setRegisteringOnGuardian(false);
@@ -831,6 +843,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
 
       setLoadingAccount(true);
+      setMultisig(null);
+      setGuardianRegistrationRequired(false);
       setError(null);
       setDetectedConfig(null);
       try {
@@ -845,11 +859,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           externalParams,
         );
 
+        let pendingRegistration = false;
         const ms = await loadMultisigAccount(
           multisigClient,
           normalizedId,
           clientSigner,
-        );
+        ).catch(async (err: unknown) => {
+          if (!(err instanceof GuardianHttpError) || err.code !== "account_not_found" || !midenClient) throw err;
+          const pending = await loadPendingMultisigAccount(multisigClient, midenClient, normalizedId, clientSigner);
+          pendingRegistration = true;
+          setGuardianRegistrationRequired(true);
+          return pending;
+        });
         if (walletSource === "ledger" && clientSigner !== latestLedgerSigner.current) throw new Error("Ledger session changed; load the account again.");
         setMultisig(ms);
 
@@ -859,6 +880,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("currentWalletSource", walletSource);
           localStorage.setItem("currentWalletScheme", signatureScheme);
           document.cookie = `currentWalletId=${ms.accountId}; path=/; max-age=31536000`;
+        }
+
+        if (pendingRegistration) {
+          setError("This account is saved locally but is not registered on Guardian. Retry Guardian registration.");
+          return;
         }
 
         if (midenClient && ms.accountId) {
@@ -891,6 +917,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setConsumableNotes(notes);
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown";
+        if (err instanceof GuardianHttpError && err.code === "account_not_found") {
+          setGuardianRegistrationRequired(true);
+        }
         if (message.includes("404") || message.includes("not found")) {
           setError("Account not found on Guardian");
         } else {
@@ -977,7 +1006,13 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         /* no private notes or transport unavailable */
       }
 
-      const state = await multisig.syncState();
+      const state = await multisig.syncState().catch((err: unknown) => {
+        if (err instanceof GuardianHttpError && err.code === "account_not_found") {
+          setGuardianRegistrationRequired(true);
+        }
+        throw err;
+      });
+      setGuardianRegistrationRequired(false);
       const [synced, notes] = await Promise.all([
         multisig.syncProposals(),
         multisig.getConsumableNotes(),
@@ -1033,6 +1068,37 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setSyncingState(false);
     }
   }, [multisig, midenClient]);
+
+  const retryGuardianRegistration = useCallback(async () => {
+    if (!multisig || !midenClient || !guardianRegistrationRequired || registrationRetryInProgress.current) return;
+    if (walletSource === "ledger" && !ledger.signer) {
+      setError("Reconnect the Ledger signer before retrying Guardian registration.");
+      return;
+    }
+
+    registrationRetryInProgress.current = true;
+    setRegisteringOnGuardian(true);
+    setError(null);
+    try {
+      await multisig.registerOnGuardian();
+      if (walletSource === "ledger" && ledger.signer !== latestLedgerSigner.current) {
+        throw new Error("Ledger session changed; load the account again.");
+      }
+      setGuardianRegistrationRequired(false);
+      await registerAccountNoteTag(midenClient, multisig.accountId);
+      try {
+        await requestAccountFunding(multisig);
+      } catch {
+        // Funding failures are shown separately and can be retried.
+      }
+      await handleSync();
+    } catch (err) {
+      setError(formatError(err, "Guardian registration recovery failed"));
+    } finally {
+      registrationRetryInProgress.current = false;
+      setRegisteringOnGuardian(false);
+    }
+  }, [multisig, midenClient, guardianRegistrationRequired, walletSource, ledger.signer, requestAccountFunding, handleSync]);
 
   const retryProposalVerification = useCallback(
     async () => {
@@ -1548,6 +1614,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const handleDisconnect = useCallback(() => {
     if (walletSource === "ledger") disconnectLedger();
     setMultisig(null);
+    setGuardianRegistrationRequired(false);
     setGuardianState(null);
     setProposals([]);
     setError(null);
@@ -1608,6 +1675,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
       creating,
       registeringOnGuardian,
+      guardianRegistrationRequired,
       loadingAccount,
       syncingState,
       creatingProposal,
@@ -1618,6 +1686,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreate,
       handleLoad,
       handleSync,
+      retryGuardianRegistration,
       retryAccountFunding,
       retryProposalVerification,
       handleSignProposal,
@@ -1684,6 +1753,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       midenWalletSession.commitment,
       creating,
       registeringOnGuardian,
+      guardianRegistrationRequired,
       loadingAccount,
       syncingState,
       creatingProposal,
@@ -1693,6 +1763,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreate,
       handleLoad,
       handleSync,
+      retryGuardianRegistration,
       retryAccountFunding,
       retryProposalVerification,
       handleSignProposal,
