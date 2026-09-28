@@ -8,13 +8,18 @@ import { Toaster } from 'sonner';
 
 import { store } from '../store';
 import { MultisigProvider, useMultisig } from '../contexts/MultisigContext';
-import { AppHeader } from './AppHeader';
 import { PARA_API_KEY, PARA_ENVIRONMENT } from '@/config/psm';
+import { LedgerPanel } from './LedgerPanel';
 
-import '@getpara/react-sdk-lite/styles.css';
+
 
 const queryClient = new QueryClient();
 const paraEnv = PARA_ENVIRONMENT === 'production' ? Environment.PROD : Environment.DEV;
+
+function LedgerPanelWrapper() {
+  const { ledger } = useMultisig();
+  return <LedgerPanel ledger={ledger} />;
+}
 
 function ParaModalWrapper() {
   const { paraModalOpen, closeParaModal } = useMultisig();
@@ -49,13 +54,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ParaProvider
+        waitForReady={Boolean(PARA_API_KEY)}
         paraClientConfig={{ apiKey: PARA_API_KEY || 'placeholder', env: paraEnv }}
         config={{ appName: 'Miden Multisig' }}
       >
         <Provider store={store}>
           <MultisigProvider>
-            <AppHeader />
             {children}
+            <LedgerPanelWrapper />
             {PARA_API_KEY && <ParaModalWrapper />}
             <Toaster position="bottom-right" />
           </MultisigProvider>

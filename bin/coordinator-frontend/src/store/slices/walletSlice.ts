@@ -42,6 +42,11 @@ const walletSlice = createSlice({
       if (field === 'signerAddresses' || field === 'signerPublicKeys') {
         return;
       }
+      if (field === 'totalSigners' && value !== state.formData.totalSigners) {
+        // Keep only signer 0 (local/auto-populated), clear the rest
+        state.formData.signerAddresses = [state.formData.signerAddresses[0] ?? ''];
+        state.formData.signerPublicKeys = [state.formData.signerPublicKeys[0] ?? ''];
+      }
       (state.formData[field] as string) = value;
     },
     updateSignerAddress: (state, action: PayloadAction<{ index: number; value: string }>) => {

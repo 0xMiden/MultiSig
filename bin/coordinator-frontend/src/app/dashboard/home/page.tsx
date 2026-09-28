@@ -1,24 +1,18 @@
 "use client";
 import React, { useMemo, useState } from "react";
-import Image from "next/image";
-import assetValIcon from "../../../../public/media/home/circum_dollar.svg";
 
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { useDashboardUI } from "@/contexts/DashboardUIContext";
+import ApproveModal from "./components/ApproveModal";
 
 export const dynamic = 'force-dynamic';
 
-import { AnimatePresence, motion } from "framer-motion";
-import InitiateFundTransfer from "@/interactions/InitiateFundTransfer";
-import ReceiveFundTransfer from "@/interactions/ReceiveFundTransfer";
-import { ApproveFundTransfer } from "@/interactions/ApproveFundTransfer";
-
 const Page: React.FC = () => {
-  const { detectedConfig, proposals, syncingState } = useMultisig();
-  const [isInitiateFundTransferOpen, setIsInitiateFundTransferOpen] = useState(false);
-  const [isReceiveFundTransferOpen, setIsReceiveFundTransferOpen] = useState(false);
-  const [isApproveFundTransferOpen, setIsApproveFundTransferOpen] = useState(false);
+  const { detectedConfig } = useMultisig();
+  const { openSendModal, openReceiveModal } = useDashboardUI();
+  const [isApproveOpen, setIsApproveOpen] = useState(false);
 
   const walletName = useMemo(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem("walletFormData") : null;
@@ -30,186 +24,105 @@ const Page: React.FC = () => {
 
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
-  const vaultBalances = detectedConfig?.vaultBalances ?? [];
+  const vaultBalances = useMemo(
+    () => detectedConfig?.vaultBalances ?? [],
+    [detectedConfig?.vaultBalances],
+  );
 
   const totalBalance = useMemo(() => {
     if (vaultBalances.length === 0) return 0;
-    const total = vaultBalances.reduce((sum, b) => sum + Number(b.amount), 0);
-    return total / 1000000;
+    return vaultBalances.reduce((sum, b) => sum + Number(b.amount), 0) / 1000000;
   }, [vaultBalances]);
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/*Top Cards Div*/}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6 px-2 py-2 md:py-3 lg:p-4">
-        {/*Total Asset Value Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[100px] md:h-[135px] border-[0.5px] border-[#00000033] p-2 md:p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image src={assetValIcon} alt="assetValIcon" quality={100} />
-            <div className="font-dmmono text-[14px] md:text-[16px] text-[#000000] font-[500]">
-              Total Asset Value
+      {/* Top stat cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 px-2 py-2 md:py-3 lg:p-4">
+
+        {/* Total Asset Value */}
+        <div className="col-span-4 flex flex-col justify-between h-[140px] md:h-[160px] rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
+              <svg className="w-3.5 h-3.5 text-[#FF5500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
+            <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">Total Asset Value</div>
           </div>
           <div>
-            <div className="text-[18px] md:text-[24px] font-[500] font-dmmono text-[#000000]">
+            <div className="text-[28px] md:text-[32px] font-[600] text-[#111] leading-none">
               {totalBalance.toFixed(2)}
             </div>
-            <div className="text-xs md:text-sm text-gray-700">{vaultBalances.length} token(s) in vault</div>
-          </div>
-        </div>
-        {/*Overview Div*/}
-        <div className="col-span-4 flex flex-col h-[100px] md:h-[135px] border-[0.5px] border-[#00000033] p-2 md:p-3">
-          <div className="flex flex-col items-left space-x-2 font-dmmono text-black">
-            <div className="flex items-left space-x-2">
-              <Image src={assetValIcon} alt="assetValIcon" quality={100} />
-              <div className="font-dmmono text-[14px] md:text-[16px] text-[#000000] font-[500]">
-                Overview
-              </div>
-            </div>
-            <div className="flex flex-col p-1 md:p-2 gap-1 md:gap-2">
-              <div className="flex items-center justify-between border-b-[0.5px]">
-                <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Wallet Name</div>
-                <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {walletName}
-                </div>
-              </div>
-              <div className="flex items-center justify-between border-b-[0.5px]">
-                <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Signers</div>
-                <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {signerCount}
-                </div>
-              </div>
-              <div className="flex items-center justify-between border-b-[0.5px]">
-                <div className="text-[8px] md:text-[10px] font-[500] font-dmmono">Threshold</div>
-                <div className="text-[8px] md:text-[10px] text-[#0000008C] font-[500] font-dmmono">
-                  {threshold > 0 ? `${threshold} of ${signerCount} signatures` : "N/A"}
-                </div>
-              </div>
+            <div className="text-[12px] text-[rgba(0,0,0,0.4)] mt-1.5">
+              {vaultBalances.length} token{vaultBalances.length !== 1 ? "s" : ""} in vault
             </div>
           </div>
         </div>
-        {/*Actions Div*/}
-        <div className="col-span-4 flex flex-col h-[100px] md:h-[135px]">
-          <div className="flex flex-col justify-between gap-2 items-left space-x-2 h-full font-medium font-dmmono text-black">
 
-            <div className="flex flex-col gap-2 h-full">
-              <div className="flex flex-row gap-2 h-1/2">
-                <button
-                  className="w-1/2 relative group overflow-hidden border-[0.5px] border-[#00000033] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
-                  onClick={() => setIsInitiateFundTransferOpen(true)}
-                >
-                  <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-                  <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
-                    SEND
-                  </span>
-                </button>
-                <button
-                  className="w-1/2 relative group overflow-hidden border-[0.5px] border-[#00000033] py-1 px-2 text-[14px] md:text-[16px] text-[#000000] font-[400]"
-                  onClick={() => setIsReceiveFundTransferOpen(true)}
-                >
-                  <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-                  <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
-                    RECEIVE
-                  </span>
-                </button>
-              </div>
-              <button
-                className="w-full relative group overflow-hidden h-1/2 border-[0.5px] border-[#00000033] py-1 px-2 text-[12px] md:text-[16px] text-[#000000] font-[400]"
-                onClick={() => setIsApproveFundTransferOpen(true)}
-              >
-                <span className="absolute inset-0 bg-[#FF5500] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>
-                <span className="relative z-1 transition-colors duration-300 group-hover:text-white">
-                  APPROVE QUEUED TRANSFERS
-                </span>
-              </button>
+        {/* Overview */}
+        <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-7 h-7 rounded-[8px] bg-[#FF5500]/10 flex items-center justify-center shrink-0">
+              <svg className="w-3.5 h-3.5 text-[#FF5500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
             </div>
+            <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">Overview</div>
+          </div>
+          <div className="flex flex-col flex-1 justify-between">
+            {[
+              { label: "Wallet Name", value: walletName },
+              { label: "Signers", value: String(signerCount) },
+              { label: "Threshold", value: threshold > 0 ? `${threshold} of ${signerCount}` : "N/A" },
+            ].map((row, i, arr) => (
+              <div
+                key={row.label}
+                className={`flex items-center justify-between py-1 ${i < arr.length - 1 ? "border-b border-[rgba(0,0,0,0.06)]" : ""}`}
+              >
+                <div className="text-[12px] font-[500] text-[rgba(0,0,0,0.45)]">{row.label}</div>
+                <div className="text-[12px] font-[500] text-[#111] truncate max-w-[120px] text-right">{row.value}</div>
+              </div>
+            ))}
           </div>
         </div>
+
+        {/* Actions — three white bordered cards, no orange fill */}
+        <div className="col-span-4 flex flex-col h-[140px] md:h-[160px] gap-2">
+          <div className="flex gap-2 flex-1">
+            <button
+              onClick={() => openSendModal()}
+              className="flex-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white text-[14px] font-[500] text-[#111] hover:bg-gray-50 transition-colors"
+            >
+              Send
+            </button>
+            <button
+              onClick={() => openReceiveModal()}
+              className="flex-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white text-[14px] font-[500] text-[#111] hover:bg-gray-50 transition-colors"
+            >
+              Receive
+            </button>
+          </div>
+          <button
+            onClick={() => setIsApproveOpen(true)}
+            className="w-full flex-1 rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white text-[14px] font-[500] text-[#111] hover:bg-gray-50 transition-colors"
+          >
+            Approve queued transfers
+          </button>
+        </div>
       </div>
-      {/*Pending Actions Div*/}
+
+      {/* Pending Actions */}
       <div className="p-2 md:p-4">
-        <PendingActions
-          threshold={threshold}
-          fixedHeight={true}
-        />
+        <PendingActions threshold={threshold} fixedHeight={true} />
       </div>
-      {/*Recent Transactions Div*/}
+
+      {/* Recent Transactions */}
       <div className="p-2 md:p-4 flex-1">
         <RecentTransactions threshold={threshold} fixedHeight={true} />
       </div>
 
-      {/* initiate fund transfer interactions is being called here  */}
-
-      <AnimatePresence>
-        {isInitiateFundTransferOpen && (
-          <motion.div
-            key="overlay"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#FBFCFD]/60 backdrop-blur-sm"
-            onClick={() => setIsInitiateFundTransferOpen(false)}
-          >
-            <motion.div
-              key="modal"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ y: 8, scale: 0.98 }}
-              animate={{ y: 0, scale: 1 }}
-              exit={{ y: 8, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <InitiateFundTransfer
-                onCancel={() => setIsInitiateFundTransferOpen(false)}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Receive Fund Transfer Modal */}
-      <AnimatePresence>
-        {isReceiveFundTransferOpen && (
-          <motion.div
-            key="receive-overlay"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#FBFCFD]/60 backdrop-blur-sm"
-            onClick={() => setIsReceiveFundTransferOpen(false)}
-          >
-            <motion.div
-              key="receive-modal"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ y: 8, scale: 0.98 }}
-              animate={{ y: 0, scale: 1 }}
-              exit={{ y: 8, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <ReceiveFundTransfer
-                onCancel={() => setIsReceiveFundTransferOpen(false)}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Approve Fund Transfer Modal */}
-      <AnimatePresence>
-        {isApproveFundTransferOpen && (
-          <motion.div
-            key="approve-overlay"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-[#FBFCFD]/60 backdrop-blur-sm"
-            onClick={() => setIsApproveFundTransferOpen(false)}
-          >
-            <motion.div
-              key="approve-modal"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ y: 8, scale: 0.98 }}
-              animate={{ y: 0, scale: 1 }}
-              exit={{ y: 8, scale: 0.98 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <ApproveFundTransfer
-                onCancel={() => setIsApproveFundTransferOpen(false)}
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Modal — Send/Receive are mounted globally in dashboard/layout.tsx so the chat assistant can open them from any page */}
+      <ApproveModal open={isApproveOpen} onClose={() => setIsApproveOpen(false)} />
     </div>
   );
 };
