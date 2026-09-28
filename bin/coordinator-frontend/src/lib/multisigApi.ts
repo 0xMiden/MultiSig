@@ -76,6 +76,7 @@ export function registerAccountOnNode(
 
 export interface ExternalSignerParams {
   walletSource: WalletSource;
+  ledgerSigner?: Signer;
   paraContext?: { para: ParaSigningContext; walletId: string; commitment: string; publicKey: string };
   midenWalletContext?: { wallet: WalletSigningContext; commitment: string; scheme: SignatureScheme; publicKey?: string };
 }
@@ -85,6 +86,11 @@ export function createSigner(
   signatureScheme: SignatureScheme,
   external?: ExternalSignerParams,
 ): Signer {
+  if (external?.walletSource === 'ledger') {
+    if (!external.ledgerSigner) throw new Error('Connect and select a Ledger account first');
+    if (signatureScheme !== 'ecdsa') throw new Error('Ledger requires an ECDSA multisig account');
+    return external.ledgerSigner;
+  }
   if (external?.walletSource === 'para' && external.paraContext) {
     const ctx = external.paraContext;
     return new ParaSigner(ctx.para, ctx.walletId, ctx.commitment, ctx.publicKey);

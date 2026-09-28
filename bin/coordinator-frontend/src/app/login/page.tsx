@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import { useRouter } from "next/navigation";
 import { useWalletForm } from '../../hooks/useWalletForm';
+import { useMultisig } from '@/contexts/MultisigContext';
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ const MIDEN_WALLET_URL = 'https://chromewebstore.google.com/detail/miden-wallet/
 const Page = () => {
   const router = useRouter()
   const { reset } = useWalletForm()
+  const { walletSource } = useMultisig()
   const [showInstallModal, setShowInstallModal] = useState(false)
 
   useEffect(() => {
@@ -24,6 +26,7 @@ const Page = () => {
   }, [reset])
 
   useEffect(() => {
+    if (walletSource !== 'miden-wallet') { setShowInstallModal(false); return; }
     // Give the extension time to inject itself into window
     const timer = setTimeout(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,7 +35,7 @@ const Page = () => {
       if (!installed) setShowInstallModal(true)
     }, 500)
     return () => clearTimeout(timer)
-  }, [])
+  }, [walletSource])
 
   return (
     <div className="w-full h-screen">
@@ -60,7 +63,7 @@ const Page = () => {
               </div>
               <p className="text-[13px] font-geist text-[rgba(0,0,0,0.6)] leading-relaxed">
                 It looks like you haven&apos;t installed the Miden Wallet browser extension.
-                You&apos;ll need it to sign transactions and interact with your multisig account.
+                Install it to use Miden Wallet, or dismiss this message and choose Ledger or Para from the wallet menu.
               </p>
               <div className="flex flex-col space-y-2">
                 <a

@@ -9,11 +9,17 @@ import { Toaster } from 'sonner';
 import { store } from '../store';
 import { MultisigProvider, useMultisig } from '../contexts/MultisigContext';
 import { PARA_API_KEY, PARA_ENVIRONMENT } from '@/config/psm';
+import { LedgerPanel } from './LedgerPanel';
 
 
 
 const queryClient = new QueryClient();
 const paraEnv = PARA_ENVIRONMENT === 'production' ? Environment.PROD : Environment.DEV;
+
+function LedgerPanelWrapper() {
+  const { ledger } = useMultisig();
+  return <LedgerPanel ledger={ledger} />;
+}
 
 function ParaModalWrapper() {
   const { paraModalOpen, closeParaModal } = useMultisig();
@@ -53,7 +59,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <Provider store={store}>
           <MultisigProvider>
-{children}
+            {children}
+            <LedgerPanelWrapper />
             {PARA_API_KEY && <ParaModalWrapper />}
             <Toaster position="bottom-right" />
           </MultisigProvider>

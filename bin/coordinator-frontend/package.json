@@ -10,11 +10,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit --incremental false"
+    "typecheck": "tsc --noEmit --incremental false",
+    "test:ledger": "vitest run --config vitest.ledger.config.ts",
+    "test:ledger:ui": "playwright test --config playwright.ledger.config.ts",
+    "test:ledger:services": "LEDGER_SERVICE_TEST=1 playwright test --config playwright.ledger.config.ts",
+    "test:ledger:app": "playwright test --config playwright.ledger-app.config.ts"
   },
   "dependencies": {
     "@getpara/react-sdk-lite": "3.20.0",
     "@getpara/web-sdk": "3.20.0",
+    "@ledgerhq/device-management-kit": "1.10.0",
+    "@ledgerhq/device-signer-kit-ethereum": "1.18.1",
+    "@ledgerhq/device-transport-kit-web-hid": "1.2.4",
     "@miden-sdk/miden-sdk": "0.17.0-rc.4",
     "@miden-sdk/miden-wallet-adapter-base": "0.17.0-rc.4",
     "@miden-sdk/miden-wallet-adapter-miden": "0.17.0-rc.4",
@@ -31,19 +38,24 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0",
+    "rxjs": "7.8.2",
     "sonner": "^2.0.7",
     "tailwind-scrollbar": "4.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.56.1",
+    "@tailwindcss/postcss": "4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "4.3.3",
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "postcss": "^8.4.32",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "viem": "2.56.9",
+    "vite": "7.3.6",
+    "vitest": "3.2.7"
   }
 }

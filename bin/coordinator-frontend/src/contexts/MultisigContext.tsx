@@ -50,6 +50,7 @@ import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
+import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -170,6 +171,7 @@ interface MultisigContextValue {
   }>;
 
   // Wallet state
+  ledger: LedgerSession;
   walletSource: WalletSource;
   activeCommitment: string | null;
   activeScheme: SignatureScheme;
@@ -331,7 +333,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     Array<{ id: string; assets: Array<{ faucetId: string; amount: bigint }> }>
   >([]);
 
-  const [walletSource, setWalletSource] = useState<WalletSource>(() => {
+  const [walletSource, setWalletSourceState] = useState<WalletSource>(() => {
     if (typeof window === "undefined") return "miden-wallet";
     return (
       (localStorage.getItem("currentWalletSource") as WalletSource) ??
@@ -339,6 +341,36 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     );
   });
   const [paraModalOpen, setParaModalOpen] = useState(false);
+  const ledger = useLedgerSession();
+  const disconnectLedger = ledger.disconnect;
+  const latestLedgerSigner = useRef(ledger.signer);
+  latestLedgerSigner.current = ledger.signer;
+  const setWalletSource = useCallback((source: WalletSource) => {
+    if (source === walletSource) return;
+    if (creating || loadingAccount || creatingProposal || signingProposal || executingProposal || syncingState || registeringOnGuardian || ["creating-proposal", "relaying-notes"].includes(privateSendProgress.step)) {
+      toast.error("Finish or cancel the current account operation before switching wallets.");
+      return;
+    }
+    if (walletSource === "ledger") disconnectLedger();
+    // Multisig instances bind their signer at construction; require an explicit reload.
+    setMultisig(null); setGuardianState(null); setDetectedConfig(null);
+    setProposals([]); setConsumableNotes([]);
+    localStorage.setItem("currentWalletSource", source);
+    setWalletSourceState(source);
+  }, [walletSource, disconnectLedger, creating, loadingAccount, creatingProposal,
+    signingProposal, executingProposal, syncingState, registeringOnGuardian, privateSendProgress.step]);
+
+  useEffect(() => {
+    if (ledger.signer) setWalletSource("ledger");
+  }, [ledger.signer, setWalletSource]);
+
+  useEffect(() => {
+    if (walletSource === "ledger" && !ledger.signer) {
+      setMultisig(null); setGuardianState(null); setDetectedConfig(null);
+      setProposals([]); setConsumableNotes([]);
+    }
+  }, [walletSource, ledger.signer, multisig]);
+
 
   const { session: paraSession, paraClient, getWalletId, error: paraError } = useParaSession();
   const [midenWalletAdapter, setMidenWalletAdapter] = useState(
@@ -362,18 +394,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     if (paraError) toast.error(`Para connection failed: ${paraError}`);
   }, [paraError]);
 
+  const wasParaConnected = useRef(false);
   useEffect(() => {
-    if (paraSession.connected) {
+    if (paraSession.connected && !wasParaConnected.current) {
       setWalletSource("para");
       if (paraModalOpen) setParaModalOpen(false);
     }
-  }, [paraSession.connected, paraModalOpen]);
+    wasParaConnected.current = paraSession.connected;
+  }, [paraSession.connected, paraModalOpen, setWalletSource]);
 
+  const wasMidenConnected = useRef(false);
   useEffect(() => {
-    if (midenWalletSession.connected) {
+    if (midenWalletSession.connected && !wasMidenConnected.current) {
       setWalletSource("miden-wallet");
     }
-  }, [midenWalletSession.connected]);
+    wasMidenConnected.current = midenWalletSession.connected;
+  }, [midenWalletSession.connected, setWalletSource]);
 
   // Attempt to auto-connect external wallets on mount
   useEffect(() => {
@@ -386,6 +422,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   }, [connectMidenWalletRaw]);
 
   const activeCommitment = useMemo(() => {
+    if (walletSource === "ledger") return ledger.signer?.commitment ?? null;
     if (walletSource === "para" && paraSession.connected)
       return paraSession.commitment;
     if (walletSource === "miden-wallet" && midenWalletSession.connected)
@@ -394,10 +431,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     return signer.activeScheme === "ecdsa"
       ? signer.ecdsa.commitment
       : signer.falcon.commitment;
-  }, [walletSource, paraSession, midenWalletSession, signer]);
+  }, [walletSource, paraSession, midenWalletSession, signer, ledger.signer]);
 
   const activeScheme = useMemo((): SignatureScheme => {
-    if (walletSource === "para") return "ecdsa";
+    if (walletSource === "para" || walletSource === "ledger") return "ecdsa";
     if (walletSource === "miden-wallet" && midenWalletSession.scheme)
       return midenWalletSession.scheme;
     return signer?.activeScheme ?? "falcon";
@@ -406,6 +443,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const buildExternalParams = useCallback(():
     | ExternalSignerParams
     | undefined => {
+    if (walletSource === "ledger") {
+      if (!ledger.signer) throw new Error("Connect and select a Ledger account first");
+      return { walletSource: "ledger", ledgerSigner: ledger.signer };
+    }
     if (walletSource === "para" && paraSession.connected && paraClient) {
       const walletId = getWalletId();
       if (!walletId || !paraSession.commitment || !paraSession.publicKey)
@@ -442,6 +483,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     getWalletId,
     midenWalletSession,
     signBytes,
+    ledger.signer,
   ]);
 
   const connectToGuardian = useCallback(
@@ -482,7 +524,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           try {
             const clientSigner = createSigner(
               signer,
-              signer.activeScheme,
+              walletSource === "ledger" ? "ecdsa" : signer.activeScheme,
               buildExternalParams(),
             );
             const reloadedMs = await loadMultisigAccount(
@@ -490,6 +532,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
               multisig.accountId,
               clientSigner,
             );
+            if (walletSource === "ledger" && clientSigner !== latestLedgerSigner.current) throw new Error("Ledger session changed; load the account again.");
             setMultisig(reloadedMs);
 
             const state = await reloadedMs.syncState();
@@ -547,7 +590,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setError(`Failed to connect to Guardian: ${msg}`);
       }
     },
-    [midenClient, multisig, signer, guardianState, buildExternalParams],
+    [midenClient, multisig, signer, guardianState, buildExternalParams, walletSource],
   );
 
   // Initialization
@@ -629,7 +672,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       otherSignerCommitments: string[],
       threshold: number,
       procedureThresholds?: ProcedureThreshold[],
-      signatureScheme: SignatureScheme = "falcon",
+      signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon",
     ) => {
       if (!guardianUrl.trim()) {
         const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
@@ -668,6 +711,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           externalParams,
         );
         const signerCommitment =
+          externalParams?.ledgerSigner?.commitment ??
           externalParams?.paraContext?.commitment ??
           externalParams?.midenWalletContext?.commitment ??
           (signatureScheme === "ecdsa"
@@ -685,6 +729,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           procedureThresholds,
           signatureScheme,
         );
+        if (walletSource === "ledger" && clientSigner !== latestLedgerSigner.current) throw new Error("Ledger session changed; load the account again.");
         setMultisig(ms);
 
         // Persist account ID so middleware allows dashboard access
@@ -762,7 +807,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   );
 
   const handleLoad = useCallback(
-    async (accountId: string, signatureScheme: SignatureScheme = "falcon") => {
+    async (accountId: string, signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon") => {
       if (!guardianUrl.trim()) {
         const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
         setError(msg);
@@ -805,6 +850,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           normalizedId,
           clientSigner,
         );
+        if (walletSource === "ledger" && clientSigner !== latestLedgerSigner.current) throw new Error("Ledger session changed; load the account again.");
         setMultisig(ms);
 
         // Persist account ID so middleware allows dashboard access
@@ -882,6 +928,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       "currentWalletScheme",
     ) as SignatureScheme | null;
 
+    if (savedSource === "ledger" || walletSource === "ledger") return;
     if (savedSource === "para" && !paraSession.connected) return;
     if (savedSource === "miden-wallet" && !midenWalletSession.connected) return;
     autoLoadAttemptedRef.current = true;
@@ -894,6 +941,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleLoad(savedId, savedScheme ?? "falcon");
     }, 100);
   }, [
+    setWalletSource,
     multisigClient,
     signer,
     guardianCommitment,
@@ -1011,11 +1059,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         && proposal.verification.retryable
         && !automaticVerificationRetries.current.has(proposal.id),
     );
-    if (retryable.length === 0 || syncingState) return;
+    if (retryable.length === 0 || syncingState || walletSource === "ledger") return;
 
     retryable.forEach((proposal) => automaticVerificationRetries.current.add(proposal.id));
     void handleSync();
-  }, [handleSync, proposals, syncingState]);
+  }, [handleSync, proposals, syncingState, walletSource]);
 
   const handleCreateAddSignerProposal = useCallback(
     async (commitment: string, increaseThreshold: boolean) => {
@@ -1498,13 +1546,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   );
 
   const handleDisconnect = useCallback(() => {
+    if (walletSource === "ledger") disconnectLedger();
     setMultisig(null);
     setGuardianState(null);
     setProposals([]);
     setError(null);
     setDetectedConfig(null);
     setConsumableNotes([]);
-  }, []);
+  }, [walletSource, disconnectLedger]);
 
   const connectMidenWallet = useCallback(async () => {
     try {
@@ -1525,6 +1574,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(
     (): MultisigContextValue => ({
+      ledger,
       midenClient,
       multisigClient,
       signer,
@@ -1607,6 +1657,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       registeringOnPsm: registeringOnGuardian,
     }),
     [
+      ledger,
+      setWalletSource,
       midenClient,
       multisigClient,
       signer,

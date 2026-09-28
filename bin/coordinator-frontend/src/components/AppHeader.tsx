@@ -18,6 +18,8 @@ export function AppHeader() {
     connectMidenWallet,
     disconnectMidenWallet,
     openParaModal,
+    ledger,
+    creating, loadingAccount, creatingProposal, signingProposal, executingProposal, syncingState, registeringOnGuardian, privateSendProgress,
     guardianStatus,
     guardianUrl,
     setGuardianUrl,
@@ -66,7 +68,7 @@ export function AppHeader() {
           <button
             onClick={() => setWalletPopoverOpen(!walletPopoverOpen)}
             className={`px-3 py-1 border rounded-sm text-[11px] font-[500] uppercase transition-colors ${
-              (paraSession.connected || midenWalletSession.connected)
+              (paraSession.connected || midenWalletSession.connected || !!ledger.signer)
                 ? 'border-[#FF5500] text-[#FF5500] hover:bg-[#FF5500]/5'
                 : 'border-[#00000033] hover:border-[#FF5500]'
             }`}
@@ -75,12 +77,25 @@ export function AppHeader() {
             {walletSource === 'local' && paraSession.connected && 'LOCAL (PARA AVAIL)'}
             {walletSource === 'para' && 'PARA'}
             {walletSource === 'miden-wallet' && 'MIDEN WALLET'}
+            {walletSource === 'ledger' && (ledger.signer ? 'LEDGER ●' : 'LEDGER DISCONNECTED')}
             {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
           {walletPopoverOpen && (
             <div className="absolute right-0 top-full mt-1 w-[280px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
               <div className="text-[12px] font-[500] mb-2">WALLET SOURCE</div>
               <div className="flex flex-col gap-1.5">
+                <button type="button"
+                  disabled={creating || loadingAccount || creatingProposal || !!signingProposal || !!executingProposal || syncingState || registeringOnGuardian || ["creating-proposal", "relaying-notes"].includes(privateSendProgress.step)}
+                  onClick={() => { ledger.show(); setWalletPopoverOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border disabled:opacity-50 ${walletSource === 'ledger' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'}`}>
+                  {ledger.signer ? 'CHANGE LEDGER ADDRESS' : 'CONNECT LEDGER (USB)'}
+                </button>
+                {ledger.selected && ledger.signer && <div className="px-3 text-[10px] break-all">
+                  <div title={ledger.selected.path}>{ledger.selected.address}</div>
+                  <button type="button" className="mt-1 text-gray-600 underline" onClick={() => handleCopy(ledger.signer!.commitment, 'Ledger signer commitment')}>Copy signer commitment</button>
+                  <button type="button" onClick={ledger.disconnect} className="ml-3 text-red-600 underline">Disconnect</button>
+                </div>}
+                {ledger.error && !ledger.open && <p role="alert" className="text-[10px] text-red-700">{ledger.error}</p>}
                 {process.env.NODE_ENV !== 'production' && (
                   <button
                     onClick={() => { setWalletSource('local'); setWalletPopoverOpen(false); }}

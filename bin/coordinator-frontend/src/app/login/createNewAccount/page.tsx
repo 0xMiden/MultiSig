@@ -35,7 +35,7 @@ const CreateNewAccount = () => {
     totalSigners: false,
   });
   // Compute the wallet source label for Signer 1
-  const walletSourceLabel = walletSource === 'para'
+  const walletSourceLabel = walletSource === 'ledger' ? 'You (Ledger)' : walletSource === 'para'
     ? 'You (Para)'
     : walletSource === 'miden-wallet'
       ? 'You (Miden Wallet)'

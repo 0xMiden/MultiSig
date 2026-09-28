@@ -1,6 +1,6 @@
 # Coordinator Frontend
 
-Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, or the Miden Wallet extension.
+Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Miden Wallet extension, or a Ledger over direct USB.
 
 ## RC compatibility baseline
 
@@ -8,20 +8,20 @@ The RC versions are intentionally pinned because Guardian proposal serialization
 
 | Package group | Version |
 | --- | --- |
-| `@openzeppelin/guardian-client` | `0.18.0-rc.1` |
-| `@openzeppelin/miden-multisig-client` | `0.18.0-rc.1` |
-| `@miden-sdk/*` | `0.17.0-rc.3` |
+| `@openzeppelin/guardian-client` | `0.18.0-rc.2` |
+| `@openzeppelin/miden-multisig-client` | `0.18.0-rc.2` |
+| `@miden-sdk/*` | `0.17.0-rc.4` |
 | `@getpara/*` | `3.20.0` |
 
-Do not independently upgrade the Miden SDK to `0.17.0-rc.4`: its transaction-request encoding is not compatible with Guardian `0.18.0-rc.1`.
+Keep the installed versions in `package-lock.json` together; do not independently upgrade the Miden or Guardian packages.
 
 This application is configured for Miden **devnet**. The legacy coordinator server in this repository is not used by this frontend flow.
 
 ## Prerequisites
 
-- Node.js 20 or newer
+- Node.js 20.19 or newer
 - npm
-- A Guardian `0.18.0-rc.1` endpoint configured for the same Miden devnet
+- A Guardian `0.18.0-rc.2` endpoint configured for the same Miden devnet
 - Optional: Miden Wallet browser extension or a Para API key
 
 ## Environment setup
@@ -37,7 +37,7 @@ NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18.0-rc.1` base URL | none |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18.0-rc.2` base URL | none |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden RPC URL or SDK network shorthand | `devnet` |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `devnet` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
@@ -49,7 +49,7 @@ The app deliberately has no fallback Guardian URL. This prevents an RC/devnet br
 ## Install and run
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -59,13 +59,131 @@ Validation commands:
 
 ```bash
 npm run typecheck
-npm run lint
+npx eslint src
 npm run build
 ```
 
+## Ledger hardware testing on this branch
+
+This is the **direct USB** integration: browser → WebHID → Ledger Ethereum app.
+There is no Wallet Provider login, Ledger API key, app ID, `dAppIdentifier` or
+`originToken` to configure. Para credentials and the Miden Wallet extension are
+not required for Ledger testing.
+
+### Prepare and connect
+
+1. Check out `ledger-integration` with these changes, then run the install/run
+   commands above from `bin/coordinator-frontend`. If `.env.local` does not exist,
+   copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18.0-rc.2**
+   endpoint with ECDSA support on the same Miden devnet as the app. Restart the
+   dev server after environment changes. The root Docker Compose stack is a
+   legacy coordinator setup, not a ready-made Guardian test environment.
+2. Open `http://localhost:3000` in desktop **Chrome or Edge**, preferably in a
+   dedicated test profile. Remote deployments require HTTPS. Use a USB data
+   cable, unlock Ledger, open its **Ethereum app**, and close Ledger Live or
+   other tabs/apps that are using the device. The teammate's earlier demo used
+   Nano X; this implementation still needs physical-device validation.
+3. Open the wallet dropdown in the header → **CONNECT LEDGER (USB)** →
+   **Choose USB device**. Select your device in the browser's permission dialog.
+4. Choose the address layout and an address. **Ledger Live accounts** uses
+   `44'/60'/i'/0/0`; **Legacy / sequential addresses** uses `44'/60'/0'/0/i`.
+   **Load more addresses** shows the next five. These are derived addresses,
+   not a balance scan. Confirm the chosen address on the physical Ledger.
+5. Check that the header shows **LEDGER ●**. The dropdown shows the chosen
+   Ethereum address; **Copy signer commitment** copies the derived Miden
+   commitment for use in account creation or Add Signer. Never paste the
+   Ethereum address into a Miden recipient or signer-commitment field.
+
+### What to expect when signing (including Sync)
+
+While **Ledger is the selected wallet source**, all user-signature requests use
+that selected Ledger address and derivation path. This includes authenticated
+Guardian reads during **Sync**, proposal signing, account registration/loading,
+and lookup when invoked. Guardian state sync calls the SDK's `signRequest`,
+which routes through the Ledger adapter as an EIP-712 `GuardianRequest`.
+Transaction approval uses `MidenTransaction`; lookup uses `GuardianLookup`.
+Ordinary Miden chain reads do not require a signature, so not every sync step
+will display a device prompt. The Guardian's own co-signature remains its own.
+
+One UI action may require several approvals, shown **one at a time**. Keep the
+Ledger unlocked with its Ethereum app open and follow each on-screen prompt.
+The device signs a transaction-summary **hash**; recipient and amount must be
+reviewed in the app, not expected as decoded transaction fields on the Ledger.
+If the Ethereum app requires blind signing, enable it on the device only when
+intentionally testing these summary-hash approvals; record that setting in your
+results. There is no fallback to `personal_sign` or a software key.
+
+Rejecting/cancelling a device request fails that request. Disconnecting, changing
+addresses or cancelling the signing session invalidates it; reconnect and
+explicitly load the Miden account again. Reloading the page also requires
+reconnection. Selecting another wallet source deliberately changes who signs;
+merely leaving the USB cable plugged in does not force Ledger after that switch.
+An already-submitted transaction cannot be undone by cancelling the device UI.
+
+### End-to-end checklist
+
+Use disposable devnet accounts and test funds. Start with a **1-of-1 ECDSA**
+account so a missing second signer does not block execution. Ledger cannot sign
+for a Falcon account or an account that does not authorize its commitment.
+
+| Step | Action | Expected result |
+| --- | --- | --- |
+| Create | With Ledger selected, create a multisig and approve Guardian prompts. | Account stores the selected Ledger commitment; save its Miden account ID. |
+| Receive | Wait for registration funding or use Retry funding. In Receive Funds, create a consume-notes proposal, Sign, then Execute. | Funding note is consumed and the account balance updates after confirmation. Receiving at the Miden account ID alone needs no sender-side Ledger action; consuming requires approval. |
+| Sync | Click Sync with the device ready, then repeat and reject a Guardian authentication prompt. | Required authentication prompts appear on Ledger. Rejection reports a failure; the app does not sign with local/Para/extension keys. Previously displayed state may remain visible. |
+| Send | Send a small public note to another test Miden account; repeat with a private note. Sign and Execute each proposal. | Each transaction approval goes to Ledger. The recipient discovers and consumes the note; private sends require working note transport. |
+| Add signer | Add a second test signer's **commitment**, retaining threshold 1 initially; Sign and Execute. | Updated account configuration contains the second commitment. |
+| Threshold | With the second signer available, change threshold to 2; Sign and Execute under the old threshold. | Account becomes 2-of-2. A subsequent proposal needs both distinct signers before Execute becomes available. Do not raise the threshold without access to both signers. |
+| Load | Save the account ID, reload the page, reconnect to the **same** Ledger address, then Load Existing Account. | Guardian authentication uses Ledger; account/configuration loads and subsequent signatures still use Ledger. |
+| Cancellation | Reject address confirmation, reject signing, and unplug during a pending prompt; reconnect and retry. | Rejected address is not selected; invalidated sessions cannot sign. There is no silent software-key fallback. |
+| Change address | Choose Change Ledger Address and select a different address. | Previous account session clears. Load an account authorizing the new commitment before signing. |
+
+### Troubleshooting and reporting
+
+- **USB unavailable:** use desktop Chrome/Edge on localhost or HTTPS; check that
+  WebHID is allowed by browser/organization policy. Safari/Firefox and mobile
+  USB are not supported by this implementation.
+- **Device missing/busy:** check the data cable, unlock the device, open Ethereum,
+  and close Ledger Live/other device sessions. Close the app dialog and retry.
+- **Wrong address:** try the other address layout and check the displayed path.
+  Confirm on-device before proceeding; an Ethereum address cannot be converted
+  into the signer commitment without the corresponding public key.
+- **Authentication waited too long / timestamp error:** check the computer clock,
+  keep the device ready, and retry the UI action explicitly. Requests queued more
+  than 30 seconds are rejected to avoid signing stale authentication data.
+- **No funding / pending transaction:** check Guardian, RPC and note transport
+  network alignment. Use Retry funding or manual Sync as appropriate. Hardware
+  signing alone does not supply funds or replace those services.
+
+When reporting a failure, include the branch commit (`git rev-parse HEAD`),
+Ledger model, firmware and Ethereum app versions, browser/OS, address layout/path,
+action, exact app/device error, and whether blind signing was enabled. Include
+sanitized console/network errors; do not share a recovery phrase, PIN, private
+keys, credentials, or complete signed authentication headers.
+
+### Automated tests and validation status
+
+```bash
+npm run test:ledger
+npx playwright install chromium
+npm run test:ledger:ui
+npm run typecheck
+npm run build
+npm run test:ledger:app
+```
+
+The software tests cover real commitment derivation and EIP-712 signatures with
+a simulated signing device. Browser tests cover selection and cancellation;
+the app smoke test loads the real Ledger SDK without selecting hardware.
+These tests do **not** certify physical-device signing. The real Guardian/Miden
+execution suite is separate (`npm run test:ledger:services`) and requires funded,
+compatible test services. Hardware and live-service acceptance remain unverified.
+See [the detailed integration guide](docs/ledger.md) for service-test environment
+variables, implementation details and the complete physical-device checklist.
+
 ## First run after this RC migration
 
-Existing accounts and proposals from the previous network/serialization version are not migrated. Before creating the first RC account, clear this origin's browser site data once (IndexedDB, local storage, and cookies), then reload.
+Existing accounts and proposals from the previous network/serialization version are not migrated. Use a separate browser profile for branch testing so old accounts and local keys remain intact. If you deliberately reset an existing profile, clearing this origin's site data removes its IndexedDB, local storage and cookies, including browser-held keys; preserve any required account/key backups first.
 
 The SDK continues to own its existing `MidenClientDB` IndexedDB database. The application neither renames nor deletes it during startup. Signer keys remain in the separate `MultisigSignerKeys` database.
 
@@ -85,7 +203,7 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 
 - **Sign** is shown only for an eligible signer who has not already signed.
 - **Execute** is shown only when `isProposalActionable()` succeeds.
-- transient verification failure receives one automatic sync retry, then exposes **Retry**;
+- transient verification failure receives one automatic sync retry, then exposes **Retry**; with Ledger selected, retries are manual to avoid unsolicited device prompts;
 - a non-retryable invalid proposal exposes **Create again** with editable values;
 - completed proposals have no action.
 
@@ -101,7 +219,7 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 
 ## Troubleshooting
 
-- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0-rc.1` on devnet. Restart Next.js after changing `.env.local`.
+- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0-rc.2` on devnet. Restart Next.js after changing `.env.local`.
 - **Old account or decoding errors:** clear this origin's site data, reload, and create a fresh RC account.
 - **Funding note does not appear:** use **Retry funding**. Confirm the RPC is devnet and the invitation code is accepted by that node.
 - **Miden Wallet does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
