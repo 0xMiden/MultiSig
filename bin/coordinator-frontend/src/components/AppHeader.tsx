@@ -18,27 +18,29 @@ export function AppHeader() {
     connectMidenWallet,
     disconnectMidenWallet,
     openParaModal,
-    psmStatus,
-    psmUrl,
-    setPsmUrl,
-    connectToPsm,
+    ledger,
+    creating, loadingAccount, creatingProposal, signingProposal, executingProposal, syncingState, registeringOnGuardian, privateSendProgress,
+    guardianStatus,
+    guardianUrl,
+    setGuardianUrl,
+    connectToGuardian,
   } = useMultisig();
 
-  const [psmPopoverOpen, setPsmPopoverOpen] = useState(false);
+  const [guardianPopoverOpen, setGuardianPopoverOpen] = useState(false);
   const [walletPopoverOpen, setWalletPopoverOpen] = useState(false);
   const [keysPopoverOpen, setKeysPopoverOpen] = useState(false);
-  const [urlInput, setUrlInput] = useState(psmUrl);
+  const [urlInput, setUrlInput] = useState(guardianUrl);
 
-  const psmRef = useRef<HTMLDivElement>(null);
+  const guardianRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
   const keysRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setUrlInput(psmUrl); }, [psmUrl]);
+  useEffect(() => { setUrlInput(guardianUrl); }, [guardianUrl]);
 
   // Close popovers on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (psmRef.current && !psmRef.current.contains(e.target as Node)) setPsmPopoverOpen(false);
+      if (guardianRef.current && !guardianRef.current.contains(e.target as Node)) setGuardianPopoverOpen(false);
       if (walletRef.current && !walletRef.current.contains(e.target as Node)) setWalletPopoverOpen(false);
       if (keysRef.current && !keysRef.current.contains(e.target as Node)) setKeysPopoverOpen(false);
     };
@@ -46,10 +48,10 @@ export function AppHeader() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handlePsmSave = () => {
-    setPsmUrl(urlInput);
-    connectToPsm(urlInput);
-    setPsmPopoverOpen(false);
+  const handleGuardianSave = () => {
+    setGuardianUrl(urlInput);
+    connectToGuardian(urlInput);
+    setGuardianPopoverOpen(false);
   };
 
   const handleCopy = (text: string, label: string) => {
@@ -65,8 +67,8 @@ export function AppHeader() {
         <div className="relative" ref={walletRef}>
           <button
             onClick={() => setWalletPopoverOpen(!walletPopoverOpen)}
-            className={`px-3 py-1 border rounded text-[11px] font-[500] uppercase transition-colors ${
-              (paraSession.connected || midenWalletSession.connected)
+            className={`px-3 py-1 border rounded-sm text-[11px] font-[500] uppercase transition-colors ${
+              (paraSession.connected || midenWalletSession.connected || !!ledger.signer)
                 ? 'border-[#FF5500] text-[#FF5500] hover:bg-[#FF5500]/5'
                 : 'border-[#00000033] hover:border-[#FF5500]'
             }`}
@@ -75,25 +77,40 @@ export function AppHeader() {
             {walletSource === 'local' && paraSession.connected && 'LOCAL (PARA AVAIL)'}
             {walletSource === 'para' && 'PARA'}
             {walletSource === 'miden-wallet' && 'MIDEN WALLET'}
-            {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' \u25CF' : ''}
+            {walletSource === 'ledger' && (ledger.signer ? 'LEDGER ●' : 'LEDGER DISCONNECTED')}
+            {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
           {walletPopoverOpen && (
-            <div className="absolute right-0 top-full mt-1 w-[280px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
+            <div className="absolute right-0 top-full mt-1 w-[280px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
               <div className="text-[12px] font-[500] mb-2">WALLET SOURCE</div>
               <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={() => { setWalletSource('local'); setWalletPopoverOpen(false); }}
-                  className={`w-full text-left px-3 py-2 text-[11px] rounded border ${
-                    walletSource === 'local' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
-                  }`}
-                >
-                  LOCAL KEYS
+                <button type="button"
+                  disabled={creating || loadingAccount || creatingProposal || !!signingProposal || !!executingProposal || syncingState || registeringOnGuardian || ["creating-proposal", "relaying-notes"].includes(privateSendProgress.step)}
+                  onClick={() => { ledger.show(); setWalletPopoverOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border disabled:opacity-50 ${walletSource === 'ledger' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'}`}>
+                  {ledger.signer ? 'CHANGE LEDGER ADDRESS' : 'CONNECT LEDGER (USB)'}
                 </button>
+                {ledger.selected && ledger.signer && <div className="px-3 text-[10px] break-all">
+                  <div title={ledger.selected.path}>{ledger.selected.address}</div>
+                  <button type="button" className="mt-1 text-gray-600 underline" onClick={() => handleCopy(ledger.signer!.commitment, 'Ledger signer commitment')}>Copy signer commitment</button>
+                  <button type="button" onClick={ledger.disconnect} className="ml-3 text-red-600 underline">Disconnect</button>
+                </div>}
+                {ledger.error && !ledger.open && <p role="alert" className="text-[10px] text-red-700">{ledger.error}</p>}
+                {process.env.NODE_ENV !== 'production' && (
+                  <button
+                    onClick={() => { setWalletSource('local'); setWalletPopoverOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border ${
+                      walletSource === 'local' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
+                    }`}
+                  >
+                    LOCAL KEYS
+                  </button>
+                )}
 
                 {paraSession.connected ? (
                   <button
                     onClick={() => { setWalletSource('para'); setWalletPopoverOpen(false); }}
-                    className={`w-full text-left px-3 py-2 text-[11px] rounded border ${
+                    className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border ${
                       walletSource === 'para' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                     }`}
                   >
@@ -102,7 +119,7 @@ export function AppHeader() {
                 ) : (
                   <button
                     onClick={() => { openParaModal(); setWalletPopoverOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-[11px] rounded border border-[#00000019] hover:border-[#FF5500]"
+                    className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
                     CONNECT PARA WALLET
                   </button>
@@ -120,7 +137,7 @@ export function AppHeader() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => { setWalletSource('miden-wallet'); setWalletPopoverOpen(false); }}
-                      className={`flex-1 text-left px-3 py-2 text-[11px] rounded border ${
+                      className={`flex-1 text-left px-3 py-2 text-[11px] rounded-sm border ${
                         walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                       }`}
                     >
@@ -136,7 +153,7 @@ export function AppHeader() {
                 ) : (
                   <button
                     onClick={() => { connectMidenWallet(); setWalletPopoverOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-[11px] rounded border border-[#00000019] hover:border-[#FF5500]"
+                    className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
                     CONNECT MIDEN WALLET
                   </button>
@@ -161,19 +178,19 @@ export function AppHeader() {
           <div className="relative" ref={keysRef}>
             <button
               onClick={() => setKeysPopoverOpen(!keysPopoverOpen)}
-              className="px-3 py-1 border border-[#00000033] rounded text-[11px] font-[500] uppercase hover:border-[#FF5500] transition-colors"
+              className="px-3 py-1 border border-[#00000033] rounded-sm text-[11px] font-[500] uppercase hover:border-[#FF5500] transition-colors"
             >
               KEYS ({activeScheme})
             </button>
             {keysPopoverOpen && (
-              <div className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
+              <div className="absolute right-0 top-full mt-1 w-[300px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
                 <div className="text-[12px] font-[500] mb-2">LOCAL SIGNER KEYS</div>
                 <div className="flex flex-col gap-2">
                   {multisig?.accountId && (
                     <div>
                       <div className="text-[9px] text-gray-400 mb-0.5">Account Address</div>
                       <div
-                        className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                        className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                         onClick={() => handleCopy(multisig.accountId, 'Account address')}
                         title="Click to copy"
                       >
@@ -183,7 +200,7 @@ export function AppHeader() {
                   )}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-[10px] rounded ${
+                      <span className={`px-2 py-0.5 text-[10px] rounded-sm ${
                         activeScheme === 'falcon' && walletSource === 'local' ? 'bg-[#FF5500] text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
                         FALCON
@@ -193,7 +210,7 @@ export function AppHeader() {
                       )}
                     </div>
                     <div
-                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => handleCopy(signer.falcon.commitment, 'Falcon commitment')}
                       title="Click to copy"
                     >
@@ -202,7 +219,7 @@ export function AppHeader() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-[10px] rounded ${
+                      <span className={`px-2 py-0.5 text-[10px] rounded-sm ${
                         activeScheme === 'ecdsa' && walletSource === 'local' ? 'bg-[#FF5500] text-white' : 'bg-gray-100 text-gray-600'
                       }`}>
                         ECDSA
@@ -212,7 +229,7 @@ export function AppHeader() {
                       )}
                     </div>
                     <div
-                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 break-all"
+                      className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
                       onClick={() => handleCopy(signer.ecdsa.commitment, 'ECDSA commitment')}
                       title="Click to copy"
                     >
@@ -226,39 +243,39 @@ export function AppHeader() {
           </div>
         ) : null}
 
-        {/* PSM Status */}
-        <div className="relative" ref={psmRef}>
+        {/* Guardian Status */}
+        <div className="relative" ref={guardianRef}>
           <button
-            onClick={() => setPsmPopoverOpen(!psmPopoverOpen)}
-            className={`px-3 py-1 rounded text-[11px] font-[500] uppercase transition-colors ${
-              psmStatus === 'connected'
+            onClick={() => setGuardianPopoverOpen(!guardianPopoverOpen)}
+            className={`px-3 py-1 rounded-sm text-[11px] font-[500] uppercase transition-colors ${
+              guardianStatus === 'connected'
                 ? 'bg-green-600 text-white hover:bg-green-700'
-                : psmStatus === 'connecting'
+                : guardianStatus === 'connecting'
                   ? 'bg-yellow-500 text-white hover:bg-yellow-600'
                   : 'bg-red-500 text-white hover:bg-red-600'
             }`}
           >
-            PSM {psmStatus === 'connected' ? '\u25CF' : psmStatus === 'connecting' ? '\u25D0' : '\u25CB'}
+            GUARDIAN {guardianStatus === 'connected' ? '●' : guardianStatus === 'connecting' ? '◐' : '○'}
           </button>
-          {psmPopoverOpen && (
-            <div className="absolute right-0 top-full mt-1 w-[320px] bg-white border border-[#00000019] shadow-lg rounded p-3 z-50">
-              <div className="text-[12px] font-[500] mb-1">PSM CONFIGURATION</div>
+          {guardianPopoverOpen && (
+            <div className="absolute right-0 top-full mt-1 w-[320px] bg-white border border-[#00000019] shadow-lg rounded-sm p-3 z-50">
+              <div className="text-[12px] font-[500] mb-1">GUARDIAN CONFIGURATION</div>
               <div className="text-[10px] text-gray-500 mb-3">
-                {psmStatus === 'connected' ? 'Connected to PSM server' :
-                 psmStatus === 'connecting' ? 'Connecting...' : 'Failed to connect'}
+                {guardianStatus === 'connected' ? 'Connected to Guardian server' :
+                 guardianStatus === 'connecting' ? 'Connecting...' : 'Failed to connect'}
               </div>
               <div className="mb-2">
                 <label className="text-[10px] text-gray-500 uppercase mb-1 block">Endpoint URL</label>
                 <input
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
-                  placeholder="https://psm-stg.openzeppelin.com"
-                  className="w-full px-2 py-1.5 border border-[#00000019] rounded text-[11px] focus:outline-none focus:border-[#FF5500]"
+                  placeholder="https://guardian-stg.openzeppelin.com"
+                  className="w-full px-2 py-1.5 border border-[#00000019] rounded-sm text-[11px] focus:outline-hidden focus:border-[#FF5500]"
                 />
               </div>
               <button
-                onClick={handlePsmSave}
-                className="px-3 py-1.5 bg-[#FF5500] text-white text-[11px] rounded hover:bg-[#E04A00] transition-colors"
+                onClick={handleGuardianSave}
+                className="px-3 py-1.5 bg-[#FF5500] text-white text-[11px] rounded-sm hover:bg-[#E04A00] transition-colors"
               >
                 SAVE & RECONNECT
               </button>
