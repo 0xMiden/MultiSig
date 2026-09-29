@@ -5,6 +5,8 @@ import { useMultisig } from "@/contexts/MultisigContext";
 import { toHexAccountId } from "@/lib/helpers";
 import { toast } from "sonner";
 import { useDashboardUI } from "@/contexts/DashboardUIContext";
+import { useFaucetDecimals } from "@/hooks/useFaucetDecimals";
+import { formatTokenAmount, parseTokenAmount } from "@/lib/tokenAmounts";
 
 interface SendModalProps {
   open: boolean;
@@ -63,19 +65,29 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
 
-  const selectedBalance = useMemo(() => {
-    if (!formData.faucetId) return 0;
-    const b = vaultBalances.find(v => v.faucetId === formData.faucetId);
-    return b ? Number(b.amount) / 1000000 : 0;
-  }, [formData.faucetId, vaultBalances]);
+  const token = useFaucetDecimals(formData.faucetId);
+  const selectedBalance = useMemo(
+    () => vaultBalances.find(v => v.faucetId === formData.faucetId)?.amount ?? 0n,
+    [formData.faucetId, vaultBalances],
+  );
 
   const handleSubmit = async () => {
     setError(null);
     if (!formData.recipientId.trim()) { setError("Recipient account ID is required"); return; }
     if (!formData.faucetId.trim()) { setError("Please select a token"); return; }
-    if (!formData.amount || Number(formData.amount) <= 0) { setError("Please enter a valid amount"); return; }
+    if (token.status !== "ready") {
+      setError(token.error ?? "Loading token details, try again in a moment");
+      return;
+    }
+    let amount: bigint;
     try {
-      const amount = BigInt(Math.round(Number(formData.amount) * 1000000));
+      amount = parseTokenAmount(formData.amount, token.decimals);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Please enter a valid amount");
+      return;
+    }
+    if (amount > selectedBalance) { setError("Amount exceeds the available balance"); return; }
+    try {
       const recipientHex = toHexAccountId(formData.recipientId.trim());
       if (isPrivate) {
         await handleSendPrivateNote(recipientHex, formData.faucetId.trim(), amount);
@@ -202,13 +214,17 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
                   <option value="">Select token…</option>
                   {vaultBalances.map((b, i) => (
                     <option key={i} value={b.faucetId}>
-                      {b.faucetId.slice(0, 16)}… — {(Number(b.amount) / 1000000).toFixed(2)}
+                      {b.faucetId.slice(0, 16)}…
                     </option>
                   ))}
                 </select>
                 {formData.faucetId && (
-                  <div className="text-[11px] text-[rgba(0,0,0,0.4)]">
-                    Available: {selectedBalance.toFixed(2)}
+                  <div className={`text-[11px] ${token.status === "error" ? "text-red-600" : "text-[rgba(0,0,0,0.4)]"}`}>
+                    {token.status === "ready"
+                      ? `Available: ${formatTokenAmount(selectedBalance, token.decimals)}`
+                      : token.status === "error"
+                        ? token.error
+                        : "Loading token details…"}
                   </div>
                 )}
               </div>
@@ -256,7 +272,7 @@ const SendModal = ({ open, onClose }: SendModalProps) => {
                   </button>
                   <button
                     onClick={handleSubmit}
-                    disabled={creatingProposal || !formData.recipientId || !formData.amount || !formData.faucetId}
+                    disabled={creatingProposal || !formData.recipientId || !formData.amount || !formData.faucetId || token.status !== "ready"}
                     className="flex-[2] h-10 rounded-[8px] bg-[#FF5500] hover:bg-[#E64A00] text-white text-[13px] font-[500] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   >
                     {creatingProposal

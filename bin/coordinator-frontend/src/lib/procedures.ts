@@ -25,6 +25,8 @@ export function getProposalProcedure(proposalType: ProposalType): ProcedureName 
       return 'update_signers';
     case 'switch_guardian':
       return 'update_guardian';
+    case 'update_procedure_threshold':
+      return 'update_procedure_threshold';
     default:
       return null;
   }

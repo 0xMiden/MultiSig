@@ -69,7 +69,12 @@ import {
 // Temporary debug instrumentation for the receive-funds vault investigation.
 // Logs fully-expanded JSON (via a BigInt-safe replacer) instead of console's
 // collapsed "Array(1)" previews, which hid the actual data in prior sessions.
+// Development builds only: the payloads include vault balances and note IDs,
+// private notes among them.
+const DEBUG_LOGS = process.env.NODE_ENV === "development";
+
 function debugLog(tag: string, data: unknown): void {
+  if (!DEBUG_LOGS) return;
   try {
     const json = JSON.stringify(
       data,
@@ -107,6 +112,8 @@ function rawVaultSnapshot(account: {
 async function getLiveAccountSnapshot(
   multisig: Multisig,
 ): Promise<ReturnType<typeof rawVaultSnapshot> | { error: string }> {
+  // Only feeds debugLog; skip the extra store read when logging is off.
+  if (!DEBUG_LOGS) return { error: "debug logging disabled" };
   try {
     const rawClient = await (
       multisig as unknown as {
@@ -381,8 +388,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     if (ledger.signer) setWalletSource("ledger");
   }, [ledger.signer, setWalletSource]);
 
+  // A loaded account is bound to the Ledger signer it was loaded with. Unload
+  // it when that signer goes away or is swapped for another address.
+  const boundLedgerSigner = useRef(ledger.signer);
   useEffect(() => {
-    if (walletSource === "ledger" && !ledger.signer) {
+    const previous = boundLedgerSigner.current;
+    boundLedgerSigner.current = ledger.signer;
+    const swapped = previous !== null && ledger.signer !== null && previous !== ledger.signer;
+    if (walletSource === "ledger" && (!ledger.signer || swapped)) {
       setMultisig(null); setGuardianState(null); setDetectedConfig(null);
       setGuardianRegistrationRequired(false);
       setProposals([]); setConsumableNotes([]);

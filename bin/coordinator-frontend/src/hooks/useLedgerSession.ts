@@ -35,7 +35,6 @@ export function useLedgerSession() {
     void previous?.disconnect().catch(() => {});
   }, []);
 
-  const show = useCallback(() => { disconnect(); setError(null); setOpen(true); }, [disconnect]);
   const close = useCallback(() => { setOpen(false); if (!signer) disconnect(); }, [disconnect, signer]);
 
   useEffect(() => {
@@ -82,6 +81,20 @@ export function useLedgerSession() {
     if (generation.current === current) setAccounts(previous => start === 0 ? page : [...previous, ...page]);
   }, []);
 
+  // With a live session, only browse: the current signer (and the account
+  // loaded with it) stays usable until another address is confirmed.
+  const show = useCallback(() => {
+    setError(null);
+    const target = device.current;
+    if (!signer || !target || !connection.current) {
+      disconnect();
+      setOpen(true);
+      return;
+    }
+    setOpen(true);
+    if (accounts.length === 0) void perform(current => readPage(target, scheme, 0, current));
+  }, [signer, accounts.length, disconnect, perform, readPage, scheme]);
+
   const connect = useCallback(() => perform(async current => {
     if (!connection.current) throw new Error('Ledger USB support is still loading');
     setStatus('Choose your Ledger in the browser device picker');
@@ -110,11 +123,18 @@ export function useLedgerSession() {
         EcdsaFormat.compressPublicKey(confirmed.publicKey) !== EcdsaFormat.compressPublicKey(account.publicKey)) {
       throw new Error('Ledger returned a different account. Reconnect and select again.');
     }
+    if (signer && selected && selected.path === confirmed.path &&
+        selected.address.toLowerCase() === confirmed.address.toLowerCase()) {
+      setOpen(false);
+      return;
+    }
+    // Switching addresses: the previous signer must never sign again.
+    adapter.current?.invalidate();
     const bridge = new DirectLedgerAdapter(target, confirmed, message => { if (generation.current === current) setStatus(message); });
     const nextSigner = new Eip712Signer(bridge, confirmed.publicKey, confirmed.address);
     adapter.current = bridge;
     setSigner(nextSigner); setSelected(confirmed); setOpen(false);
-  }), [perform]);
+  }), [perform, signer, selected]);
 
   const cancel = useCallback(() => {
     disconnect(); setOpen(false);

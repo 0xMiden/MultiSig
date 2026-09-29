@@ -1,5 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { staticSecurityHeaders } from './security-headers.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,6 +14,10 @@ const nextConfig = {
   experimental: {},
   generateBuildId: async () => {
     return 'build-id'
+  },
+  // Content-Security-Policy is set per request in src/middleware.ts (it needs a nonce).
+  async headers() {
+    return [{ source: '/:path*', headers: staticSecurityHeaders(process.env.NODE_ENV === 'production') }]
   },
   webpack: (config, { webpack, dev }) => {
     if (dev) {

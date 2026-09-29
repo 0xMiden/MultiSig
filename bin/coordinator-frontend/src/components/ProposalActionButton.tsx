@@ -40,7 +40,7 @@ export function ProposalActionButton({ proposal, className = '' }: ProposalActio
         await retryProposalVerification(proposal.id);
         break;
       case 'recreate':
-        recreateProposal(proposal);
+        await recreateProposal(proposal);
         break;
       default:
         break;

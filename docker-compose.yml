@@ -12,6 +12,7 @@ services:
         NEXT_PUBLIC_PARA_API_KEY: "${NEXT_PUBLIC_PARA_API_KEY:-}"
         NEXT_PUBLIC_PARA_ENVIRONMENT: "${NEXT_PUBLIC_PARA_ENVIRONMENT:-development}"
         NEXT_PUBLIC_CHAT_ENDPOINT: "${NEXT_PUBLIC_CHAT_ENDPOINT:-}"
+        NEXT_PUBLIC_CSP_CONNECT_SRC: "${NEXT_PUBLIC_CSP_CONNECT_SRC:-}"
     container_name: multisig-frontend
     restart: unless-stopped
     ports:

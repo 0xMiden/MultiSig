@@ -5,6 +5,8 @@ import Image from "next/image";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toHexAccountId } from "@/lib/helpers";
 import { toast } from "sonner";
+import { useFaucetDecimals } from "@/hooks/useFaucetDecimals";
+import { formatTokenAmount, parseTokenAmount } from "@/lib/tokenAmounts";
 
 interface InitiateFundTransferProps {
   onCancel?: () => void;
@@ -33,11 +35,11 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
   const threshold = detectedConfig?.threshold ?? 0;
   const signerCount = detectedConfig?.signerCommitments?.length ?? 0;
 
-  const selectedBalance = useMemo(() => {
-    if (!formData.faucetId) return 0;
-    const b = vaultBalances.find(v => v.faucetId === formData.faucetId);
-    return b ? Number(b.amount) / 1000000 : 0;
-  }, [formData.faucetId, vaultBalances]);
+  const token = useFaucetDecimals(formData.faucetId);
+  const selectedBalance = useMemo(
+    () => vaultBalances.find(v => v.faucetId === formData.faucetId)?.amount ?? 0n,
+    [formData.faucetId, vaultBalances],
+  );
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -58,13 +60,23 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
       setError("Please select a token");
       return;
     }
-    if (!formData.amount || Number(formData.amount) <= 0) {
-      setError("Please enter a valid amount");
+    if (token.status !== "ready") {
+      setError(token.error ?? "Loading token details, try again in a moment");
+      return;
+    }
+    let amount: bigint;
+    try {
+      amount = parseTokenAmount(formData.amount, token.decimals);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Please enter a valid amount");
+      return;
+    }
+    if (amount > selectedBalance) {
+      setError("Amount exceeds the available balance");
       return;
     }
 
     try {
-      const amount = BigInt(Math.round(Number(formData.amount) * 1000000));
       const recipientHex = toHexAccountId(formData.recipientId.trim());
       await handleCreateP2idProposal(recipientHex, formData.faucetId.trim(), amount);
       setIsTransactionInitiated(true);
@@ -119,12 +131,18 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
                 <option value="">Select token...</option>
                 {vaultBalances.map((b, i) => (
                   <option key={i} value={b.faucetId}>
-                    {b.faucetId} - {(Number(b.amount) / 1000000).toFixed(2)}
+                    {b.faucetId}
                   </option>
                 ))}
               </select>
               <div className="text-[12px] font-dmmono font-[400] text-[#00000099]">
-                BALANCE: {selectedBalance.toFixed(2)}
+                {!formData.faucetId
+                  ? "BALANCE: -"
+                  : token.status === "ready"
+                    ? `BALANCE: ${formatTokenAmount(selectedBalance, token.decimals)}`
+                    : token.status === "error"
+                      ? token.error
+                      : "LOADING TOKEN DETAILS…"}
               </div>
             </div>
 
@@ -153,7 +171,7 @@ const InitiateFundTransfer = ({ onCancel }: InitiateFundTransferProps) => {
             </button>
             <button
               onClick={handleSubmit}
-              disabled={creatingProposal || !formData.recipientId || !formData.amount || !formData.faucetId}
+              disabled={creatingProposal || !formData.recipientId || !formData.amount || !formData.faucetId || token.status !== "ready"}
               className="w-2/3 relative group overflow-hidden px-2 uppercase bg-[rgba(255,85,0,1)] h-full font-[500] font-dmmono lg:text-[14px] md:text-[14px] sm:text-[12px] text-[11px] text-[rgba(255,255,255,1)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span className="absolute inset-0 bg-[#E64A00] transform scale-x-0 origin-left transition-transform duration-300 ease-out group-hover:scale-x-100"></span>

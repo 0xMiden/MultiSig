@@ -3,15 +3,9 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Proposal } from '@openzeppelin/miden-multisig-client';
+import { toast } from 'sonner';
 import { useDashboardUI } from '@/contexts/DashboardUIContext';
-
-function formatBaseUnits(amount: string, decimals = 6): string {
-  const units = BigInt(amount);
-  const scale = BigInt(10 ** decimals);
-  const whole = units / scale;
-  const fraction = (units % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
-  return fraction ? `${whole}.${fraction}` : whole.toString();
-}
+import { formatTokenAmount, getFaucetDecimals } from '@/lib/tokenAmounts';
 
 export function useProposalRecreation() {
   const router = useRouter();
@@ -21,17 +15,22 @@ export function useProposalRecreation() {
     setSettingsTab,
   } = useDashboardUI();
 
-  return useCallback((proposal: Proposal) => {
+  return useCallback(async (proposal: Proposal) => {
     switch (proposal.metadata.proposalType) {
-      case 'p2id':
+      case 'p2id': {
+        const { recipientId, faucetId, amount: baseUnits, noteType } = proposal.metadata;
+        // Prefill in the token's own units; leave the amount for the user to
+        // enter rather than guess a scale when the faucet can't be read.
+        let amount = '';
+        try {
+          amount = formatTokenAmount(baseUnits, await getFaucetDecimals(faucetId));
+        } catch {
+          toast.error('Could not read the token details; please re-enter the amount.');
+        }
         router.push('/dashboard/home');
-        openSendModal({
-          recipientId: proposal.metadata.recipientId,
-          faucetId: proposal.metadata.faucetId,
-          amount: formatBaseUnits(proposal.metadata.amount),
-          isPrivate: proposal.metadata.noteType === 'private',
-        });
+        openSendModal({ recipientId, faucetId, amount, isPrivate: noteType === 'private' });
         break;
+      }
       case 'consume_notes':
         router.push('/dashboard/home');
         openReceiveModal(proposal.metadata.noteIds);
