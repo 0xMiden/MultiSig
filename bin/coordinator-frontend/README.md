@@ -15,7 +15,7 @@ The RC versions are intentionally pinned because Guardian proposal serialization
 
 Keep the installed versions in `package-lock.json` together; do not independently upgrade the Miden or Guardian packages.
 
-This application is configured for Miden **devnet**. The legacy coordinator server in this repository is not used by this frontend flow.
+This application is configured for Miden **devnet** and communicates directly with Guardian.
 
 ## Prerequisites
 
@@ -76,8 +76,8 @@ not required for Ledger testing.
    commands above from `bin/coordinator-frontend`. If `.env.local` does not exist,
    copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18.0-rc.2**
    endpoint with ECDSA support on the same Miden devnet as the app. Restart the
-   dev server after environment changes. The root Docker Compose stack is a
-   legacy coordinator setup, not a ready-made Guardian test environment.
+   dev server after environment changes. The root Docker Compose stack starts
+   only the frontend; Guardian and Miden services must be provided separately.
 2. Open `http://localhost:3000` in desktop **Chrome or Edge**, preferably in a
    dedicated test profile. Remote deployments require HTTPS. Use a USB data
    cable, unlock Ledger, open its **Ethereum app**, and close Ledger Live or

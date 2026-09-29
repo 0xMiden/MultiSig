@@ -33,3 +33,22 @@ jobs:
         run: make test-build
       - name: test
         run: make test
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    defaults:
+      run:
+        working-directory: bin/coordinator-frontend
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bin/coordinator-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:ledger
+      - run: node --test scripts/test-*.cjs
