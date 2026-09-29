@@ -27,3 +27,38 @@ export function classifyWalletError(err: unknown): string {
   }
   return msg || name || 'Unknown wallet error';
 }
+
+/**
+ * User-facing text for a failed execute or release. Known failure modes get a
+ * plain explanation; anything else falls back to Guardian's user-safe message
+ * or a trimmed first line. The raw error is logged for diagnostics.
+ */
+export function describeExecutionError(err: unknown, prefix: string): string {
+  console.error(`${prefix}:`, err);
+  const raw = err instanceof Error ? err.message : String(err);
+  const lower = raw.toLowerCase();
+
+  if (lower.includes('transaction expired')) {
+    return `${prefix}: the transaction expired before it could be submitted. Proving took too long; try again.`;
+  }
+  if (lower.includes('failed to prove transaction') || lower.includes('bodystreambuffer was aborted')) {
+    return `${prefix}: the transaction prover did not respond. Try again in a moment.`;
+  }
+  if (lower.includes('failed to submit proven transaction')) {
+    return `${prefix}: the Miden node rejected the transaction. Sync and try again.`;
+  }
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return `${prefix}: could not reach the network. Check your connection and try again.`;
+  }
+
+  const userMessage = (err as { userMessage?: unknown } | null)?.userMessage;
+  if (typeof userMessage === 'string' && userMessage.trim()) {
+    return sentence(`${prefix}: ${userMessage.trim()}`);
+  }
+  const firstLine = raw.split('\n')[0].trim();
+  return sentence(`${prefix}: ${firstLine.length > 200 ? `${firstLine.slice(0, 197)}…` : firstLine || 'Unknown error'}`);
+}
+
+function sentence(text: string): string {
+  return /[.!?…]$/.test(text) ? text : `${text}.`;
+}

@@ -32,7 +32,7 @@ async function eventually<T>(operation: () => Promise<T>, accept: (value:T) => b
 }
 async function run(options: ServiceOptions) {
   await loadWasm();
-  const miden=await MidenClient.create({rpcUrl:options.rpcUrl,noteTransportUrl:options.transportUrl,storeName:`ledger-integration-${crypto.randomUUID()}`,autoSync:true});
+  const miden=await MidenClient.create({rpcUrl:options.rpcUrl,noteTransportUrl:options.transportUrl,proverUrl:process.env.NEXT_PUBLIC_MIDEN_PROVER_URL,storeName:`ledger-integration-${crypto.randomUUID()}`,autoSync:true});
   const passed:string[]=[];
   const mark=(name:string)=>{passed.push(name);console.info(`Ledger service check passed: ${name}`);};
   try {

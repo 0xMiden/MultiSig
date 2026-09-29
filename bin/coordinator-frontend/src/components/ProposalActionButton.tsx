@@ -17,6 +17,7 @@ export function ProposalActionButton({ proposal, className = '' }: ProposalActio
     executingProposal,
     handleExecuteProposal,
     handleSignProposal,
+    releasingCandidate,
     retryProposalVerification,
     signingProposal,
     syncingState,
@@ -25,7 +26,7 @@ export function ProposalActionButton({ proposal, className = '' }: ProposalActio
   const state = getProposalActionState(proposal, detectedConfig, activeCommitment);
   const signing = signingProposal === proposal.id;
   const executing = executingProposal === proposal.id;
-  const busy = signing || executing || (state.action === 'retry' && syncingState);
+  const busy = signing || executing || releasingCandidate || (state.action === 'retry' && syncingState);
 
   const runAction = async () => {
     switch (state.action) {

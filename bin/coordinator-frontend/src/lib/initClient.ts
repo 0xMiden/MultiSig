@@ -1,5 +1,5 @@
 import { MidenClient, AuthSecretKey } from '@miden-sdk/miden-sdk';
-import { MIDEN_DB_NAME, MIDEN_RPC_URL, MIDEN_NOTE_TRANSPORT_URL } from '@/config/psm';
+import { MIDEN_DB_NAME, MIDEN_RPC_URL, MIDEN_NOTE_TRANSPORT_URL, MIDEN_PROVER_URL } from '@/config/psm';
 import { normalizeCommitment } from '@/lib/helpers';
 import type { SignerInfo } from '@/types/psm';
 import { instrumentPublicClient } from './midenDiagnostics';
@@ -88,6 +88,7 @@ export async function createMidenClient(rpcUrl = MIDEN_RPC_URL): Promise<MidenCl
   const client = await MidenClient.create({
     rpcUrl,
     noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
+    proverUrl: MIDEN_PROVER_URL,
     storeName: MIDEN_DB_NAME,
   });
   instrumentPublicClient(client);

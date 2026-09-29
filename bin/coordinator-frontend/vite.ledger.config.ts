@@ -5,6 +5,7 @@ export default defineConfig({
   define: {
     'process.env.NEXT_PUBLIC_MIDEN_RPC_URL': JSON.stringify(process.env.LEDGER_TEST_RPC_URL ?? 'http://localhost:57291'),
     'process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL': JSON.stringify(process.env.LEDGER_TEST_TRANSPORT_URL ?? ''),
+    'process.env.NEXT_PUBLIC_MIDEN_PROVER_URL': JSON.stringify(process.env.LEDGER_TEST_PROVER_URL ?? 'local'),
     'process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE': JSON.stringify(process.env.LEDGER_TEST_INVITATION_CODE ?? 'guardian'),
     'process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT': JSON.stringify(process.env.LEDGER_TEST_GUARDIAN_URL ?? ''),
     'process.env.NEXT_PUBLIC_PARA_API_KEY': '""',

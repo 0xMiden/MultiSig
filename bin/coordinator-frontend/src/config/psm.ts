@@ -10,6 +10,11 @@ const rpcEndpoints: Record<string, string> = {
 const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'devnet';
 export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? configuredRpc;
 export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';
+// Unset keeps in-browser proving: a remote prover sees the full transaction
+// witness, including private note contents, so using one must be a deliberate
+// choice. In-browser proving can outlast a transaction's expiration window, in
+// which case the node rejects it after Guardian has already locked the account.
+export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim() || 'local';
 export const MIDEN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE || 'guardian';
 export const MIDEN_DB_NAME = 'MidenClientDB';
 

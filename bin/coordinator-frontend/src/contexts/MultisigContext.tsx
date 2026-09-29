@@ -27,7 +27,7 @@ import { GuardianHttpError } from "@openzeppelin/guardian-client";
 import { AccountId, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
-import { formatError, classifyWalletError } from "@/lib/errors";
+import { formatError, classifyWalletError, describeExecutionError } from "@/lib/errors";
 import {
   createMidenClient,
   initializeSigner as initSigner,
@@ -55,6 +55,16 @@ import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
+import {
+  claimable,
+  clearStuckCandidate,
+  isPendingCandidateError,
+  loadStuckCandidate,
+  probeCandidate,
+  releasePendingCandidate,
+  saveStuckCandidate,
+  type StuckCandidate,
+} from "@/lib/pendingCandidate";
 
 // Temporary debug instrumentation for the receive-funds vault investigation.
 // Logs fully-expanded JSON (via a BigInt-safe replacer) instead of console's
@@ -112,14 +122,6 @@ async function getLiveAccountSnapshot(
   }
 }
 
-function isPendingCandidateError(error: unknown): boolean {
-  const errorStr = error instanceof Error ? error.message : String(error);
-  return (
-    errorStr.includes("non-canonical delta pending") ||
-    errorStr.includes("ConflictPendingDelta")
-  );
-}
-
 export type PrivateSendStep =
   | "idle"
   | "creating-proposal"
@@ -154,6 +156,9 @@ interface MultisigContextValue {
   multisig: Multisig | null;
   error: string | null;
   pendingCandidateWarning: string | null;
+  /** Set when Execute was refused because an earlier candidate is still pending on Guardian. */
+  stuckCandidate: StuckCandidate | null;
+  releasingCandidate: boolean;
   accountFunding: AccountFundingState;
 
   // Guardian state
@@ -211,6 +216,7 @@ interface MultisigContextValue {
   retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
   handleExecuteProposal: (proposalId: string) => Promise<void>;
+  releaseStuckCandidateAndRetry: () => Promise<void>;
   handleCreateP2idProposal: (
     recipientId: string,
     faucetId: string,
@@ -298,6 +304,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [pendingCandidateWarning, setPendingCandidateWarning] = useState<
     string | null
   >(null);
+  const [stuckRecord, setStuckRecord] = useState<StuckCandidate | null>(null);
+  const [releasingCandidate, setReleasingCandidate] = useState(false);
+  // Execute and release both drive the account's single Guardian lock; never
+  // let them overlap (double clicks, or Execute pressed mid-release).
+  const accountOpInFlight = useRef(false);
   const [accountFunding, setAccountFunding] = useState<AccountFundingState>({
     phase: "idle",
   });
@@ -352,7 +363,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   latestLedgerSigner.current = ledger.signer;
   const setWalletSource = useCallback((source: WalletSource) => {
     if (source === walletSource) return;
-    if (creating || loadingAccount || creatingProposal || signingProposal || executingProposal || syncingState || registeringOnGuardian || ["creating-proposal", "relaying-notes"].includes(privateSendProgress.step)) {
+    if (creating || loadingAccount || creatingProposal || signingProposal || executingProposal || releasingCandidate || syncingState || registeringOnGuardian || ["creating-proposal", "relaying-notes"].includes(privateSendProgress.step)) {
       toast.error("Finish or cancel the current account operation before switching wallets.");
       return;
     }
@@ -364,7 +375,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("currentWalletSource", source);
     setWalletSourceState(source);
   }, [walletSource, disconnectLedger, creating, loadingAccount, creatingProposal,
-    signingProposal, executingProposal, syncingState, registeringOnGuardian, privateSendProgress.step]);
+    signingProposal, executingProposal, releasingCandidate, syncingState, registeringOnGuardian, privateSendProgress.step]);
 
   useEffect(() => {
     if (ledger.signer) setWalletSource("ledger");
@@ -1423,13 +1434,45 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [activeCommitment, detectedConfig, multisig, walletSource],
   );
 
+  const multisigRef = useRef(multisig);
+  multisigRef.current = multisig;
+  const loadedAccountId = multisig?.accountId ?? null;
+
+  useEffect(() => {
+    setStuckRecord(loadedAccountId ? loadStuckCandidate(loadedAccountId) : null);
+  }, [loadedAccountId]);
+
+  // Only ever expose a Guardian-confirmed record for the account loaded right now.
+  const stuckCandidate = useMemo(
+    () =>
+      stuckRecord?.confirmed && loadedAccountId && stuckRecord.accountId.toLowerCase() === loadedAccountId.toLowerCase()
+        ? stuckRecord
+        : null,
+    [stuckRecord, loadedAccountId],
+  );
+
+  const rememberStuckCandidate = useCallback((record: StuckCandidate) => {
+    saveStuckCandidate(record);
+    setStuckRecord(record);
+  }, []);
+
+  const forgetStuckCandidate = useCallback((accountId: string) => {
+    clearStuckCandidate(accountId);
+    setStuckRecord((current) => (current?.accountId.toLowerCase() === accountId.toLowerCase() ? null : current));
+  }, []);
+
   const handleExecuteProposal = useCallback(
     async (proposalId: string) => {
-      if (!multisig) return;
+      if (!multisig || accountOpInFlight.current) return;
+      accountOpInFlight.current = true;
 
       setExecutingProposal(proposalId);
       setError(null);
       setPendingCandidateWarning(null);
+      let executing: { id: string; nonce: number } | undefined;
+      // The record of an earlier execution, if any. A refused push (409) means
+      // this attempt created nothing, so the earlier record is what still counts.
+      const earlierRecord = loadStuckCandidate(multisig.accountId);
       try {
         // Align local proposal cache with Guardian before executing. After any
         // previous execute, Guardian's proposal state can diverge from the local
@@ -1451,6 +1494,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
               : `Proposal is not ready to execute (status: ${fresh.status}).`,
           );
         }
+        executing = { id: fresh.id, nonce: fresh.nonce };
 
         debugLog("handleExecuteProposal: BEFORE execute", {
           proposalId,
@@ -1460,7 +1504,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           vaultBefore: rawVaultSnapshot(multisig.account),
         });
 
+        // Write-ahead: if this page dies mid-execute after Guardian accepted the
+        // push, the record is what lets this browser recognise the lock as its own.
+        rememberStuckCandidate({
+          accountId: multisig.accountId,
+          proposalId,
+          nonce: fresh.nonce,
+          startedAt: Date.now(),
+          confirmed: false,
+        });
         await multisig.executeProposal(proposalId);
+        // The transaction landed, so no candidate of this account is stuck any more.
+        forgetStuckCandidate(multisig.accountId);
         setProposals(multisig.listProposals());
         toast.success("Proposal executed successfully");
 
@@ -1541,23 +1596,176 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        const message = formatError(err, "Execute failed");
+        const message = describeExecutionError(err, "Execute failed");
         if (isPendingCandidateError(err)) {
-          setPendingCandidateWarning(
-            "A previous transaction is still being processed on-chain. " +
-              "Please wait for it to be confirmed before executing proposals.",
-          );
+          // Some execution already holds the account's Guardian lock. Only an
+          // execution this browser started may be released from here; any other
+          // lock may be a cosigner's transaction that is still landing.
+          const own = earlierRecord;
+          if (own) rememberStuckCandidate(own);
+          else forgetStuckCandidate(multisig.accountId);
+          if (!own) {
+            setPendingCandidateWarning(
+              "Another execution of this account is pending on Guardian, possibly from another signer. " +
+                "Wait for it to confirm, then sync.",
+            );
+          } else if (!claimable(own)) {
+            setPendingCandidateWarning(
+              "An execution started from this browser a moment ago may still be finishing. " +
+                "Wait a few minutes, sync, and try again.",
+            );
+          } else {
+            // Sync first: if the earlier transaction landed, the lock resolves on
+            // its own and there is nothing to release.
+            await handleSync().catch(() => {});
+            const probe = await probeCandidate(multisig, own.nonce);
+            if (probe === "pending") {
+              rememberStuckCandidate({ ...own, confirmed: true });
+              setPendingCandidateWarning(
+                "An earlier execution from this browser was interrupted after Guardian locked the account " +
+                  "for it, and it has not landed on-chain.",
+              );
+            } else if (probe === "resolved") {
+              forgetStuckCandidate(multisig.accountId);
+              setPendingCandidateWarning(
+                "The earlier execution from this browser is no longer pending. Sync and check the " +
+                  "current state before trying again.",
+              );
+            } else {
+              setPendingCandidateWarning(
+                "Could not check the pending execution with Guardian. Sync and try again.",
+              );
+            }
+          }
         } else {
           setError(message);
           toast.error(message);
+          // If the failure came after Guardian accepted the push, this browser
+          // now holds a candidate that will never land. Confirm with Guardian
+          // before offering to release it; keep the record if Guardian can't say.
+          if (executing) {
+            const probe = await probeCandidate(multisig, executing.nonce);
+            const record = loadStuckCandidate(multisig.accountId);
+            if (probe === "pending" && record?.nonce === executing.nonce) {
+              rememberStuckCandidate({ ...record, confirmed: true });
+              setPendingCandidateWarning(
+                "Guardian locked the account for this execution before it failed. Unlock it to continue.",
+              );
+            } else if (probe === "resolved") {
+              forgetStuckCandidate(multisig.accountId);
+            }
+          }
         }
         throw err;
       } finally {
         setExecutingProposal(null);
+        accountOpInFlight.current = false;
       }
     },
-    [multisig, midenClient],
+    [multisig, midenClient, handleSync, forgetStuckCandidate, rememberStuckCandidate],
   );
+
+  const releaseStuckCandidateAndRetry = useCallback(async () => {
+    const ms = multisig;
+    const record = stuckCandidate;
+    if (!ms || !record?.confirmed || accountOpInFlight.current) return;
+    if (record.accountId.toLowerCase() !== ms.accountId.toLowerCase()) return;
+    accountOpInFlight.current = true;
+    const { accountId, proposalId, nonce } = record;
+    // Bail out of follow-up steps if the user switched account meanwhile.
+    const stillCurrent = () => multisigRef.current === ms;
+
+    setReleasingCandidate(true);
+    setError(null);
+    setPendingCandidateWarning("Unlocking your account. Guardian first confirms the transaction did not land, which can take up to a minute.");
+    let retry = false;
+    try {
+      let outcome;
+      try {
+        outcome = await releasePendingCandidate(ms, nonce);
+      } catch (err) {
+        if (!stillCurrent()) return;
+        setPendingCandidateWarning(null);
+        setError(`${describeExecutionError(err, "Could not complete the release")} It is safe to try again.`);
+        return;
+      }
+      debugLog("releaseStuckCandidateAndRetry: outcome", { accountId, proposalId, nonce, outcome });
+      if (!stillCurrent()) return;
+
+      switch (outcome) {
+        case "abandoned": {
+          // Guardian confirmed the transaction did not land and discarded it.
+          forgetStuckCandidate(accountId);
+          let proposalSurvived: boolean;
+          try {
+            const synced = await ms.syncProposals();
+            proposalSurvived = synced.some((p) => p.id === proposalId && isProposalActionable(p));
+          } catch {
+            if (!stillCurrent()) return;
+            setPendingCandidateWarning(
+              "The stuck transaction was released, but proposals could not be refreshed. " +
+                "Sync before executing or re-creating anything.",
+            );
+            return;
+          }
+          if (!stillCurrent()) return;
+          if (proposalSurvived) {
+            setPendingCandidateWarning(null);
+            toast.success("Stuck transaction released. Retrying execute…");
+            retry = true;
+            return;
+          }
+          await handleSync().catch(() => {});
+          if (!stillCurrent()) return;
+          toast.success("Stuck transaction released. The account is unlocked.");
+          setPendingCandidateWarning(
+            "The stuck transaction was released and Guardian discarded its proposal. " +
+              "Nothing from it was applied on-chain, so create the proposal again to continue.",
+          );
+          return;
+        }
+        case "retained":
+          // Unlocked, but Guardian could not rule out that it landed; it may
+          // still be promoted. Never present this as "did not happen".
+          forgetStuckCandidate(accountId);
+          await handleSync().catch(() => {});
+          if (!stillCurrent()) return;
+          setPendingCandidateWarning(
+            "Guardian unlocked the account but could not confirm whether the earlier transaction landed. " +
+              "Do not re-create it yet: sync again in a few minutes and check balances and history first.",
+          );
+          return;
+        case "landed":
+          forgetStuckCandidate(accountId);
+          setPendingCandidateWarning(
+            "The earlier transaction did land on-chain, so it was not released. Syncing account state…",
+          );
+          await handleSync().catch(() => {});
+          return;
+        case "timeout":
+          setPendingCandidateWarning(
+            "Guardian has not resolved the release yet. It is safe to try again in a moment.",
+          );
+          return;
+        default:
+          forgetStuckCandidate(accountId);
+          await handleSync().catch(() => {});
+          if (!stillCurrent()) return;
+          setPendingCandidateWarning(
+            "Guardian no longer holds this execution as pending; it was resolved some other way. " +
+              "Check the synced state before retrying.",
+          );
+      }
+    } finally {
+      accountOpInFlight.current = false;
+      setReleasingCandidate(false);
+    }
+    if (retry && stillCurrent()) {
+      await handleExecuteProposal(proposalId).catch(() => {
+        /* handleExecuteProposal reports failures through `error` */
+      });
+    }
+  }, [multisig, stuckCandidate, handleExecuteProposal, handleSync, forgetStuckCandidate]);
 
   const handleExportProposal = useCallback(
     (proposalId: string) => {
@@ -1648,6 +1856,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       multisig,
       error,
       pendingCandidateWarning,
+      stuckCandidate,
+      releasingCandidate,
       accountFunding,
 
       guardianUrl,
@@ -1691,6 +1901,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      releaseStuckCandidateAndRetry,
       handleCreateP2idProposal,
       handleSendPrivateNote,
       privateSendProgress,
@@ -1734,6 +1945,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       multisig,
       error,
       pendingCandidateWarning,
+      stuckCandidate,
+      releasingCandidate,
       accountFunding,
       guardianUrl,
       guardianStatus,
@@ -1768,6 +1981,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      releaseStuckCandidateAndRetry,
       handleCreateP2idProposal,
       handleSendPrivateNote,
       privateSendProgress,

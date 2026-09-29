@@ -16,6 +16,10 @@ const AccountStatusBanner = () => {
   const {
     error,
     pendingCandidateWarning,
+    stuckCandidate,
+    releasingCandidate,
+    releaseStuckCandidateAndRetry,
+    executingProposal,
     accountFunding,
     multisig,
     detectedConfig,
@@ -29,7 +33,7 @@ const AccountStatusBanner = () => {
   } = useMultisig();
 
   const fundingBusy = accountFunding.phase === "registering" || accountFunding.phase === "waiting-for-note";
-  const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy;
+  const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy || releasingCandidate || Boolean(executingProposal);
   const configMissing = Boolean(multisig) && !detectedConfig && !busy;
 
   if (!error && !pendingCandidateWarning && !configMissing && accountFunding.phase === "idle") return null;
@@ -118,10 +122,31 @@ const AccountStatusBanner = () => {
       )}
 
       {pendingCandidateWarning && (
-        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5">
-          <span className="text-[12px] font-[400] text-amber-700">
-            {pendingCandidateWarning}
-          </span>
+        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-center justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            {stuckCandidate && (
+              <span className="text-[12px] font-[600] text-amber-800">
+                Account locked
+              </span>
+            )}
+            <span className="text-[12px] font-[400] text-amber-700">
+              {pendingCandidateWarning}
+            </span>
+          </div>
+          {stuckCandidate && (
+            <button
+              type="button"
+              onClick={() => void releaseStuckCandidateAndRetry()}
+              disabled={busy}
+              aria-busy={releasingCandidate}
+              className="min-h-8 shrink-0 inline-flex items-center gap-2 rounded-[6px] bg-amber-600 px-3 text-[12px] font-[500] text-white hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {releasingCandidate && (
+                <span aria-hidden className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              )}
+              {releasingCandidate ? "Unlocking…" : "Unlock account"}
+            </button>
+          )}
         </div>
       )}
     </div>
