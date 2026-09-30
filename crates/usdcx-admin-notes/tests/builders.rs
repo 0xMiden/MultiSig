@@ -4,16 +4,17 @@
 //! `.superpowers/sdd/2026-09-30-usdcx-admin-notes-0.17-port/task-3-brief.md`).
 //!
 //! Each test asserts the note builds, is addressed to the faucet as `target` with the given
-//! `sender`, and round-trips through serialization (`Note::to_bytes` / `Note::read_from_bytes`)
-//! to an identical `Note`.
+//! `sender` (target asserted via the note's `NoteTag`), and round-trips through serialization
+//! (`Note::to_bytes` / `Note::read_from_bytes`) to an identical `Note`.
 
+use miden_protocol::account::AccountId;
 use miden_protocol::asset::FungibleAsset;
-use miden_protocol::note::Note;
+use miden_protocol::note::{Note, NoteTag};
 use miden_protocol::utils::serde::{Deserializable, Serializable};
 use miden_protocol::{Felt, Word};
 use miden_standards::note::config::{PauseConfigNote, RbacConfig};
 
-use usdcx_admin_notes::testing::faucet_and_sender;
+use usdcx_admin_notes::testing::{faucet_and_sender, other_account};
 
 fn serial(n: u64) -> Word {
     Word::from([
@@ -24,10 +25,11 @@ fn serial(n: u64) -> Word {
     ])
 }
 
-/// Asserts the note is addressed correctly (sender / target) and round-trips through
+/// Asserts the note is addressed correctly (sender / target-tag) and round-trips through
 /// serialization to an identical `Note`.
-fn assert_well_formed(note: &Note, sender: miden_protocol::account::AccountId) {
+fn assert_well_formed(note: &Note, sender: AccountId, faucet: AccountId) {
     assert_eq!(note.metadata().sender(), sender);
+    assert_eq!(note.metadata().tag(), NoteTag::with_account_target(faucet));
     let bytes = note.to_bytes();
     assert_eq!(&Note::read_from_bytes(&bytes).unwrap(), note);
 }
@@ -36,11 +38,7 @@ fn assert_well_formed(note: &Note, sender: miden_protocol::account::AccountId) {
 fn set_max_supply_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
     let note = usdcx_admin_notes::set_max_supply(faucet, sender, 1_000_000, serial(1)).unwrap();
-    assert_well_formed(&note, sender);
-    assert_eq!(
-        note.metadata().tag(),
-        miden_protocol::note::NoteTag::with_account_target(faucet)
-    );
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
@@ -51,49 +49,72 @@ fn set_note_fee_builds_targeting_faucet() {
     let note =
         usdcx_admin_notes::set_note_fee(faucet, sender, note_script_root, fee_asset, serial(2))
             .unwrap();
-    assert_well_formed(&note, sender);
-    assert_eq!(
-        note.metadata().tag(),
-        miden_protocol::note::NoteTag::with_account_target(faucet)
-    );
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
 fn rbac_grant_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
-    let (_, grantee) = faucet_and_sender();
+    let grantee = other_account();
     let config = RbacConfig::GrantRole {
         role: usdcx_admin_notes::role_symbol(usdcx_admin_notes::DOM_UNPAUSER_ROLE).unwrap(),
         account: grantee,
     };
     let note = usdcx_admin_notes::rbac(faucet, sender, config, serial(3)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
 fn rbac_revoke_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
-    let (_, grantee) = faucet_and_sender();
+    let grantee = other_account();
     let config = RbacConfig::RevokeRole {
         role: usdcx_admin_notes::role_symbol(usdcx_admin_notes::DOM_UNPAUSER_ROLE).unwrap(),
         account: grantee,
     };
     let note = usdcx_admin_notes::rbac(faucet, sender, config, serial(4)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
+}
+
+#[test]
+fn rbac_grant_and_revoke_notes_differ() {
+    let (faucet, sender) = faucet_and_sender();
+    let grantee = other_account();
+    let grant = usdcx_admin_notes::rbac(
+        faucet,
+        sender,
+        RbacConfig::GrantRole {
+            role: usdcx_admin_notes::role_symbol(usdcx_admin_notes::DOM_UNPAUSER_ROLE).unwrap(),
+            account: grantee,
+        },
+        serial(11),
+    )
+    .unwrap();
+    let revoke = usdcx_admin_notes::rbac(
+        faucet,
+        sender,
+        RbacConfig::RevokeRole {
+            role: usdcx_admin_notes::role_symbol(usdcx_admin_notes::DOM_UNPAUSER_ROLE).unwrap(),
+            account: grantee,
+        },
+        serial(11),
+    )
+    .unwrap();
+    assert_ne!(grant.id(), revoke.id(), "grant and revoke must produce distinct notes");
 }
 
 #[test]
 fn pause_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
     let note = usdcx_admin_notes::pause(faucet, sender, false, serial(5)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
 fn unpause_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
     let note = usdcx_admin_notes::pause(faucet, sender, true, serial(6)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
@@ -107,25 +128,25 @@ fn pause_and_unpause_notes_differ() {
 #[test]
 fn blocklist_block_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
-    let (_, target_account) = faucet_and_sender();
+    let target_account = other_account();
     let note =
         usdcx_admin_notes::blocklist(faucet, sender, target_account, false, serial(8)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
 fn blocklist_unblock_builds_targeting_faucet() {
     let (faucet, sender) = faucet_and_sender();
-    let (_, target_account) = faucet_and_sender();
+    let target_account = other_account();
     let note =
         usdcx_admin_notes::blocklist(faucet, sender, target_account, true, serial(9)).unwrap();
-    assert_well_formed(&note, sender);
+    assert_well_formed(&note, sender, faucet);
 }
 
 #[test]
 fn blocklist_block_and_unblock_notes_differ() {
     let (faucet, sender) = faucet_and_sender();
-    let (_, target_account) = faucet_and_sender();
+    let target_account = other_account();
     let block =
         usdcx_admin_notes::blocklist(faucet, sender, target_account, false, serial(10)).unwrap();
     let unblock =

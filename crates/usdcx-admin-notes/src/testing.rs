@@ -84,3 +84,15 @@ pub fn faucet_and_sender() -> (AccountId, AccountId) {
     );
     (faucet, sender)
 }
+
+/// A third, distinct public `AccountId` — neither `faucet` nor `sender` from
+/// [`faucet_and_sender`] — for tests exercising a builder argument (e.g. an RBAC grantee or a
+/// blocklist target) that must be visibly different from the note's own `sender`.
+pub fn other_account() -> AccountId {
+    AccountId::dummy(
+        [7u8; 15],
+        AccountIdVersion::Version1,
+        AccountType::Public,
+        AssetCallbackFlag::Disabled,
+    )
+}
