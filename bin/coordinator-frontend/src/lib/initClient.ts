@@ -1,19 +1,11 @@
-import { WebClient, AuthSecretKey } from '@miden-sdk/miden-sdk';
-import { MIDEN_DB_NAME, MIDEN_RPC_URL } from '@/config/psm';
+import { MidenClient, AuthSecretKey } from '@miden-sdk/miden-sdk';
+import { MIDEN_DB_NAME, MIDEN_RPC_URL, MIDEN_NOTE_TRANSPORT_URL, MIDEN_PROVER_URL } from '@/config/psm';
 import { normalizeCommitment } from '@/lib/helpers';
 import type { SignerInfo } from '@/types/psm';
+import { instrumentPublicClient } from './midenDiagnostics';
 
 const SIGNER_DB_NAME = 'MultisigSignerKeys';
 const SIGNER_STORE_NAME = 'keys';
-
-export async function clearMidenDatabase(dbName = MIDEN_DB_NAME): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(dbName);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
-  });
-}
 
 function openSignerDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -88,11 +80,21 @@ export async function clearSignerKeys(): Promise<void> {
   });
 }
 
-export async function createWebClient(rpcUrl = MIDEN_RPC_URL): Promise<WebClient> {
-  const client = await WebClient.createClient(rpcUrl);
-  await client.syncState();
+export async function createMidenClient(rpcUrl = MIDEN_RPC_URL): Promise<MidenClient> {
+  // Note: do NOT sync here. Syncing before any note tags are registered
+  // advances the cursor past the current tip, causing the client to miss
+  // public notes minted before tag registration. Tags are added in
+  // handleCreate/handleLoad/handleSync and the first sync happens there.
+  const client = await MidenClient.create({
+    rpcUrl,
+    noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
+    proverUrl: MIDEN_PROVER_URL,
+    storeName: MIDEN_DB_NAME,
+  });
+  instrumentPublicClient(client);
   return client;
 }
+
 
 export function initializeSigner(): SignerInfo {
   const falconSecretKey = AuthSecretKey.rpoFalconWithRNG(undefined);

@@ -16,88 +16,88 @@ const Transactions: React.FC = () => {
 
   const stats = useMemo(() => {
     const total = proposals.length;
-    const executed = proposals.filter(p => p.status.type === 'finalized').length;
-    const pending = proposals.filter(p => p.status.type === 'pending' || p.status.type === 'ready').length;
+    const executed = proposals.filter(p => p.status === 'finalized').length;
+    const pending = proposals.filter(p => p.status === 'pending' || p.status === 'ready').length;
     const successRate = total > 0 ? Math.round((executed / total) * 100) : 0;
     return { total, executed, pending, successRate };
   }, [proposals]);
 
   return (
-    <div className="flex flex-col p-2 w-[calc(100vw-150px)] font-dmmono">
-      {/*Heading*/}
-      <div className="p-2">
-        <div className="text-[#000000] text-[24px] font-[500] font-dmmono">
-          TRANSACTION HISTORY
+    <div className="flex flex-col p-4 w-full">
+      {/* Heading */}
+      <div className="mb-4">
+        <div className="text-[22px] md:text-[24px] font-[600] text-[#111]">
+          Transaction History
         </div>
-        <div className="text-[16px] text-[#0000007A] font-dmmono font-[500]">
+        <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
           Complete record of your wallet history
         </div>
       </div>
-      {/*Top Cards Div*/}
-      <div className="grid grid-cols-12 gap-10 p-2">
-        {/*Total Transactions Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image
-              src={media.totalTransactionsIcon}
-              alt="totalTransactionsIcon"
-              quality={100}
-            />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6 mb-6">
+        {/* Total Proposals */}
+        <div className="lg:col-span-4 flex flex-col justify-between rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 h-[140px] md:h-[160px]">
+          <div className="flex items-center gap-2">
+            <div className="bg-[#FF5500]/10 rounded-[8px] w-7 h-7 flex items-center justify-center shrink-0">
+              <Image src={media.totalTransactionsIcon} alt="total" quality={100} width={16} height={16} />
+            </div>
+            <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
               Total Proposals
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
               {stats.total}
             </div>
-            <div className="text-sm text-gray-700">All Time</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">All time</div>
           </div>
         </div>
-        {/*Pending Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image
-              src={media.thisMonthIcon}
-              alt="thisMonthIcon"
-              quality={100}
-            />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+
+        {/* Pending */}
+        <div className="lg:col-span-4 flex flex-col justify-between rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 h-[140px] md:h-[160px]">
+          <div className="flex items-center gap-2">
+            <div className="bg-[#FF5500]/10 rounded-[8px] w-7 h-7 flex items-center justify-center shrink-0">
+              <Image src={media.thisMonthIcon} alt="pending" quality={100} width={16} height={16} />
+            </div>
+            <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
               Pending
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
               {stats.pending}
             </div>
-            <div className="text-sm text-gray-700">Awaiting signatures</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">Awaiting signatures</div>
           </div>
         </div>
-        {/*Success Rate Div*/}
-        <div className="col-span-4 flex flex-col justify-between h-[135px] border-[0.5px] border-[#00000033] p-3">
-          <div className="flex items-left space-x-2 font-dmmono text-black">
-            <Image src={media.assetValIcon} alt="assetValIcon" quality={100} />
-            <div className="font-dmmono text-[16px] text-[#000000] font-[500]">
+
+        {/* Execution Rate */}
+        <div className="lg:col-span-4 flex flex-col justify-between rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 h-[140px] md:h-[160px]">
+          <div className="flex items-center gap-2">
+            <div className="bg-[#FF5500]/10 rounded-[8px] w-7 h-7 flex items-center justify-center shrink-0">
+              <Image src={media.assetValIcon} alt="rate" quality={100} width={16} height={16} />
+            </div>
+            <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
               Execution Rate
             </div>
           </div>
-          <div>
-            <div className=" text-[24px] font-[500] font-dmmono text-[#000000]">
+          <div className="mt-auto">
+            <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
               {stats.successRate}%
             </div>
-            <div className="text-sm text-gray-700">{stats.executed}/{stats.total} Executed</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">{stats.executed}/{stats.total} executed</div>
           </div>
         </div>
       </div>
 
-      {/*Pending Actions Div*/}
-      <div className="p-2">
+      {/* Pending Actions */}
+      <div className="mb-4">
         <PendingActions threshold={threshold} fixedHeight={false} />
       </div>
-      {/*Recent Transactions Div*/}
-      <div className="p-2">
-        <RecentTransactions threshold={threshold} fixedHeight={false} />
-      </div>
+
+      {/* Recent Transactions */}
+      <RecentTransactions threshold={threshold} fixedHeight={false} />
     </div>
   );
 };

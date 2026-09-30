@@ -1,29 +1,22 @@
 import { useEffect } from 'react';
+import { clearWalletCookie, setWalletCookie } from '@/lib/walletCookie';
 
 export const useAuth = () => {
   useEffect(() => {
-    // Sync localStorage with cookies on client side
+    // Sync localStorage with the cookie. Always rewrite it, so a cookie set
+    // before the SameSite/Secure attributes existed gets upgraded.
     const walletId = localStorage.getItem('currentWalletId');
-    if (walletId) {
-      // Set cookie if it doesn't exist
-      const existingCookie = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('currentWalletId='));
-      
-      if (!existingCookie) {
-        document.cookie = `currentWalletId=${walletId}; path=/; max-age=31536000`;
-      }
-    }
+    if (walletId) setWalletCookie(walletId);
   }, []);
 
   const logout = () => {
     localStorage.removeItem('currentWalletId');
-    document.cookie = 'currentWalletId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    clearWalletCookie();
   };
 
   const setWalletId = (walletId: string) => {
     localStorage.setItem('currentWalletId', walletId);
-    document.cookie = `currentWalletId=${walletId}; path=/; max-age=31536000`;
+    setWalletCookie(walletId);
   };
 
   const getWalletId = () => {

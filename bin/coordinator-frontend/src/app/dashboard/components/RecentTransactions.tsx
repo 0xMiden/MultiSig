@@ -23,18 +23,18 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
   };
 
   return (
-    <div className="flex flex-col gap-2 w-full border p-4">
+    <div className="flex flex-col gap-2 w-full border border-[rgba(0,0,0,0.08)] rounded-[10px] p-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div className="text-[16px] font-dmmono font-[500] text-[#00000099]">
-          RECENT TRANSACTIONS
+        <div className="text-[16px] font-[500] text-[#00000099]">
+          Recent Transactions
         </div>
         {fixedHeight && (
           <button
             onClick={handleViewAll}
-            className="text-[10px] font-dmmono font-[500] text-[#000000] italic hover:text-[#FF5500] transition-colors cursor-pointer"
+            className="text-[10px] font-[500] text-[#000000] italic hover:text-[#FF5500] transition-colors cursor-pointer"
           >
-            VIEW ALL
+            View all
           </button>
         )}
       </div>
@@ -54,40 +54,44 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
-              <p className="text-[#00000099] font-dmmono text-sm font-[400]">
+              <p className="text-[#00000099] text-sm font-[400]">
                 Syncing...
               </p>
             </div>
           </div>
         ) : allProposals.length > 0 ? (
           allProposals.map((proposal) => {
-            const propThreshold = getEffectiveThreshold(
+            // Prefer the threshold snapshot frozen on the proposal at creation time
+            // (metadata.requiredSignatures) over recomputing it from the account's
+            // *current* threshold — otherwise an already-signed/executed proposal
+            // can appear to need more signatures after the threshold later changes.
+            const propThreshold = proposal.metadata?.requiredSignatures ?? getEffectiveThreshold(
               proposal.metadata?.proposalType,
               effectiveThreshold,
               detectedConfig?.procedureThresholds
             );
             const sigCount = proposal.signatures?.length ?? 0;
             const isSend = proposal.metadata?.proposalType === 'p2id';
-            const isExecuted = proposal.status.type === 'finalized';
+            const isExecuted = proposal.status === 'finalized';
 
             return (
               <div
                 key={proposal.id}
-                className="flex h-[64px] w-full flex-row items-center relative border-[0.5px] border-[#00000033] flex-shrink-0"
+                className="flex h-[64px] w-full flex-row items-center relative border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0"
               >
-                <div className="font-dmmono w-[10%] text-center text-[12px] font-[400]">
+                <div className="font-geist w-[10%] text-center text-[12px] font-[400]">
                   {proposal.id.slice(0, 8)}...
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
-                <div className="font-dmmono w-[45%] pl-6 text-[12px] font-[400]">
-                  <span className="font-dmmono text-[12px] font-[500]">
-                    {proposal.metadata?.proposalType === 'p2id' ? 'SEND Transaction' :
-                     proposal.metadata?.proposalType === 'consume_notes' ? 'RECEIVE Transaction' :
-                     proposal.metadata?.proposalType === 'add_signer' ? 'ADD SIGNER' :
-                     proposal.metadata?.proposalType === 'remove_signer' ? 'REMOVE SIGNER' :
-                     proposal.metadata?.proposalType === 'change_threshold' ? 'CHANGE THRESHOLD' :
-                     proposal.metadata?.proposalType === 'switch_psm' ? 'SWITCH PSM' :
-                     (proposal.metadata?.proposalType ?? 'UNKNOWN').toUpperCase()}
+                <div className="font-geist w-[45%] pl-6 text-[12px] font-[400]">
+                  <span className="font-geist text-[12px] font-[500]">
+                    {proposal.metadata?.proposalType === 'p2id' ? 'Send transaction' :
+                     proposal.metadata?.proposalType === 'consume_notes' ? 'Receive transaction' :
+                     proposal.metadata?.proposalType === 'add_signer' ? 'Add signer' :
+                     proposal.metadata?.proposalType === 'remove_signer' ? 'Remove signer' :
+                     proposal.metadata?.proposalType === 'change_threshold' ? 'Change threshold' :
+                     proposal.metadata?.proposalType === 'switch_guardian' ? 'Switch Guardian' :
+                     (proposal.metadata?.proposalType ?? 'Unknown')}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
@@ -101,16 +105,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="flex w-[15%] space-x-1 flex-row items-center justify-center">
-                  <span className="text-[12px] text-[#FF5500] font-dmmono font-[400]">
+                  <span className="text-[12px] text-[#FF5500] font-[400]">
                     {sigCount}/{propThreshold} signed
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
-                <div className="w-[10%] text-center text-[12px] font-dmmono font-[400]">
-                  <span className={`text-[10px] font-dmmono whitespace-nowrap ${
+                <div className="w-[10%] text-center text-[12px] font-[400]">
+                  <span className={`text-[10px] whitespace-nowrap ${
                     isExecuted ? "text-[#28A857]" : "text-[#FF5500]"
                   }`}>
-                    {isExecuted ? "EXECUTED" : "PENDING"}
+                    {isExecuted ? "Executed" : "Pending"}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
@@ -134,10 +138,10 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 />
               </svg>
             </div>
-            <p className="text-gray-500 font-dmmono text-sm font-[400]">
+            <p className="text-gray-500 text-sm font-[400]">
               No recent transactions
             </p>
-            <p className="text-gray-400 font-dmmono text-xs font-[400] mt-1">
+            <p className="text-gray-400 text-xs font-[400] mt-1">
               Your transaction history will appear here
             </p>
           </div>

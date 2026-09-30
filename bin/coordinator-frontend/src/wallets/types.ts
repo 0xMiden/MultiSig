@@ -1,6 +1,6 @@
 import type { SignatureScheme } from '@openzeppelin/miden-multisig-client';
 
-export type WalletSource = 'local' | 'para' | 'miden-wallet';
+export type WalletSource = 'local' | 'para' | 'miden-wallet' | 'ledger';
 
 export interface ExternalWalletState {
   source: WalletSource;

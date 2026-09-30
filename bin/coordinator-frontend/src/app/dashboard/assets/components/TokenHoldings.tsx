@@ -1,4 +1,5 @@
 "use client";
+import { TokenAmount, TokenSymbol } from "@/components/TokenAmount";
 import React, { useState } from "react";
 import Image from "next/image";
 
@@ -14,36 +15,36 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
       await navigator.clipboard.writeText(text);
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 2000); // Reset after 2 seconds
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
+    } catch {
+      /* clipboard write failed */
     }
   };
 
   return (
-    <div className="flex flex-col gap-2 border-[0.5px] border-[#00000033] p-4 font-dmmono w-full">
+    <div className="flex flex-col gap-2 rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 w-full">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <div className="#00000099 font-[500] text-[#00000099] text-[16px]">
-          TOKEN HOLDINGS
+        <div className="font-[500] text-[#00000099] text-[16px]">
+          Token Holdings
         </div>
       </div>
 
-      {/*Token actions cards */}
+      {/* Token rows */}
       <div className="flex flex-col gap-2 overflow-y-auto scrollbar-thin">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="flex items-center space-x-2">
               <div className="w-4 h-4 border-2 border-[#FF5500] border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-black font-dmmono text-[12px]">Loading tokens...</span>
+              <span className="text-[rgba(0,0,0,0.5)] text-[12px]">Loading tokens...</span>
             </div>
           </div>
         ) : fungibleAssets.length === 0 ? (
           <div className="flex items-center justify-center py-8">
-            <span className="text-gray-500 font-dmmono text-[12px]">No tokens available</span>
+            <span className="text-gray-500 text-[12px]">No tokens available</span>
           </div>
         ) : (
           fungibleAssets.map((asset, index) => (
-            <div key={index} className="bg-white border border-gray-200 py-3 px-4 flex items-center justify-between">
+            <div key={index} className="py-3 px-4 rounded-[8px] flex items-center justify-between hover:bg-gray-50 transition-colors">
               {/* Left Side - Token Info */}
               <div className="flex items-center space-x-3">
                 {/* Token Icon */}
@@ -55,21 +56,21 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
                 />
 
                 {/* Token Details */}
-                <div className="flex flex-col font-dmmono">
+                <div className="flex flex-col">
                   <div className="flex gap-2 items-center">
                     <div className="font-[500] text-[12px] text-black uppercase">
-                      MID{index + 1}
+                      <TokenSymbol faucetId={asset.faucetId} />
                     </div>
-                    <div className="text-[8px] text-[#0000007D] font-bold font-dmmono">Miden Token</div>
+                    <div className="text-[8px] text-[#0000007D] font-[400]">Fungible token</div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className="text-xs font-mono text-black truncate max-w-[200px]">
+                    <div className="text-[8px] font-mono text-[#0000007D] truncate max-w-[200px]">
                       {asset.faucetId}
                     </div>
                     <button
                       onClick={() => copyToClipboard(asset.faucetId, index)}
-                      className="flex items-center justify-center w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded transition-colors duration-150"
+                      className="flex items-center justify-center w-6 h-6 bg-gray-100 hover:bg-gray-200 rounded-sm transition-colors duration-150"
                       title="Copy address"
                     >
                       {copiedIndex === index ? (
@@ -88,8 +89,7 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
 
               {/* Right Side - Values */}
               <div className="flex flex-col items-end">
-                <div className="text-[12px] font-bold text-[#000000] font-dmmono">{asset.balance/1000000}</div>
-                <div className="text-[8px] text-[#000000] font-dmmono">{asset.balance/1000000} USD</div>
+                <TokenAmount faucetId={asset.faucetId} amount={asset.balance} className="text-[12px] font-[600] text-[#000000]" />
               </div>
             </div>
           ))
