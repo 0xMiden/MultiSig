@@ -153,3 +153,46 @@ fn blocklist_block_and_unblock_notes_differ() {
         usdcx_admin_notes::blocklist(faucet, sender, target_account, true, serial(10)).unwrap();
     assert_ne!(block.id(), unblock.id(), "block and unblock must produce distinct notes");
 }
+
+// ---------------------------------------------------------------------------
+// Faucet-owned builders (Task 4): set_min_burn, set_attester
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_min_burn_rejects_zero() {
+    let (faucet, sender) = faucet_and_sender();
+    assert!(usdcx_admin_notes::set_min_burn(faucet, sender, 0, serial(12)).is_err());
+
+    let note = usdcx_admin_notes::set_min_burn(faucet, sender, 1, serial(12)).unwrap();
+    assert_well_formed(&note, sender, faucet);
+}
+
+#[test]
+fn set_attester_enabled_flag_encodes() {
+    let (faucet, sender) = faucet_and_sender();
+    let commitment = Word::from([
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+    ]);
+    let note =
+        usdcx_admin_notes::set_attester(faucet, sender, commitment, true, serial(13)).unwrap();
+    assert_well_formed(&note, sender, faucet);
+}
+
+#[test]
+fn set_attester_enabled_true_and_false_notes_differ() {
+    let (faucet, sender) = faucet_and_sender();
+    let commitment = Word::from([
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+        Felt::new(7).unwrap(),
+    ]);
+    let enabled =
+        usdcx_admin_notes::set_attester(faucet, sender, commitment, true, serial(14)).unwrap();
+    let disabled =
+        usdcx_admin_notes::set_attester(faucet, sender, commitment, false, serial(14)).unwrap();
+    assert_ne!(enabled.id(), disabled.id(), "enabled and disabled must produce distinct notes");
+}
