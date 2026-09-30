@@ -18,10 +18,10 @@ export interface CspConfig {
 // Miden SDK shorthands (`devnet`, `testnet`) resolve to *.miden.io services.
 const MIDEN_SERVICES = 'https://*.miden.io';
 // Guardian deployments run by OpenZeppelin; the Guardian URL can be changed at runtime.
-const OPENZEPPELIN_GUARDIANS = 'https://*.openzeppelin.com';
+export const OPENZEPPELIN_GUARDIANS = 'https://*.openzeppelin.com';
 
 /** Origin of an absolute http(s) URL, or null for shorthands and invalid input. */
-function originOf(value: string | undefined): string | null {
+export function originOf(value: string | undefined): string | null {
   if (!value?.trim()) return null;
   try {
     const url = new URL(value.trim());
@@ -31,7 +31,7 @@ function originOf(value: string | undefined): string | null {
   }
 }
 
-function extraOrigins(value: string): string[] {
+export function extraOrigins(value: string): string[] {
   return value
     .split(/[\s,]+/)
     .map(originOf)

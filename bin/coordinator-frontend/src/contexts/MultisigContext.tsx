@@ -51,6 +51,7 @@ import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
+import { guardianUrlProblem } from "@/lib/guardianUrl";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -154,7 +155,9 @@ export interface AccountFundingState {
   message?: string;
 }
 
-interface MultisigContextValue {
+export type GuardianConnectResult = { ok: true } | { ok: false; error: string };
+
+export interface MultisigContextValue {
   // Core state
   midenClient: MidenClient | null;
   multisigClient: MultisigClient | null;
@@ -256,7 +259,8 @@ interface MultisigContextValue {
   handleDisconnect: () => void;
   setWalletSource: (source: WalletSource) => void;
   setGuardianUrl: (url: string) => void;
-  connectToGuardian: (url: string) => Promise<void>;
+  /** Resolves (never rejects) with whether the app is now using this Guardian. */
+  connectToGuardian: (url: string) => Promise<GuardianConnectResult>;
   dismissWarning: () => void;
   setError: (error: string | null) => void;
 
@@ -273,7 +277,7 @@ interface MultisigContextValue {
   /** @deprecated Use guardianStatus */
   psmStatus: "connected" | "connecting" | "error";
   /** @deprecated Use connectToGuardian */
-  connectToPsm: (url: string) => Promise<void>;
+  connectToPsm: (url: string) => Promise<GuardianConnectResult>;
   /** @deprecated Use setGuardianUrl */
   setPsmUrl: (url: string) => void;
   /** @deprecated Use handleCreateP2idProposal */
@@ -530,14 +534,27 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const connectToGuardian = useCallback(
-    async (url: string, clientParam?: MidenClient): Promise<void> => {
-      setGuardianStatus("connecting");
-      setError(null);
+    async (url: string, clientParam?: MidenClient): Promise<GuardianConnectResult> => {
+      // `accountAffected` is false when the app is still on its working
+      // Guardian: the caller shows the reason, the account banner stays clear.
+      const fail = (message: string, accountAffected = true): GuardianConnectResult => {
+        if (accountAffected) setError(message);
+        return { ok: false, error: message };
+      };
       if (!url.trim()) {
         setGuardianStatus("error");
-        setError("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.");
-        return;
+        return fail("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.");
       }
+      // A URL the CSP blocks would only fail as an opaque network error; keep
+      // the current Guardian and say why instead.
+      const blocked = guardianUrlProblem(url, {
+        configured: GUARDIAN_ENDPOINT,
+        extra: process.env.NEXT_PUBLIC_CSP_CONNECT_SRC ?? "",
+        self: window.location.origin,
+      });
+      if (blocked) return fail(blocked, !multisigClient);
+      setGuardianStatus("connecting");
+      setError(null);
       try {
         const mc = clientParam ?? midenClient;
         if (!mc) {
@@ -549,7 +566,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           setGuardianCommitment(pubkeyResp.commitment ?? "");
           setGuardianPublicKey(pubkeyResp.pubkey);
           setGuardianStatus("connected");
-          return;
+          setGuardianUrl(url);
+          return { ok: true };
         }
 
         const {
@@ -561,6 +579,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setGuardianPublicKey(pubkey);
         setMultisigClient(msClient);
         setGuardianStatus("connected");
+        // The app now talks to this Guardian, whatever happens to the account below.
+        setGuardianUrl(url);
 
         if (multisig && guardianState?.stateDataBase64) {
           setRegisteringOnGuardian(true);
@@ -599,7 +619,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
             if (isNotFound || isNonceTooLow) {
               try {
+                // The account is not (or not currently) on the new Guardian:
+                // keep the old Guardian's pending note data, repoint, and
+                // register the account there, as a switch execute would have.
+                await multisig.preservePreSwitchProposalNotes();
                 multisig.setGuardianClient(msClient.guardianClient);
+                await multisig.registerOnGuardian();
                 const state = await multisig.syncState();
                 const [synced, notes] = await Promise.all([
                   multisig.syncProposals(),
@@ -612,28 +637,30 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
                 setConsumableNotes(notes);
                 toast.success("Account registered on new Guardian");
               } catch (registerErr) {
-                setError(
-                  `Failed to register account on new Guardian: ${formatError(registerErr)}`,
-                );
+                return fail(`Failed to register account on new Guardian: ${formatError(registerErr)}`);
               }
             } else {
-              setError(
-                `Failed to load account from Guardian: ${formatError(loadErr)}`,
-              );
+              return fail(`Failed to load account from Guardian: ${formatError(loadErr)}`);
             }
           } finally {
             setRegisteringOnGuardian(false);
           }
         }
+        return { ok: true };
       } catch (err) {
         const msg = formatError(err);
+        // Switching failed before anything was replaced: keep the working Guardian.
+        if (multisigClient && url !== guardianUrl) {
+          setGuardianStatus("connected");
+          return fail(`Could not connect to ${url}: ${msg}. Still using ${guardianUrl}.`, false);
+        }
         setGuardianStatus("error");
         setGuardianCommitment("");
         setGuardianPublicKey(undefined);
-        setError(`Failed to connect to Guardian: ${msg}`);
+        return fail(`Failed to connect to Guardian: ${msg}`);
       }
     },
-    [midenClient, multisig, signer, guardianState, buildExternalParams, walletSource, activeScheme],
+    [midenClient, multisig, multisigClient, guardianUrl, signer, guardianState, buildExternalParams, walletSource, activeScheme],
   );
 
   // Initialization

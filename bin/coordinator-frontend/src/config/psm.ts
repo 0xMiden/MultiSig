@@ -1,3 +1,5 @@
+import { resolveMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
+
 export const GUARDIAN_ENDPOINT = process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT || '';
 // Guardian's raw WASM client does not resolve SDK network shorthands.
 // Share a concrete URL across Miden, Guardian, and Para clients.
@@ -9,6 +11,9 @@ const rpcEndpoints: Record<string, string> = {
 };
 const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'devnet';
 export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? configuredRpc;
+// The network identity behind the RPC: the Miden Wallet's network and the
+// Bech32 address prefix follow it (set NEXT_PUBLIC_MIDEN_NETWORK for a custom RPC).
+export const MIDEN_NETWORK: MidenNetwork = resolveMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK, configuredRpc);
 export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';
 // Unset keeps in-browser proving: a remote prover sees the full transaction
 // witness, including private note contents, so using one must be a deliberate

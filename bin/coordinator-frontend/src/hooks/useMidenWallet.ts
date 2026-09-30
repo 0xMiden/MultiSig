@@ -8,6 +8,18 @@ import {
 } from '@miden-sdk/miden-wallet-adapter-base';
 import { PublicKeyFormat } from '@openzeppelin/miden-multisig-client';
 import type { ExternalWalletState } from '@/wallets/types';
+import { MIDEN_NETWORK } from '@/config/psm';
+
+/** The Miden Wallet network matching this deployment's network. */
+function walletNetwork(): WalletAdapterNetwork {
+  switch (MIDEN_NETWORK) {
+    case 'devnet': return WalletAdapterNetwork.Devnet;
+    case 'testnet': return WalletAdapterNetwork.Testnet;
+    case 'local': return WalletAdapterNetwork.Localnet;
+    default:
+      throw new Error(`The Miden Wallet has no ${MIDEN_NETWORK} network; set NEXT_PUBLIC_MIDEN_NETWORK to devnet, testnet or local.`);
+  }
+}
 
 export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
   const [session, setSession] = useState<ExternalWalletState>({
@@ -89,10 +101,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     if (!adapter || connectingRef.current) return;
     connectingRef.current = true;
     try {
-      await adapter.connect(
-        PrivateDataPermission.UponRequest,
-        WalletAdapterNetwork.Devnet,
-      );
+      await adapter.connect(PrivateDataPermission.UponRequest, walletNetwork());
     } finally {
       connectingRef.current = false;
     }

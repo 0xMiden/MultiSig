@@ -23,7 +23,6 @@ export function AppHeader() {
     creating, loadingAccount, creatingProposal, signingProposal, executingProposal, releasingCandidate, syncingState, registeringOnGuardian, privateSendProgress,
     guardianStatus,
     guardianUrl,
-    setGuardianUrl,
     connectToGuardian,
   } = useMultisig();
 
@@ -31,6 +30,7 @@ export function AppHeader() {
   const [walletPopoverOpen, setWalletPopoverOpen] = useState(false);
   const [keysPopoverOpen, setKeysPopoverOpen] = useState(false);
   const [urlInput, setUrlInput] = useState(guardianUrl);
+  const [guardianError, setGuardianError] = useState<string | null>(null);
 
   const guardianRef = useRef<HTMLDivElement>(null);
   const walletRef = useRef<HTMLDivElement>(null);
@@ -49,9 +49,15 @@ export function AppHeader() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleGuardianSave = () => {
-    setGuardianUrl(urlInput);
-    connectToGuardian(urlInput);
+  const handleGuardianSave = async () => {
+    setGuardianError(null);
+    // The URL is committed by connectToGuardian only once it is actually in use.
+    const result = await connectToGuardian(urlInput.trim());
+    if (!result.ok) {
+      setGuardianError(result.error);
+      return;
+    }
+    toast.success('Connected to Guardian');
     setGuardianPopoverOpen(false);
   };
 
@@ -274,8 +280,9 @@ export function AppHeader() {
                   className="w-full px-2 py-1.5 border border-[#00000019] rounded-sm text-[11px] focus:outline-hidden focus:border-[#FF5500]"
                 />
               </div>
+              {guardianError && <p role="alert" className="text-[10px] text-red-700 mb-2 wrap-break-word">{guardianError}</p>}
               <button
-                onClick={handleGuardianSave}
+                onClick={() => void handleGuardianSave()}
                 className="px-3 py-1.5 bg-[#FF5500] text-white text-[11px] rounded-sm hover:bg-[#E04A00] transition-colors"
               >
                 SAVE & RECONNECT

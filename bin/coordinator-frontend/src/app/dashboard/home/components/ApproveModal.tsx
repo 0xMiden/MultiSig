@@ -1,10 +1,12 @@
 "use client";
+import { ProposalDetails } from "@/components/ProposalDetails";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toast } from "sonner";
 import { getProposalActionState } from "@/lib/proposalActions";
 import { ProposalActionButton } from "@/components/ProposalActionButton";
+import { signEach } from "@/lib/batchSign";
 
 interface ApproveModalProps {
   open: boolean;
@@ -26,6 +28,9 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
   } = useMultisig();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // Why each proposal of the last batch failed, shown on its row.
+  const [failures, setFailures] = useState<Record<string, string>>({});
+  const [batchSigning, setBatchSigning] = useState(false);
 
   const pendingProposals = useMemo(
     () => proposals.filter(p => p.status === "pending" || p.status === "ready"),
@@ -52,20 +57,16 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
   };
 
   const handleSignSelected = async () => {
-    let signed = 0;
-    let failed = 0;
-    for (const id of selectedIds) {
-      try {
-        await handleSignProposal(id);
-        signed += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-    setSelectedIds([]);
-    if (signed > 0 && failed === 0) toast.success(`Signed ${signed} proposal${signed === 1 ? "" : "s"}`);
-    else if (signed > 0) toast.warning(`Signed ${signed}; ${failed} failed`);
-    else toast.error(`Could not sign ${failed} selected proposal${failed === 1 ? "" : "s"}`);
+    setBatchSigning(true);
+    setFailures({});
+    const { signed, failed } = await signEach(selectedIds, handleSignProposal);
+    setBatchSigning(false);
+    // Failed proposals stay selected, with their reasons, so they can be retried.
+    setSelectedIds(failed.map((failure) => failure.id));
+    setFailures(Object.fromEntries(failed.map((failure) => [failure.id, failure.message])));
+    if (failed.length === 0) toast.success(`Signed ${signed.length} proposal${signed.length === 1 ? "" : "s"}`);
+    else if (signed.length > 0) toast.warning(`Signed ${signed.length}; ${failed.length} failed. See the reasons below.`);
+    else toast.error(`Could not sign ${failed.length} selected proposal${failed.length === 1 ? "" : "s"}. See the reasons below.`);
   };
 
   const proposalLabel = (type?: string) => {
@@ -161,6 +162,12 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
                         <div className="text-[13px] font-[500] text-[#111]">
                           {proposalLabel(proposal.metadata?.proposalType)}
                         </div>
+                        <ProposalDetails proposal={proposal} />
+                        {failures[proposal.id] && (
+                          <div role="alert" className="text-[11px] text-red-600 mt-0.5 wrap-break-word">
+                            Not signed: {failures[proposal.id]}
+                          </div>
+                        )}
                         <div className="text-[11px] font-mono text-[rgba(0,0,0,0.35)] mt-0.5 truncate">
                           {proposal.id.slice(0, 20)}…
                         </div>
@@ -212,9 +219,10 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
                 {selectedIds.length > 0 && (
                   <button
                     onClick={handleSignSelected}
-                    className="h-9 px-4 rounded-[8px] bg-[#FF5500] hover:bg-[#E64A00] text-white text-[12px] font-[500] transition-colors"
+                    disabled={batchSigning}
+                    className="h-9 px-4 rounded-[8px] bg-[#FF5500] hover:bg-[#E64A00] text-white text-[12px] font-[500] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Sign selected ({selectedIds.length})
+                    {batchSigning ? "Signing…" : `Sign selected (${selectedIds.length})`}
                   </button>
                 )}
               </div>

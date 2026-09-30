@@ -1,4 +1,5 @@
 "use client";
+import { ProposalDetails } from "@/components/ProposalDetails";
 import React, { useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -74,7 +75,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
             return (
               <div
                 key={proposal.id}
-                className="flex h-[64px] w-full flex-row items-center border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0 overflow-hidden"
+                className="flex min-h-[64px] w-full flex-row items-center border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0 overflow-hidden"
               >
                 <div className="w-[10%] text-center text-[12px] font-[400]">
                   {proposal.id.slice(0, 8)}...
@@ -90,6 +91,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
                      proposal.metadata?.proposalType === 'switch_guardian' ? 'SWITCH GUARDIAN' :
                      (proposal.metadata?.proposalType ?? 'UNKNOWN').toUpperCase()}
                   </span>
+                  <ProposalDetails proposal={proposal} />
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="justify-center items-center flex w-[10%] relative h-full">
