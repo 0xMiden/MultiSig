@@ -26,10 +26,6 @@ use miden_standards::note::config::{
     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
     FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
 };
-// TODO(usdcx-0.17-port, Task 5): `FeeSponsorshipNote::builder().asset(..)` now wants a
-// `FungibleAsset`, not the generic `Asset` this took in 0.16; fee_sponsorship is dropped for v1,
-// don't re-add this import.
-// use miden_standards::note::FeeSponsorshipNote;
 use xusdc_encoding::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSetAttesterNote};
 
 #[cfg(feature = "wasm")]
@@ -147,28 +143,6 @@ pub fn set_note_fee(
     Ok(Note::from(note))
 }
 
-// TODO(usdcx-0.17-port, Task 5): `fee_sponsorship` is dropped for v1; the 0.16 body below is
-// kept, fully commented out, as reference until Task 5 removes it for good.
-//
-// /// Fee sponsorship (role: ADMIN): sponsor the network fee for `feature_note_id`,
-// /// paid to `target_account`. Note this targets the sponsored account, not the faucet.
-// pub fn fee_sponsorship(
-//     sender: AccountId,
-//     target_account: AccountId,
-//     feature_note_id: NoteId,
-//     asset: Asset,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let note = FeeSponsorshipNote::builder()
-//         .sender(sender)
-//         .target_account(target_account)
-//         .feature_note_id(feature_note_id)
-//         .asset(asset)
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
-//
 /// RBAC role management (role: ADMIN / the target role's effective admin):
 /// grant / revoke / set-role-admin / renounce, via a caller-built [`RbacConfig`].
 pub fn rbac(
