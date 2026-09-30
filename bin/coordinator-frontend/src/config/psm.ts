@@ -1,4 +1,5 @@
 import { resolveMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
+import { parseParaEnvironment, type ParaEnvironment } from '@/lib/paraEnvironment';
 
 export const GUARDIAN_ENDPOINT = process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT || '';
 // Guardian's raw WASM client does not resolve SDK network shorthands.
@@ -29,6 +30,5 @@ export const MIDEN_DB_NAME = 'MidenClientDB';
 export const LOCAL_KEYS_ENABLED = process.env.NODE_ENV !== 'production';
 
 export const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_API_KEY || '';
-export const PARA_ENVIRONMENT = (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT || 'development') as
-  | 'development'
-  | 'production';
+// Must match the API key's environment: a `beta_…` key needs `beta`.
+export const PARA_ENVIRONMENT: ParaEnvironment = parseParaEnvironment(process.env.NEXT_PUBLIC_PARA_ENVIRONMENT);
