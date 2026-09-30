@@ -5,7 +5,8 @@ test('production app loads the real USB SDK and opens the Ledger dialog',async({
   const cspViolations:string[]=[];
   page.on('console',message=>{if(/Content Security Policy/i.test(message.text()))cspViolations.push(message.text());});
   await page.goto('/login');
-  await page.getByRole('button',{name:'MIDEN WALLET',exact:true}).click();
+  // The wallet button names the source and whether it is connected.
+  await page.getByRole('button',{name:/^MIDEN WALLET( · NOT CONNECTED)?$/}).click();
   await page.getByRole('button',{name:'CONNECT LEDGER (USB)',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'Connect Ledger'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Choose USB device'})).toBeEnabled({timeout:15000});

@@ -2,14 +2,24 @@
 
 import React, { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamicImport from "next/dynamic";
 import Sidebar from "./components/Sidebar";
 import TaskBar from "./components/Taskbar";
 import SendModal from "./home/components/SendModal";
 import ReceiveModal from "./home/components/ReceiveModal";
 import { DashboardUIProvider, useDashboardUI } from "@/contexts/DashboardUIContext";
-import { ChatLauncher, type ActionType } from "medina-agent";
+import type { ActionType } from "medina-agent";
 import "medina-agent/styles.css";
 import AccountStatusBanner from "./components/AccountStatusBanner";
+
+const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT?.trim() ?? "";
+
+// The assistant is optional. Load it in the browser only (its markdown renderer
+// touches `document` at import time) and only when an endpoint is configured,
+// so an unconfigured deployment ships no chat widget at all.
+const ChatLauncher = CHAT_ENDPOINT
+  ? dynamicImport(() => import("medina-agent").then((mod) => mod.ChatLauncher), { ssr: false })
+  : null;
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
@@ -73,11 +83,13 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
       <SendModal open={isSendModalOpen} onClose={closeSendModal} />
       <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
 
-      <ChatLauncher
-        endpoint={process.env.NEXT_PUBLIC_CHAT_ENDPOINT ?? ""}
-        title="Miden Assistant"
-        onAction={(actionType) => handleChatAction(actionType)}
-      />
+      {ChatLauncher && (
+        <ChatLauncher
+          endpoint={CHAT_ENDPOINT}
+          title="Miden Assistant"
+          onAction={(actionType) => handleChatAction(actionType)}
+        />
+      )}
     </div>
   );
 }

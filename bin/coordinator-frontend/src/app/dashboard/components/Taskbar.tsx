@@ -1,4 +1,5 @@
 "use client";
+import { LOCAL_KEYS_ENABLED } from "@/config/psm";
 import React, { useState, useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { truncateHex, copyToClipboard } from "@/lib/helpers";
@@ -182,7 +183,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
 
           {/* Wallet Source Segmented Control */}
           <div className="flex items-center h-8 bg-[rgba(245,245,245,1)] rounded-[8px] p-0.5">
-            {process.env.NODE_ENV !== 'production' && (
+            {LOCAL_KEYS_ENABLED && (
               <button
                 onClick={() => setWalletSource('local')}
                 className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all ${
@@ -229,10 +230,10 @@ const TaskBar: React.FC<TaskBarProps> = () => {
             <button
               onClick={() => setShowSignerKeys(!showSignerKeys)}
               className="flex items-center gap-2 h-8 px-3 text-[11px] font-[500] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors"
-              title={activeCommitment || "No commitment"}
+              title={activeCommitment || "Not connected"}
             >
               <span className="text-gray-500">{activeScheme.toUpperCase()}</span>
-              <span>{activeCommitment ? truncateHex(activeCommitment, 6, 4) : generatingSigner ? 'Generating...' : 'N/A'}</span>
+              <span>{activeCommitment ? truncateHex(activeCommitment, 6, 4) : generatingSigner ? 'Generating...' : 'Not connected'}</span>
             </button>
 
             {showSignerKeys && signer && (

@@ -25,9 +25,12 @@ import {
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
-import { MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { LOCAL_KEYS_ENABLED, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
 import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
 import { registerDevnetAccount } from './devnetRegistration';
+import { configureProverWorkflow } from './proverFallback';
+import { markExecutionPushed } from './pendingCandidate';
+import { toast } from 'sonner';
 
 const registrationRequests = new Map<string, Promise<void>>();
 
@@ -83,7 +86,7 @@ export interface ExternalSignerParams {
 }
 
 export function createSigner(
-  signerInfo: SignerInfo,
+  signerInfo: SignerInfo | null,
   signatureScheme: SignatureScheme,
   external?: ExternalSignerParams,
 ): Signer {
@@ -102,6 +105,12 @@ export function createSigner(
     return new MidenWalletSigner(ctx.wallet, ctx.commitment, ctx.scheme, undefined, ctx.publicKey);
   }
 
+  // Only the explicit "local keys" source reaches this point; every external
+  // source either returned above or was refused by the caller.
+  if (!LOCAL_KEYS_ENABLED) {
+    throw new Error('Connect a wallet (Ledger, Para or the Miden Wallet) first.');
+  }
+  if (!signerInfo) throw new Error('Local keys are still being generated. Try again in a moment.');
   const activeSigner = signatureScheme === 'ecdsa' ? signerInfo.ecdsa : signerInfo.falcon;
   return signatureScheme === 'ecdsa'
     ? new EcdsaSigner(activeSigner.secretKey)
@@ -164,6 +173,20 @@ export async function registerAccountNoteTag(
   await midenClient.tags.add(tag.asU32());
 }
 
+/** Syncs before executing and falls back to local proving (see proverFallback.ts). */
+function withProverFallback(multisig: Multisig): Multisig {
+  configureProverWorkflow(multisig, {
+    onPushed() {
+      markExecutionPushed(multisig.accountId);
+    },
+    onFallback(error) {
+      console.warn('Remote prover failed; proving on this device instead.', error);
+      toast.info('The remote prover did not respond, so this transaction is being proved on this device. This can take a minute or two; keep this tab open.');
+    },
+  });
+  return multisig;
+}
+
 export async function initMultisigClient(
   midenClient: MidenClient,
   guardianEndpoint: string,
@@ -200,7 +223,7 @@ export async function createMultisigAccount(
   };
   const multisig = await multisigClient.create(config, signer);
   instrumentMultisig(multisig, multisigClient);
-  return multisig;
+  return withProverFallback(multisig);
 }
 
 export async function loadMultisigAccount(
@@ -210,7 +233,7 @@ export async function loadMultisigAccount(
 ): Promise<Multisig> {
   const multisig = await multisigClient.load(accountId, signer);
   instrumentMultisig(multisig, multisigClient);
-  return multisig;
+  return withProverFallback(multisig);
 }
 
 /** Restore an unused local account after Guardian registration was interrupted. */
@@ -246,5 +269,5 @@ export async function loadPendingMultisigAccount(
   guardian.setSigner(signer);
   const multisig = new Multisig(account, config, guardian, signer, midenClient, accountId, MIDEN_RPC_URL);
   instrumentMultisig(multisig, multisigClient);
-  return multisig;
+  return withProverFallback(multisig);
 }

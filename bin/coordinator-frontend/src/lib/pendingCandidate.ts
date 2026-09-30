@@ -2,17 +2,12 @@ import { GuardianHttpError, type AbandonStatus } from '@openzeppelin/guardian-cl
 import type { Multisig } from '@openzeppelin/miden-multisig-client';
 
 /**
- * True when Guardian refused an operation because the account already has a
- * pending canonicalization candidate (HTTP 409 `conflict_pending_delta`).
- *
- * Execute pushes the delta to Guardian (which locks the account on that
- * candidate) *before* proving and submitting the transaction. If submission
- * then fails client-side, the candidate never lands and every later push is
- * refused with this error until the candidate is abandoned.
- *
- * A 409 alone does not say whose candidate it is: another cosigner may be
- * executing right now. Only a record this client wrote establishes that
- * the candidate is one this client pushed (see {@link StuckCandidate}).
+ * Execute pushes the delta to Guardian, which co-signs it and records it as
+ * the account's pending *candidate*, before the transaction is proved and
+ * submitted. While a candidate exists Guardian refuses every other push for
+ * the account (HTTP 409 `conflict_pending_delta`): the account is locked until
+ * the candidate lands, is abandoned, or Guardian's worker gives up on it (about
+ * 18 minutes after the push with Guardian's production settings).
  */
 export function isPendingCandidateError(error: unknown): boolean {
   if (error instanceof GuardianHttpError && error.code === 'conflict_pending_delta') {
@@ -24,47 +19,91 @@ export function isPendingCandidateError(error: unknown): boolean {
 }
 
 /**
- * An execution this client started for `proposalId`. Written *before* the
- * execute call (so a reload or closed tab mid-execute still leaves a trace)
- * and marked `confirmed` once Guardian has shown that the candidate at
- * `nonce` — the proposal's delta nonce, which Guardian keys candidates by —
- * is still pending after this client's attempt ended.
+ * How long a candidate must have been pending before any signer may abandon
+ * it. No live execution takes this long: tokens with transfer policies expire
+ * a transaction about a minute after its reference block, remote proofs take
+ * seconds and the slowest in-browser proof about a minute and a half. Guardian
+ * still re-checks the chain before releasing, and refuses if the transaction
+ * landed.
  */
-export interface StuckCandidate {
-  accountId: string;
+export const UNLOCK_AFTER_MS = 3 * 60_000;
+
+/** The candidate holding an account's Guardian lock. */
+export interface LockedCandidate {
   proposalId: string;
   nonce: number;
-  startedAt: number;
-  confirmed: boolean;
+  /** When Guardian accepted the push, in ms since the epoch. */
+  lockedAt: number;
 }
 
+interface DeltaReader {
+  getDelta(accountId: string, nonce: number): Promise<{ status: { status: string; timestamp?: string } }>;
+}
+
+function guardianOf(multisig: object): DeltaReader | null {
+  const guardian = (multisig as { guardian?: Partial<DeltaReader> }).guardian;
+  return typeof guardian?.getDelta === 'function' ? (guardian as DeltaReader) : null;
+}
+
+export type CandidateLookup =
+  | { kind: 'found'; candidate: LockedCandidate }
+  | { kind: 'none' }
+  | { kind: 'unknown'; reason: string };
+
 /**
- * How long an unconfirmed execution must be abandoned before this client may
- * claim its candidate. Longer than an in-browser proof plus the transaction's
- * expiration window, so an attempt still running elsewhere (another tab) has
- * either landed or can no longer land by then.
+ * Finds which of the account's open proposals Guardian holds as the pending
+ * candidate. Guardian stores an executed proposal's delta under the proposal's
+ * nonce, so a read of each open proposal's nonce identifies the lock and its
+ * age. Read-only: nothing is abandoned here.
  */
-export const UNCONFIRMED_CLAIM_DELAY_MS = 3 * 60_000;
-
-type AbandonApi = Pick<Multisig, 'abandonCandidate' | 'abandonStatus'>;
-
-export type CandidateProbe = 'pending' | 'resolved' | 'unknown';
-
-/**
- * Ask Guardian whether the delta at `nonce` is still an open candidate.
- * `'unknown'` when Guardian could not be asked, so callers never act on a guess.
- */
-export async function probeCandidate(multisig: AbandonApi, nonce: number): Promise<CandidateProbe> {
-  try {
-    return (await multisig.abandonStatus(nonce)) === 'waiting' ? 'pending' : 'resolved';
-  } catch {
-    return 'unknown';
+export async function findLockedCandidate(
+  multisig: Pick<Multisig, 'accountId'> & object,
+  proposals: ReadonlyArray<{ id: string; nonce: number }>,
+): Promise<CandidateLookup> {
+  const guardian = guardianOf(multisig);
+  if (!guardian) return { kind: 'unknown', reason: 'Guardian client unavailable' };
+  let failure: string | null = null;
+  const seen = new Set<number>();
+  for (const proposal of proposals) {
+    if (seen.has(proposal.nonce)) continue;
+    seen.add(proposal.nonce);
+    try {
+      const delta = await guardian.getDelta(multisig.accountId, proposal.nonce);
+      if (delta.status.status !== 'candidate') continue;
+      const lockedAt = Date.parse(delta.status.timestamp ?? '');
+      if (!Number.isFinite(lockedAt)) return { kind: 'unknown', reason: 'Guardian returned no lock time' };
+      return { kind: 'found', candidate: { proposalId: proposal.id, nonce: proposal.nonce, lockedAt } };
+    } catch (error) {
+      if (error instanceof GuardianHttpError && error.code === 'delta_not_found') continue;
+      failure = error instanceof Error ? error.message : String(error);
+    }
   }
+  return failure ? { kind: 'unknown', reason: failure } : { kind: 'none' };
 }
 
-/** Whether an unconfirmed record is old enough to be claimed after a Guardian check. */
-export function claimable(record: StuckCandidate, now: number = Date.now()): boolean {
-  return record.confirmed || now - record.startedAt >= UNCONFIRMED_CLAIM_DELAY_MS;
+/** Milliseconds until any signer may unlock this candidate; 0 when it already may. */
+export function msUntilUnlockable(candidate: LockedCandidate, now: number = Date.now()): number {
+  return Math.max(0, candidate.lockedAt + UNLOCK_AFTER_MS - now);
+}
+
+/**
+ * Proof that an execute from this page reached Guardian. The prover workflow
+ * runs only after Guardian accepted the push, so its start is recorded here.
+ * In memory on purpose: it only has to survive until the same execute's error
+ * handler reads it.
+ */
+const pushedExecutions = new Map<string, number>();
+
+export function markExecutionPushed(accountId: string): void {
+  pushedExecutions.set(accountId.toLowerCase(), Date.now());
+}
+
+export function clearExecutionPushed(accountId: string): void {
+  pushedExecutions.delete(accountId.toLowerCase());
+}
+
+export function executionWasPushed(accountId: string): boolean {
+  return pushedExecutions.has(accountId.toLowerCase());
 }
 
 export type ReleaseOutcome = Exclude<AbandonStatus, 'waiting'> | 'timeout';
@@ -73,7 +112,11 @@ export interface ReleaseOptions {
   pollIntervalMs?: number;
   timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Stop polling early (e.g. the user switched account); resolves 'timeout'. */
+  cancelled?: () => boolean;
 }
+
+type AbandonApi = Pick<Multisig, 'abandonCandidate' | 'abandonStatus'>;
 
 /**
  * Ask Guardian to abandon the candidate at `nonce` and wait for the outcome.
@@ -81,14 +124,14 @@ export interface ReleaseOptions {
  * Guardian only releases the account after its worker confirms, over a short
  * quarantine, that the transaction did not land on-chain; if it did land the
  * request resolves to `'landed'` and nothing is discarded. `'retained'` means
- * the account was unlocked but the on-chain outcome is still unresolved — it
+ * the account was unlocked but the on-chain outcome is still unresolved: it
  * must never be read as "the transaction did not land". Retries are
  * idempotent, so calling this again after a timeout is safe.
  */
 export async function releasePendingCandidate(
   multisig: AbandonApi,
   nonce: number,
-  { pollIntervalMs = 3_000, timeoutMs = 120_000, sleep = defaultSleep }: ReleaseOptions = {},
+  { pollIntervalMs = 3_000, timeoutMs = 120_000, sleep = defaultSleep, cancelled = () => false }: ReleaseOptions = {},
 ): Promise<ReleaseOutcome> {
   try {
     const request = await multisig.abandonCandidate(nonce);
@@ -100,49 +143,11 @@ export async function releasePendingCandidate(
 
   for (let waited = 0; waited < timeoutMs; waited += pollIntervalMs) {
     await sleep(pollIntervalMs);
+    if (cancelled()) return 'timeout';
     const status = await multisig.abandonStatus(nonce);
     if (status !== 'waiting') return status;
   }
   return 'timeout';
-}
-
-const STORAGE_PREFIX = 'stuckCandidate:';
-
-/** Persist per account so a reload does not strand the user behind the lock. */
-export function saveStuckCandidate(record: StuckCandidate): void {
-  try {
-    localStorage.setItem(STORAGE_PREFIX + record.accountId.toLowerCase(), JSON.stringify(record));
-  } catch {
-    /* storage unavailable: the record lives in memory only */
-  }
-}
-
-export function loadStuckCandidate(accountId: string): StuckCandidate | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + accountId.toLowerCase());
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<StuckCandidate>;
-    if (
-      typeof parsed.proposalId !== 'string' ||
-      !Number.isSafeInteger(parsed.nonce) ||
-      typeof parsed.startedAt !== 'number' ||
-      typeof parsed.confirmed !== 'boolean' ||
-      parsed.accountId?.toLowerCase() !== accountId.toLowerCase()
-    ) {
-      return null;
-    }
-    return parsed as StuckCandidate;
-  } catch {
-    return null;
-  }
-}
-
-export function clearStuckCandidate(accountId: string): void {
-  try {
-    localStorage.removeItem(STORAGE_PREFIX + accountId.toLowerCase());
-  } catch {
-    /* nothing to clear */
-  }
 }
 
 function defaultSleep(ms: number): Promise<void> {

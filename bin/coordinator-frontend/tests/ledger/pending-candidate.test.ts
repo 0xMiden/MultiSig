@@ -1,14 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GuardianHttpError } from '@openzeppelin/guardian-client';
 import {
-  claimable,
-  clearStuckCandidate,
-  probeCandidate,
-  UNCONFIRMED_CLAIM_DELAY_MS,
+  clearExecutionPushed,
+  executionWasPushed,
+  findLockedCandidate,
   isPendingCandidateError,
-  loadStuckCandidate,
+  markExecutionPushed,
+  msUntilUnlockable,
   releasePendingCandidate,
-  saveStuckCandidate,
+  UNLOCK_AFTER_MS,
 } from '../../src/lib/pendingCandidate';
 
 function guardianError(status: number, code: string, message: string): GuardianHttpError {
@@ -86,76 +86,76 @@ describe('releasePendingCandidate', () => {
   });
 });
 
-describe('probeCandidate', () => {
-  const withStatus = (status: () => Promise<string>) => ({
-    abandonCandidate: vi.fn(),
-    abandonStatus: vi.fn(status),
-  }) as unknown as Parameters<typeof probeCandidate>[0];
+describe('releasePendingCandidate cancellation', () => {
+  it('stops polling once the caller is no longer interested (account switched)', async () => {
+    let switched = false;
+    const multisig = {
+      abandonCandidate: vi.fn(async (nonce: number) => ({ accountId: '0x1', nonce, state: 'pending' as const })),
+      abandonStatus: vi.fn(async () => { switched = true; return 'waiting' as const; }),
+    };
+    await expect(
+      releasePendingCandidate(multisig, 5, { sleep: noSleep, cancelled: () => switched }),
+    ).resolves.toBe('timeout');
+    expect(multisig.abandonStatus).toHaveBeenCalledTimes(1);
+  });
+});
 
-  it('reports pending only while Guardian still holds the candidate, without abandoning it', async () => {
-    const multisig = withStatus(async () => 'waiting');
-    await expect(probeCandidate(multisig, 1790672202448)).resolves.toBe('pending');
-    expect(multisig.abandonStatus).toHaveBeenCalledWith(1790672202448);
-    expect(multisig.abandonCandidate).not.toHaveBeenCalled();
+describe('findLockedCandidate', () => {
+  const lockedAt = '2026-09-30T10:00:00.000Z';
+  const withDeltas = (byNonce: Record<number, () => Promise<unknown>>) => ({
+    accountId: '0xacc',
+    guardian: { getDelta: vi.fn(async (_account: string, nonce: number) => byNonce[nonce]!()) },
+  });
+  const notFound = () => Promise.reject(guardianError(404, 'delta_not_found', 'no delta'));
+
+  it('identifies which open proposal Guardian holds as the candidate, with its lock time', async () => {
+    const multisig = withDeltas({
+      1: notFound,
+      2: async () => ({ status: { status: 'pending', timestamp: lockedAt } }),
+      3: async () => ({ status: { status: 'candidate', timestamp: lockedAt } }),
+    });
+    const lookup = await findLockedCandidate(multisig, [
+      { id: '0xa', nonce: 1 }, { id: '0xb', nonce: 2 }, { id: '0xc', nonce: 3 },
+    ]);
+    expect(lookup).toEqual({ kind: 'found', candidate: { proposalId: '0xc', nonce: 3, lockedAt: Date.parse(lockedAt) } });
+    expect(multisig.guardian.getDelta).toHaveBeenCalledWith('0xacc', 3);
   });
 
-  it.each(['landed', 'abandoned', 'retained', 'unexpected'])('reports resolved when the delta is %s', async (status) => {
-    await expect(probeCandidate(withStatus(async () => status), 1)).resolves.toBe('resolved');
+  it('reports none when no open proposal is a candidate', async () => {
+    const multisig = withDeltas({ 1: notFound, 2: async () => ({ status: { status: 'canonical', timestamp: lockedAt } }) });
+    await expect(findLockedCandidate(multisig, [{ id: '0xa', nonce: 1 }, { id: '0xb', nonce: 2 }])).resolves.toEqual({ kind: 'none' });
   });
 
   it('reports unknown rather than guessing when Guardian cannot be asked', async () => {
-    await expect(probeCandidate(withStatus(async () => { throw new Error('offline'); }), 1)).resolves.toBe('unknown');
+    const offline = withDeltas({ 1: () => Promise.reject(new Error('offline')) });
+    await expect(findLockedCandidate(offline, [{ id: '0xa', nonce: 1 }])).resolves.toMatchObject({ kind: 'unknown' });
+    await expect(findLockedCandidate({ accountId: '0xacc' }, [{ id: '0xa', nonce: 1 }])).resolves.toMatchObject({ kind: 'unknown' });
+    const noTime = withDeltas({ 1: async () => ({ status: { status: 'candidate' } }) });
+    await expect(findLockedCandidate(noTime, [{ id: '0xa', nonce: 1 }])).resolves.toMatchObject({ kind: 'unknown' });
   });
 });
 
-describe('claimable', () => {
-  const base = { accountId: '0xa', proposalId: '0xp', nonce: 1, startedAt: 1_000_000 };
+describe('msUntilUnlockable', () => {
+  const candidate = { proposalId: '0xp', nonce: 1, lockedAt: 1_000_000 };
 
-  it('never lets a fresh unconfirmed execution be claimed — another tab may still be landing it', () => {
-    expect(claimable({ ...base, confirmed: false }, base.startedAt + UNCONFIRMED_CLAIM_DELAY_MS - 1)).toBe(false);
+  it('keeps a young lock closed: a live execution may still land it', () => {
+    expect(msUntilUnlockable(candidate, candidate.lockedAt + 60_000)).toBe(UNLOCK_AFTER_MS - 60_000);
   });
 
-  it('allows a check once the execution has been abandoned long enough, or when Guardian already confirmed it', () => {
-    expect(claimable({ ...base, confirmed: false }, base.startedAt + UNCONFIRMED_CLAIM_DELAY_MS)).toBe(true);
-    expect(claimable({ ...base, confirmed: true }, base.startedAt)).toBe(true);
+  it('opens once the lock has outlived every live execution', () => {
+    expect(msUntilUnlockable(candidate, candidate.lockedAt + UNLOCK_AFTER_MS)).toBe(0);
+    expect(msUntilUnlockable(candidate, candidate.lockedAt + UNLOCK_AFTER_MS * 3)).toBe(0);
   });
 });
 
-describe('stuck candidate storage', () => {
-  const store = new Map<string, string>();
-  beforeEach(() => {
-    store.clear();
-    vi.stubGlobal('localStorage', {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
-      removeItem: (k: string) => void store.delete(k),
-    });
-  });
-  const record = { accountId: '0xAbC', proposalId: '0xp', nonce: 7, startedAt: 1, confirmed: true };
-
-  it('round-trips per account, case-insensitively, and clears', () => {
-    saveStuckCandidate(record);
-    expect(loadStuckCandidate('0xabc')).toEqual(record);
-    expect(loadStuckCandidate('0xdef')).toBeNull();
-    clearStuckCandidate('0xABC');
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-  });
-
-  it('rejects a record stored under another account or with malformed fields', () => {
-    store.set('stuckCandidate:0xabc', JSON.stringify({ ...record, accountId: '0xdef' }));
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-    store.set('stuckCandidate:0xabc', JSON.stringify({ ...record, nonce: '7' }));
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-    store.set('stuckCandidate:0xabc', JSON.stringify({ ...record, confirmed: 'yes' }));
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-    store.set('stuckCandidate:0xabc', '{not json');
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-  });
-
-  it('degrades to no record when storage is unavailable', () => {
-    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } });
-    expect(() => saveStuckCandidate(record)).not.toThrow();
-    expect(loadStuckCandidate('0xabc')).toBeNull();
-    expect(() => clearStuckCandidate('0xabc')).not.toThrow();
+describe('pushed-execution marker', () => {
+  it('records per account, case-insensitively, until cleared', () => {
+    clearExecutionPushed('0xAbC');
+    expect(executionWasPushed('0xabc')).toBe(false);
+    markExecutionPushed('0xABC');
+    expect(executionWasPushed('0xabc')).toBe(true);
+    expect(executionWasPushed('0xdef')).toBe(false);
+    clearExecutionPushed('0xabc');
+    expect(executionWasPushed('0xABC')).toBe(false);
   });
 });

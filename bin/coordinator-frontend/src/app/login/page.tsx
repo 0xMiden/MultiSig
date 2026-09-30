@@ -63,7 +63,8 @@ const Page = () => {
               </div>
               <p className="text-[13px] font-geist text-[rgba(0,0,0,0.6)] leading-relaxed">
                 It looks like you haven&apos;t installed the Miden Wallet browser extension.
-                Install it to use Miden Wallet, or dismiss this message and choose Ledger or Para from the wallet menu.
+                Install it to use Miden Wallet, or choose Ledger or Para from the wallet menu. Accounts can only be
+                created or loaded with a connected wallet.
               </p>
               <div className="flex flex-col space-y-2">
                 <a
@@ -78,7 +79,7 @@ const Page = () => {
                   onClick={() => setShowInstallModal(false)}
                   className="h-[44px] w-full flex items-center justify-center border border-[rgba(0,0,0,0.12)] font-geist text-[14px] text-[rgba(0,0,0,0.6)] rounded-[8px] hover:bg-[rgba(0,0,0,0.03)] transition-colors cursor-pointer"
                 >
-                  Continue anyway
+                  Choose another wallet
                 </button>
               </div>
             </motion.div>

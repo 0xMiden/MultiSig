@@ -34,7 +34,7 @@
     "@tanstack/react-query": "^5.0.0",
     "framer-motion": "^12.23.12",
     "medina-agent": "file:vendor/medina-agent-0.1.0.tgz",
-    "next": "15.4.5",
+    "next": "15.5.26",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0",
@@ -50,12 +50,16 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.4.5",
-    "postcss": "^8.4.32",
+    "eslint-config-next": "15.5.26",
+    "postcss": "^8.5.28",
     "tailwindcss": "4.3.3",
     "typescript": "^5",
     "viem": "2.56.9",
     "vite": "7.3.6",
     "vitest": "3.2.7"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "ws": "8.22.0"
   }
 }

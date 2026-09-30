@@ -1,5 +1,6 @@
 'use client';
 
+import { LOCAL_KEYS_ENABLED } from '@/config/psm';
 import React, { useState, useEffect, useRef } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { copyToClipboard, truncateHex } from '@/lib/helpers';
@@ -75,8 +76,8 @@ export function AppHeader() {
           >
             {walletSource === 'local' && !paraSession.connected && !midenWalletSession.connected && 'LOCAL KEYS'}
             {walletSource === 'local' && paraSession.connected && 'LOCAL (PARA AVAIL)'}
-            {walletSource === 'para' && 'PARA'}
-            {walletSource === 'miden-wallet' && 'MIDEN WALLET'}
+            {walletSource === 'para' && (paraSession.connected ? 'PARA' : 'PARA · NOT CONNECTED')}
+            {walletSource === 'miden-wallet' && (midenWalletSession.connected ? 'MIDEN WALLET' : 'MIDEN WALLET · NOT CONNECTED')}
             {walletSource === 'ledger' && (ledger.signer ? 'LEDGER ●' : 'LEDGER DISCONNECTED')}
             {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
@@ -96,7 +97,7 @@ export function AppHeader() {
                   <button type="button" onClick={ledger.disconnect} className="ml-3 text-red-600 underline">Disconnect</button>
                 </div>}
                 {ledger.error && !ledger.open && <p role="alert" className="text-[10px] text-red-700">{ledger.error}</p>}
-                {process.env.NODE_ENV !== 'production' && (
+                {LOCAL_KEYS_ENABLED && (
                   <button
                     onClick={() => { setWalletSource('local'); setWalletPopoverOpen(false); }}
                     className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border ${

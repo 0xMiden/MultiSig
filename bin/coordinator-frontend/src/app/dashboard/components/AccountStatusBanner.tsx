@@ -1,6 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { msUntilUnlockable } from "@/lib/pendingCandidate";
+import type { AccountLock } from "@/contexts/MultisigContext";
 import { useMultisig } from "@/contexts/MultisigContext";
 
 /**
@@ -16,9 +18,9 @@ const AccountStatusBanner = () => {
   const {
     error,
     pendingCandidateWarning,
-    stuckCandidate,
+    lockedCandidate,
     releasingCandidate,
-    releaseStuckCandidateAndRetry,
+    unlockAccount,
     executingProposal,
     accountFunding,
     multisig,
@@ -36,7 +38,7 @@ const AccountStatusBanner = () => {
   const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy || releasingCandidate || Boolean(executingProposal);
   const configMissing = Boolean(multisig) && !detectedConfig && !busy;
 
-  if (!error && !pendingCandidateWarning && !configMissing && accountFunding.phase === "idle") return null;
+  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && accountFunding.phase === "idle") return null;
 
   const retry = () => {
     const operation = guardianRegistrationRequired ? retryGuardianRegistration : handleSync;
@@ -121,36 +123,72 @@ const AccountStatusBanner = () => {
         </div>
       )}
 
-      {pendingCandidateWarning && (
-        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-center justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
-            {stuckCandidate && (
-              <span className="text-[12px] font-[600] text-amber-800">
-                Account locked
-              </span>
-            )}
-            <span className="text-[12px] font-[400] text-amber-700">
-              {pendingCandidateWarning}
-            </span>
-          </div>
-          {stuckCandidate && (
-            <button
-              type="button"
-              onClick={() => void releaseStuckCandidateAndRetry()}
-              disabled={busy}
-              aria-busy={releasingCandidate}
-              className="min-h-8 shrink-0 inline-flex items-center gap-2 rounded-[6px] bg-amber-600 px-3 text-[12px] font-[500] text-white hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {releasingCandidate && (
-                <span aria-hidden className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-              )}
-              {releasingCandidate ? "Unlocking…" : "Unlock account"}
-            </button>
-          )}
+      {lockedCandidate ? (
+        <LockNotice
+          lock={lockedCandidate}
+          message={pendingCandidateWarning}
+          busy={busy}
+          releasing={releasingCandidate}
+          onUnlock={() => void unlockAccount()}
+        />
+      ) : pendingCandidateWarning && (
+        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <span className="text-[12px] font-[400] text-amber-700">{pendingCandidateWarning}</span>
         </div>
       )}
     </div>
   );
 };
 
+/** The account's Guardian lock, with its age and a live countdown to Unlock. */
+function LockNotice({ lock, message, busy, releasing, onUnlock }: {
+  lock: AccountLock;
+  message: string | null;
+  busy: boolean;
+  releasing: boolean;
+  onUnlock: () => void;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const waitMs = msUntilUnlockable(lock, now);
+  const age = formatDuration(now - lock.lockedAt);
+  const text = message ?? (waitMs > 0
+    ? `Another execution of this account started ${age} ago and is still in progress, possibly from another signer. ` +
+      `If it does not finish, you can unlock the account in ${formatDuration(waitMs)}.`
+    : `An execution has held this account's lock for ${age} without reaching the chain, so it can no longer complete. ` +
+      "Unlock the account to continue.");
+
+  return (
+    <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-center justify-between gap-3">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[12px] font-[600] text-amber-800">Account locked</span>
+        <span className="text-[12px] font-[400] text-amber-700">{text}</span>
+      </div>
+      <button
+        type="button"
+        onClick={onUnlock}
+        disabled={busy || waitMs > 0}
+        aria-busy={releasing}
+        className="min-h-8 shrink-0 inline-flex items-center gap-2 rounded-[6px] bg-amber-600 px-3 text-[12px] font-[500] text-white hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {releasing && (
+          <span aria-hidden className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+        )}
+        {releasing ? "Unlocking…" : waitMs > 0 ? `Unlock in ${formatDuration(waitMs)}` : "Unlock account"}
+      </button>
+    </div>
+  );
+}
+
 export default AccountStatusBanner;
+
+function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return minutes > 0 ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+}

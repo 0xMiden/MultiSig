@@ -519,7 +519,7 @@ const CreateNewAccount = () => {
                               Signer 1 — {walletSourceLabel}
                             </div>
                             <div className="bg-[rgba(245,245,245,1)] w-full lg:min-h-[56px] md:min-h-[52px] sm:min-h-[48px] min-h-[40px] flex items-center border-[1.09px] border-[rgba(217,217,217,1)] rounded-md px-3 py-2 font-[500] text-[10px] text-[rgba(0,0,0,0.55)] break-all">
-                              {activeCommitment || 'Generating keys...'}
+                              {activeCommitment || (walletSource === 'local' ? 'Generating keys...' : 'Not connected: connect your wallet from the wallet menu first')}
                             </div>
                           </>
                         ) : (

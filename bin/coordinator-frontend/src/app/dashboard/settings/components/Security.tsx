@@ -1,4 +1,5 @@
 import React from "react";
+import { LOCAL_KEYS_ENABLED } from "@/config/psm";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard } from "@/lib/helpers";
 import { toast } from "sonner";
@@ -30,7 +31,7 @@ const Security = () => {
         <div className="border border-gray-200 rounded-[10px] p-6">
           <h3 className="text-[16px] font-[500] mb-4">WALLET SOURCE</h3>
           <div className="flex gap-3 mb-4">
-            {process.env.NODE_ENV !== 'production' && (
+            {LOCAL_KEYS_ENABLED && (
               <button
                 onClick={() => setWalletSource('local')}
                 className={`px-4 py-2 text-[12px] border rounded-sm ${
@@ -72,7 +73,7 @@ const Security = () => {
               onClick={() => activeCommitment && handleCopy(activeCommitment)}
               title="Click to copy"
             >
-              {activeCommitment || "N/A"}
+              {activeCommitment || "Not connected"}
             </div>
           </div>
 
@@ -88,7 +89,7 @@ const Security = () => {
         </div>
 
         {/* Local Signer Keys Section */}
-        {process.env.NODE_ENV !== 'production' && signer && (
+        {LOCAL_KEYS_ENABLED && signer && (
           <div className="border border-gray-200 rounded-[10px] p-6">
             <h3 className="text-[16px] font-[500] mb-4">LOCAL SIGNER KEYS</h3>
             <div className="space-y-3">
