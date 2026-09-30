@@ -60,3 +60,27 @@ pub fn faucet_with_admin() -> (Account, AccountId, AccountId) {
 
     (faucet, holder, other)
 }
+
+/// A deterministic `(faucet, sender)` pair of `AccountId`s for exercising the stock
+/// miden-standards config-note builders (`crate::{set_max_supply, set_note_fee, rbac, pause,
+/// blocklist}`), which only need account IDs, not a fully built `Account`.
+///
+/// `faucet` is Public + asset-callbacks-enabled: valid both as the `NetworkAccountTarget` these
+/// builders bind their note to (which requires a public target) and as the issuer of the fee
+/// asset `set_note_fee` schedules. `sender` is a distinct Public account id, standing in for the
+/// multisig account that would actually send these notes.
+pub fn faucet_and_sender() -> (AccountId, AccountId) {
+    let faucet = AccountId::dummy(
+        [9u8; 15],
+        AccountIdVersion::Version1,
+        AccountType::Public,
+        AssetCallbackFlag::Enabled,
+    );
+    let sender = AccountId::dummy(
+        [1u8; 15],
+        AccountIdVersion::Version1,
+        AccountType::Public,
+        AssetCallbackFlag::Disabled,
+    );
+    (faucet, sender)
+}

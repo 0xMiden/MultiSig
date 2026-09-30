@@ -16,22 +16,20 @@
 //! See `docs/usdcx-admin-notes-spec.md`.
 
 use miden_protocol::account::{Account, AccountId, RoleSymbol, StorageMapKey};
-use miden_protocol::asset::AssetAmount;
+use miden_protocol::asset::{AssetAmount, FungibleAsset};
 use miden_protocol::crypto::rand::RandomCoin;
 use miden_protocol::errors::NoteError;
-use miden_protocol::note::Note;
+use miden_protocol::note::{Note, NoteScriptRoot};
 use miden_protocol::{Felt, Word};
 use miden_standards::account::access::RoleBasedAccessControl;
-// TODO(usdcx-0.17-port, Task 3/5): in 0.17 these config-note types moved to the public
-// `miden_standards::note::config` submodule (they're re-exported as private names from
-// `miden_standards::note` itself, so importing them from there no longer compiles). The five
-// stock-note builders below (set_max_supply, set_note_fee, rbac, pause, blocklist) and
-// fee_sponsorship are commented out pending that re-port; re-add along the lines of:
-// use miden_standards::note::config::{
-//     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
-//     FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
-// };
-// use miden_standards::note::FeeSponsorshipNote; // Task 5: dropped for v1, don't re-add.
+use miden_standards::note::config::{
+    BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
+    FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
+};
+// TODO(usdcx-0.17-port, Task 5): `FeeSponsorshipNote::builder().asset(..)` now wants a
+// `FungibleAsset`, not the generic `Asset` this took in 0.16; fee_sponsorship is dropped for v1,
+// don't re-add this import.
+// use miden_standards::note::FeeSponsorshipNote;
 use xusdc_encoding::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSetAttesterNote};
 
 #[cfg(feature = "wasm")]
@@ -114,48 +112,43 @@ fn seeded_rng(serial: Word) -> RandomCoin {
 // ---------------------------------------------------------------------------
 // Stock miden-standards admin notes (roots baked in standards; SDK-compatible)
 // ---------------------------------------------------------------------------
-//
-// TODO(usdcx-0.17-port): commented out for Task 1 (scaffold-only; get the crate compiling
-// on 0.17 without porting builder logic). These five builders don't compile as-is against
-// miden-standards 0.17.0-rc.7 — the *ConfigNote types and their config enums moved to the
-// public `miden_standards::note::config` submodule (see the import TODO above), and
-// `fee_sponsorship`'s `FeeSponsorshipNote::builder().asset(..)` now wants a `FungibleAsset`,
-// not the generic `Asset` this took in 0.16. set_max_supply/set_note_fee/rbac/pause/blocklist
-// get re-ported in Task 3; fee_sponsorship is dropped for v1 in Task 5, not re-added.
-//
-// /// `set_max_supply` (role: ADMIN). The faucet must be **not paused**.
-// pub fn set_max_supply(
-//     faucet: AccountId,
-//     sender: AccountId,
-//     max_supply: u64,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let note = FaucetMetadataConfigNote::builder()
-//         .sender(sender)
-//         .target(faucet)
-//         .config(FaucetMetadataConfig::SetMaxSupply { max_supply: amount(max_supply)? })
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
-//
-// /// `set_note_fee` (role: ADMIN): reprice the constant fee for `note_script_root`.
-// pub fn set_note_fee(
-//     faucet: AccountId,
-//     sender: AccountId,
-//     note_script_root: NoteScriptRoot,
-//     fee_asset: FungibleAsset,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let note = ConstantFeePolicyConfigNote::builder()
-//         .sender(sender)
-//         .target(faucet)
-//         .note_script_root(note_script_root)
-//         .fee_asset(fee_asset)
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
+
+/// `set_max_supply` (role: ADMIN). The faucet must be **not paused**.
+pub fn set_max_supply(
+    faucet: AccountId,
+    sender: AccountId,
+    max_supply: u64,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    let note = FaucetMetadataConfigNote::builder()
+        .sender(sender)
+        .target(faucet)
+        .config(FaucetMetadataConfig::SetMaxSupply { max_supply: amount(max_supply)? })
+        .serial_number(serial)
+        .build()?;
+    Ok(Note::from(note))
+}
+
+/// `set_note_fee` (role: ADMIN): reprice the constant fee for `note_script_root`.
+pub fn set_note_fee(
+    faucet: AccountId,
+    sender: AccountId,
+    note_script_root: NoteScriptRoot,
+    fee_asset: FungibleAsset,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    let note = ConstantFeePolicyConfigNote::builder()
+        .sender(sender)
+        .target(faucet)
+        .note_script_root(note_script_root)
+        .fee_asset(fee_asset)
+        .serial_number(serial)
+        .build()?;
+    Ok(Note::from(note))
+}
+
+// TODO(usdcx-0.17-port, Task 5): `fee_sponsorship` is dropped for v1; the 0.16 body below is
+// kept, fully commented out, as reference until Task 5 removes it for good.
 //
 // /// Fee sponsorship (role: ADMIN): sponsor the network fee for `feature_note_id`,
 // /// paid to `target_account`. Note this targets the sponsored account, not the faucet.
@@ -176,61 +169,65 @@ fn seeded_rng(serial: Word) -> RandomCoin {
 //     Ok(Note::from(note))
 // }
 //
-// /// RBAC role management (role: ADMIN / the target role's effective admin):
-// /// grant / revoke / set-role-admin / renounce, via a caller-built [`RbacConfig`].
-// pub fn rbac(
-//     faucet: AccountId,
-//     sender: AccountId,
-//     config: RbacConfig,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let note = RbacConfigNote::builder()
-//         .sender(sender)
-//         .target(faucet)
-//         .config(config)
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
-//
-// /// `pause` / `unpause` (roles: DOM_PAUSER / DOM_UNPAUSER).
-// pub fn pause(
-//     faucet: AccountId,
-//     sender: AccountId,
-//     unpause: bool,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let config = if unpause { PauseConfig::Unpause } else { PauseConfig::Pause };
-//     let note = PauseConfigNote::builder()
-//         .sender(sender)
-//         .target(faucet)
-//         .config(config)
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
-//
-// /// `block` / `unblock` an account (role: BLK_MANAGER).
-// pub fn blocklist(
-//     faucet: AccountId,
-//     sender: AccountId,
-//     account: AccountId,
-//     unblock: bool,
-//     serial: Word,
-// ) -> Result<Note, AdminNoteError> {
-//     let config = if unblock {
-//         BlocklistConfig::UnblockAccount { account }
-//     } else {
-//         BlocklistConfig::BlockAccount { account }
-//     };
-//     let note = BlocklistConfigNote::builder()
-//         .sender(sender)
-//         .target(faucet)
-//         .config(config)
-//         .serial_number(serial)
-//         .build()?;
-//     Ok(Note::from(note))
-// }
+/// RBAC role management (role: ADMIN / the target role's effective admin):
+/// grant / revoke / set-role-admin / renounce, via a caller-built [`RbacConfig`].
+pub fn rbac(
+    faucet: AccountId,
+    sender: AccountId,
+    config: RbacConfig,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    let note = RbacConfigNote::builder()
+        .sender(sender)
+        .target(faucet)
+        .config(config)
+        .serial_number(serial)
+        .build()?;
+    Ok(Note::from(note))
+}
+
+/// `pause` / `unpause` (roles: DOM_PAUSER / DOM_UNPAUSER).
+pub fn pause(
+    faucet: AccountId,
+    sender: AccountId,
+    unpause: bool,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    let config = if unpause {
+        PauseConfig::Unpause
+    } else {
+        PauseConfig::Pause
+    };
+    let note = PauseConfigNote::builder()
+        .sender(sender)
+        .target(faucet)
+        .config(config)
+        .serial_number(serial)
+        .build()?;
+    Ok(Note::from(note))
+}
+
+/// `block` / `unblock` an account (role: BLK_MANAGER).
+pub fn blocklist(
+    faucet: AccountId,
+    sender: AccountId,
+    account: AccountId,
+    unblock: bool,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    let config = if unblock {
+        BlocklistConfig::UnblockAccount { account }
+    } else {
+        BlocklistConfig::BlockAccount { account }
+    };
+    let note = BlocklistConfigNote::builder()
+        .sender(sender)
+        .target(faucet)
+        .config(config)
+        .serial_number(serial)
+        .build()?;
+    Ok(Note::from(note))
+}
 
 // ---------------------------------------------------------------------------
 // Faucet-owned admin notes (scripts live in xusdc-encoding)
