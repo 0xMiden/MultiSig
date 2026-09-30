@@ -52,6 +52,7 @@ import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { guardianUrlProblem } from "@/lib/guardianUrl";
+import { runRegistrationRetry } from "@/lib/registrationRetry";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -1152,20 +1153,16 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     setRegisteringOnGuardian(true);
     setError(null);
     try {
-      await multisig.registerOnGuardian();
-      if (walletSource === "ledger" && ledger.signer !== latestLedgerSigner.current) {
-        throw new Error("Ledger session changed; load the account again.");
-      }
-      setGuardianRegistrationRequired(false);
-      await registerAccountNoteTag(midenClient, multisig.accountId);
-      try {
-        await requestAccountFunding(multisig);
-      } catch {
-        // Funding failures are shown separately and can be retried.
-      }
-      await handleSync();
-    } catch (err) {
-      setError(formatError(err, "Guardian registration recovery failed"));
+      const signerAtStart = ledger.signer;
+      const result = await runRegistrationRetry({
+        register: () => multisig.registerOnGuardian(),
+        sessionUnchanged: () => walletSource !== "ledger" || signerAtStart === latestLedgerSigner.current,
+        registerNoteTag: () => registerAccountNoteTag(midenClient, multisig.accountId),
+        requestFunding: () => requestAccountFunding(multisig),
+        sync: handleSync,
+      });
+      if (result.registered) setGuardianRegistrationRequired(false);
+      if (result.error) setError(formatError(result.error, "Guardian registration recovery failed"));
     } finally {
       registrationRetryInProgress.current = false;
       setRegisteringOnGuardian(false);

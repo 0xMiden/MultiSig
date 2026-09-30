@@ -97,20 +97,70 @@ describe('direct Ledger → real Guardian signer → Miden WASM', () => {
 
   it('serializes prompts and invalidates active and queued operations', async () => {
     const device = deviceFor();
-    let release!: (result: {r: string; s: string; v: number}) => void;
-    vi.mocked(device.signTypedData).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    let release!: () => void;
+    // The held prompt resolves with a signature that is valid for the selected
+    // key, so only the adapter's post-sign session check can reject it.
+    vi.mocked(device.signTypedData).mockImplementationOnce((path, data) =>
+      new Promise(resolve => { release = () => resolve(deviceFor().signTypedData(path, data)); }));
     const bridge = new DirectLedgerAdapter(device, selected);
     const signer = new Eip712Signer(bridge, selected.publicKey, selected.address);
     const first = signer.signCommitment(commitment);
     const second = signer.signCommitment(commitment);
-    const results = Promise.allSettled([first, second]);
-    await Promise.resolve(); await Promise.resolve();
-    expect(device.signTypedData).toHaveBeenCalledTimes(1);
+    const settled = Promise.allSettled([first, second]);
+    await vi.waitFor(() => expect(device.signTypedData).toHaveBeenCalledTimes(1));
     bridge.invalidate();
-    release({ r: `0x${'11'.repeat(32)}`, s: `0x${'22'.repeat(32)}`, v: 27 });
-    expect((await results).every(result => result.status === 'rejected')).toBe(true);
+    expect(device.cancel).toHaveBeenCalledTimes(1);
+    release();
+    const [active, queued] = await settled;
+    expect(active).toMatchObject({ status: 'rejected', reason: { message: expect.stringContaining('Ledger session changed during signing') } });
+    expect(queued).toMatchObject({ status: 'rejected', reason: { message: expect.stringContaining('Ledger session changed. Load the account again.') } });
     expect(device.signTypedData).toHaveBeenCalledTimes(1);
     await expect(signer.signCommitment(commitment)).rejects.toThrow('session changed');
+  });
+
+  describe('stale authentication guard', () => {
+    // A request-auth signature carries a timestamp taken before it was queued;
+    // one that waited behind a slow prompt for over 30 s must not be signed.
+    async function queueBehindSlowPrompt(waitMs: number, queued: (signer: Eip712Signer) => Promise<unknown>) {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const device = deviceFor();
+      let release!: () => void;
+      vi.mocked(device.signTypedData).mockImplementationOnce((path, data) =>
+        new Promise(resolve => { release = () => resolve(deviceFor().signTypedData(path, data)); }));
+      const signer = new Eip712Signer(new DirectLedgerAdapter(device, selected), selected.publicKey, selected.address);
+      const slow = signer.signCommitment(commitment);
+      await vi.waitFor(() => expect(device.signTypedData).toHaveBeenCalledTimes(1));
+      const next = queued(signer);
+      vi.setSystemTime(Date.now() + waitMs);
+      release();
+      await slow;
+      return { next: await Promise.allSettled([next]).then(([r]) => r), device };
+    }
+    const mockAccount = () => { const id = TestUtils.createMockAccountId(); const s = id.toString(); id.free(); return s; };
+
+    it('refuses a Guardian request that waited more than 30 s', async () => {
+      try {
+        const { next, device } = await queueBehindSlowPrompt(30_001, signer =>
+          signer.signRequest(mockAccount(), Math.floor(Date.now() / 1000), RequestAuthPayload.fromRequest({ action: 'read' })));
+        expect(next).toMatchObject({ status: 'rejected', reason: { message: expect.stringContaining('waited too long') } });
+        expect(device.signTypedData).toHaveBeenCalledTimes(1);
+      } finally { vi.useRealTimers(); }
+    });
+
+    it('still signs a Guardian request queued for under 30 s', async () => {
+      try {
+        const { next } = await queueBehindSlowPrompt(29_000, signer =>
+          signer.signRequest(mockAccount(), Math.floor(Date.now() / 1000), RequestAuthPayload.fromRequest({ action: 'read' })));
+        expect(next.status).toBe('fulfilled');
+      } finally { vi.useRealTimers(); }
+    });
+
+    it('exempts transaction summaries, which carry no timestamp', async () => {
+      try {
+        const { next } = await queueBehindSlowPrompt(120_000, signer => signer.signCommitment(commitment));
+        expect(next.status).toBe('fulfilled');
+      } finally { vi.useRealTimers(); }
+    });
   });
 
   it('propagates rejection and permits a deliberate retry', async () => {

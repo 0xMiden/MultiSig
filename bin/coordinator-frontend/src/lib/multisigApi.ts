@@ -49,7 +49,7 @@ export function registerAccountOnNode(
   if (existing) return existing;
 
   const request = (async () => {
-    const devnet = MIDEN_RPC_URL === 'devnet' || /^https:\/\/rpc\.devnet\.miden\.io(?::443)?\/?$/.test(MIDEN_RPC_URL);
+    const devnet = /^https:\/\/rpc\.devnet\.miden\.io(?::443)?\/?$/.test(MIDEN_RPC_URL);
     diagnosticLog('registration.START', { accountId, mode: devnet ? 'devnet-direct-rpc' : 'sdk' });
     try {
       if (devnet) {

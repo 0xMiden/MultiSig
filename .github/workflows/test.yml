@@ -54,3 +54,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:ledger
       - run: node --test scripts/test-*.cjs
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      # Fake-device Ledger session suite: no external services needed.
+      - name: Ledger session suite
+        run: npm run test:ledger:ui
+      - name: Build
+        run: npm run build
+      # Production build: loads the real USB SDK and opens the Ledger dialog.
+      - name: Production app suite
+        run: npm run test:ledger:app

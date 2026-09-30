@@ -55,8 +55,12 @@ async function run(options: ServiceOptions) {
     async function execute(proposal:Proposal, ms:Multisig=account) {
       if (!ms.listProposals().find(item=>item.id===proposal.id)?.signatures.some(entry=>entry.signerId===first.commitment)) await ms.signProposal(proposal.id);
       await ms.executeProposal(proposal.id);
-      await eventually(async()=>{await miden.sync();return ms.verifyStateCommitment();},()=>true,'on-chain state commitment');
-      await eventually(()=>ms.syncState(),()=>true,'Guardian canonical state');
+      // verifyStateCommitment throws until the local and on-chain commitments match.
+      const executed=await eventually(async()=>{await miden.sync();return ms.verifyStateCommitment();},()=>true,'on-chain state commitment');
+      // syncState resolves even while Guardian is behind: wait until Guardian's
+      // own state is the executed one.
+      const same=(a:string,b:string)=>a.replace(/^0x/i,'').toLowerCase()===b.replace(/^0x/i,'').toLowerCase();
+      await eventually(()=>ms.syncState(),state=>same(state.commitment,executed.onChainCommitment),'Guardian canonical state');
     }
     async function receive() {
       const notes=await eventually(async()=>{await miden.sync();await miden.notes.fetchPrivate();return account.getConsumableNotes();},notes=>notes.length>0,'funding/receive notes');
@@ -65,7 +69,11 @@ async function run(options: ServiceOptions) {
     await receive(); mark('receive and consume funding note');
     const feeAsset=await miden.feeFaucetId();const faucetId=feeAsset.toString();feeAsset.free();
     const amount=BigInt(options.sendAmount);assert(amount>0n,'sendAmount must be positive');
-    assert(await miden.accounts.getBalance(account.accountId,faucetId)>amount*2n,'Funding must cover transfers and transaction fees');
+    // Read the balance from the account itself, as the app does: the SDK's getBalance
+    // can fail on a stale Merkle store after multisig execution (0xMiden/web-sdk#440).
+    const balance=AccountInspector.fromAccount(await account.getStoreAccount()).vaultBalances
+      .find(item=>item.faucetId.toLowerCase()===faucetId.toLowerCase())?.amount ?? 0n;
+    assert(BigInt(balance)>amount*2n,'Funding must cover transfers and transaction fees');
     for (const [label,noteType] of [['public',NoteType.Public],['private',NoteType.Private]] as const) {
       const height=await miden.getSyncHeight();
       const proposal=await account.createP2idProposal(account.accountId,faucetId,amount,{noteType});

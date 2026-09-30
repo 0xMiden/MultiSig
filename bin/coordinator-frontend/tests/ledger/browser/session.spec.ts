@@ -82,6 +82,7 @@ test('changing the selected address replaces the signer and retires the old one'
   await expect(identity).toHaveText(/^0x[\da-f]{64}$/);
   await expect(identity).not.toHaveText(first!);
   await page.getByRole('button', {name:'Sign with kept signer'}).click();
-  await expect(page.getByTestId('signature')).not.toHaveText(/^0x[\da-f]{130}$/);
-  await expect(page.getByTestId('signature')).not.toBeEmpty();
+  // Wait for the outcome itself: the retired signer must fail with the session
+  // message, not sign (an empty output would also pass a negative check).
+  await expect(page.getByTestId('signature')).toHaveText(/Ledger session changed/);
 });
