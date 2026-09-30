@@ -16,6 +16,9 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # Enables the wasm-bindgen JS bindings (built with wasm-pack --target web).
 wasm = ["dep:wasm-bindgen", "dep:getrandom"]
+# Exposes `pub mod testing` (faucet fixtures built on xusdc-encoding's production account
+# builder), for use by this crate's own integration tests. Not meant for downstream consumers.
+testing = []
 
 [dependencies]
 miden-protocol  = { version = "=0.17.0-rc.7", default-features = false, features = ["std"] }
@@ -29,3 +32,7 @@ getrandom = { version = "0.2", features = ["js"], optional = true }
 
 [dev-dependencies]
 miden-testing = "=0.17.0-rc.7"
+# Self-dependency so the `testing` feature (see `[features]`) is enabled when this crate's own
+# integration tests (`tests/*.rs`) link against it — those link the lib as an ordinary dependency,
+# not `#[cfg(test)]`, so activating the feature is the only way to expose `pub mod testing` to them.
+usdcx-admin-notes = { path = ".", features = ["testing"] }

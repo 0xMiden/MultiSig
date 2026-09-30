@@ -6244,6 +6244,7 @@ dependencies = [
  "miden-testing 0.17.0-rc.7",
  "miden-tx 0.17.0-rc.7",
  "thiserror",
+ "usdcx-admin-notes",
  "wasm-bindgen",
  "xusdc-encoding",
 ]

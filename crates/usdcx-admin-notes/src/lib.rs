@@ -37,6 +37,9 @@ use xusdc_encoding::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSe
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+#[cfg(feature = "testing")]
+pub mod testing;
+
 /// Errors from building a usdcx admin note.
 #[derive(Debug, thiserror::Error)]
 pub enum AdminNoteError {
