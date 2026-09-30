@@ -52,6 +52,7 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
+      - run: npm run test:roundtrip
       - run: npm run test:ledger
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
