@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const CreateNewAccount = () => {
   const router = useRouter();
-  const { handleCreate, activeScheme, activeCommitment, walletSource, error: multisigError } = useMultisig();
+  const { handleCreate, activeScheme, activeCommitment, walletSource, clientStartup, error: multisigError } = useMultisig();
   const {
     formData,
     currentStep,
@@ -817,7 +817,7 @@ const CreateNewAccount = () => {
             >
               {currentStep === 4
                 ? isCreating
-                  ? "Creating..."
+                  ? clientStartup.phase === "starting" ? "Starting Miden client…" : "Creating..."
                   : "Create Account"
                 : "Next"}
             </button>

@@ -10,7 +10,7 @@ const base: CspConfig = {
   noteTransportUrl: 'devnet',
   proverUrl: 'local',
   chatEndpoint: '',
-  paraProduction: true,
+  paraHosted: true,
   extraConnectSrc: '',
 };
 
@@ -60,7 +60,7 @@ describe('buildContentSecurityPolicy', () => {
   });
 
   it("follows Para's environment and relaxes only what React's dev build needs", () => {
-    const dev = directives(buildContentSecurityPolicy({ ...base, dev: true, paraProduction: false }));
+    const dev = directives(buildContentSecurityPolicy({ ...base, dev: true, paraHosted: false }));
     expect(dev.get('script-src')).toContain("'unsafe-eval'");
     expect(dev.get('connect-src')).toEqual(expect.arrayContaining(['http://localhost:8080', 'ws://localhost:*']));
     expect(dev.get('connect-src')).not.toContain('https://*.getpara.com');
