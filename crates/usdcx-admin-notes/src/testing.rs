@@ -9,6 +9,8 @@
 use miden_protocol::account::{Account, AccountId, AccountIdVersion, AccountType, AssetCallbackFlag};
 use miden_protocol::asset::{AssetAmount, AssetId};
 use miden_protocol::block::FeeParameters;
+use miden_testing::MockChain;
+use xusdc_encoding::account::xreserve::XReserveStablecoinBuilder;
 use xusdc_encoding::build_faucet_account;
 use xusdc_encoding::xreserve::encoding::CircleDomain;
 
@@ -95,4 +97,64 @@ pub fn other_account() -> AccountId {
         AccountType::Public,
         AssetCallbackFlag::Disabled,
     )
+}
+
+/// A `miden_testing::MockChain` seeded with a real 0.17 USDCx faucet — the production
+/// `XReserveStablecoinBuilder` composition plus the production keyless `AuthNetworkAccount`
+/// (exactly the shape [`xusdc_encoding::build_faucet_account`] assembles; this fixture composes it
+/// manually only to reach `Account::builder(..).build_existing()`, an "already deployed" account
+/// with no seed and nonce one, which is what a `MockChain` genesis account requires; the plain
+/// `build_faucet_account` shape carries a seed and nonce zero — an undeployed account — and
+/// `MockChainBuilder::add_account` rejects that).
+///
+/// `admin` holds the built-in `ADMIN` role; `pauser` holds `DOM_PAUSER`; `other` holds neither.
+/// Returns `(chain, faucet_id, admin, pauser, other)`.
+///
+/// This is the Round-trip guard fixture (Task 7 of the 0.17 port): proving a note this crate
+/// BUILDS is actually CONSUMABLE by a deployed-equivalent faucet, and that its RBAC role gate is
+/// enforced on-chain — not merely mirrored by this crate's own [`crate::account_has_role`]
+/// read-back.
+pub fn mock_chain_with_faucet_roles() -> (MockChain, AccountId, AccountId, AccountId, AccountId) {
+    let admin = dummy_account_id(1);
+    let pauser = dummy_account_id(2);
+    let other = dummy_account_id(3);
+
+    let fee_parameters = FeeParameters::new(0);
+    let fee_asset_id = AssetId::new_fungible(dummy_fee_faucet_id());
+
+    let builder = XReserveStablecoinBuilder::builder()
+        .token_supply(AssetAmount::new(1_000_000).expect("1_000_000 is a valid token supply"))
+        .owner(admin)
+        .attest_admin_holders(Vec::new())
+        .pauser_holders(vec![pauser])
+        .unpauser_holders(Vec::new())
+        .blocklist_manager_holders(Vec::new())
+        .fee_parameters(fee_parameters.clone())
+        .fee_asset_id(fee_asset_id)
+        .domain(CircleDomain::MIDEN)
+        .build()
+        .expect("the production faucet builder should succeed for a minimal RBAC seed");
+    let components = builder
+        .build_components()
+        .expect("composing the production faucet components should succeed");
+    let auth = XReserveStablecoinBuilder::auth_component(fee_parameters, fee_asset_id)
+        .expect("the production auth component should build");
+
+    let mut account_builder = Account::builder([7u8; 32]).account_type(AccountType::Public);
+    for component in components {
+        account_builder = account_builder.with_component(component);
+    }
+    account_builder = account_builder.with_components(auth);
+    let faucet = account_builder
+        .build_existing()
+        .expect("building the faucet as an already-deployed (genesis-ready) account");
+
+    let faucet_id = faucet.id();
+    let mut chain_builder = MockChain::builder();
+    chain_builder
+        .add_account(faucet)
+        .expect("registering the faucet account in the MockChain");
+    let chain = chain_builder.build().expect("building the MockChain");
+
+    (chain, faucet_id, admin, pauser, other)
 }
