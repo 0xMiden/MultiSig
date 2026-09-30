@@ -6,9 +6,22 @@ name        = "usdcx-admin-notes"
 repository  = "https://github.com/0xMiden/MultiSig"
 version     = "0.1.0"
 
-[lints.rust]
-missing_docs = "warn"
-unsafe_code  = "forbid"
+[lints]
+workspace = true
+
+# `cargo machete` (text-based) cannot see either of these two real, compile-required
+# dependencies, because neither is ever named via `use` or a qualified path in this crate's own
+# source:
+#   - `miden-tx`: required by every call to `miden_testing::assert_transaction_executor_error!`
+#     (see `tests/roundtrip_0_17.rs`). That `macro_rules!` macro expands to the bare path
+#     `miden_tx::TransactionExecutorError` rather than `$crate::...`, so mixed-site hygiene
+#     resolves `miden_tx` against the INVOCATION site's extern prelude, not the macro's defining
+#     crate (`miden-testing`) — the calling crate must depend on `miden-tx` directly, or the
+#     expansion fails to compile (`cannot find crate miden_tx`, verified by removing the line).
+#   - `getrandom`: enabled only for its `"js"` feature, to force the browser RNG backend the wasm
+#     build needs (pulled transitively by `k256`); see the dependency's own comment below.
+[package.metadata.cargo-machete]
+ignored = ["miden-tx", "getrandom"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
