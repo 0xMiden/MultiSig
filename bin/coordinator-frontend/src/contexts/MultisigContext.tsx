@@ -53,6 +53,7 @@ import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { guardianUrlProblem } from "@/lib/guardianUrl";
 import { runRegistrationRetry } from "@/lib/registrationRetry";
+import { setWalletCookie } from "@/lib/walletCookie";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -772,7 +773,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("currentWalletId", ms.accountId);
           localStorage.setItem("currentWalletSource", walletSource);
           localStorage.setItem("currentWalletScheme", signatureScheme);
-          document.cookie = `currentWalletId=${ms.accountId}; path=/; max-age=31536000`;
+          setWalletCookie(ms.accountId);
         }
 
         setRegisteringOnGuardian(true);
@@ -890,7 +891,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("currentWalletId", ms.accountId);
           localStorage.setItem("currentWalletSource", walletSource);
           localStorage.setItem("currentWalletScheme", signatureScheme);
-          document.cookie = `currentWalletId=${ms.accountId}; path=/; max-age=31536000`;
+          setWalletCookie(ms.accountId);
         }
 
         if (pendingRegistration) {

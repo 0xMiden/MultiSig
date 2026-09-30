@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import media from "../../../../public/media";
 import { SidebarPage } from "@/types";
+import { clearWalletCookie } from "@/lib/walletCookie";
 
 const sidebarPages: SidebarPage[] = [
   { pageName: "Home", path: "/dashboard/home", pageIcon: media.HomeIcon },
@@ -26,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
   const handleLogout = () => {
     localStorage.clear();
+    clearWalletCookie();
     document.cookie.split(";").forEach((c) => {
       document.cookie = c
         .replace(/^ +/, "")

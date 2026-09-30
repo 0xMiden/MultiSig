@@ -6,7 +6,8 @@ export function toHexAccountId(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return trimmed;
   const stripped = trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed;
-  if (/^[0-9a-fA-F]+$/.test(stripped)) return trimmed;
+  // Canonical form: 0x-prefixed and lowercase, whether or not the user typed the prefix.
+  if (/^[0-9a-fA-F]+$/.test(stripped)) return `0x${stripped.toLowerCase()}`;
   return AccountId.fromBech32(trimmed).toString();
 }
 
