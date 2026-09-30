@@ -45,7 +45,8 @@ import {
   registerAccountOnNode,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
-import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED } from "@/config/psm";
+import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME } from "@/config/psm";
+import { deleteDatabase, startWithStoreReset, waitForClientParts, type StartupState } from "@/lib/clientStartup";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
@@ -218,6 +219,10 @@ export interface MultisigContextValue {
   handleImportProposal: (json: string) => Promise<void>;
   handleDisconnect: () => void;
   setWalletSource: (source: WalletSource) => void;
+  /** Start-up of the in-browser Miden client (downloads and compiles the SDK). */
+  clientStartup: StartupState;
+  /** Start the Miden client again after a failed start-up. */
+  retryClientStartup: () => Promise<void>;
   /** True while any account operation runs; wallet and Guardian changes wait for it. */
   accountOperationBusy: boolean;
   setGuardianUrl: (url: string) => void;
@@ -275,6 +280,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     "connected" | "connecting" | "error"
   >("connecting");
   const [guardianCommitment, setGuardianCommitment] = useState("");
+  const [clientStartup, setClientStartup] = useState<StartupState>({ phase: "starting" });
   const [guardianPublicKey, setGuardianPublicKey] = useState<
     string | undefined
   >(undefined);
@@ -317,6 +323,25 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const disconnectLedger = ledger.disconnect;
   const latestLedgerSigner = useRef(ledger.signer);
   latestLedgerSigner.current = ledger.signer;
+  // Latest client parts and start-up state, for handlers that wait for start-up:
+  // a click during start-up must use the clients that exist once it finishes,
+  // not the empty values captured when it was clicked.
+  const clientPartsRef = useRef<{ midenClient: MidenClient; multisigClient: MultisigClient; guardianCommitment: string } | null>(null);
+  clientPartsRef.current = midenClient && multisigClient && guardianCommitment
+    ? { midenClient, multisigClient, guardianCommitment }
+    : null;
+  const clientStartupRef = useRef(clientStartup);
+  clientStartupRef.current = clientStartup;
+  const signerRef = useRef(signer);
+  signerRef.current = signer;
+  const waitForClient = useCallback(
+    () => waitForClientParts(
+      () => (clientStartupRef.current.phase === "ready" ? clientPartsRef.current : null),
+      () => clientStartupRef.current,
+    ),
+    [],
+  );
+
   // Pull Guardian state (unless the caller already has it), proposals and notes
   // for a multisig, and publish them with the account's config.
   const refreshAccount = useCallback(async (ms: Multisig, knownState?: AccountState) => {
@@ -620,38 +645,61 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [midenClient, multisig, multisigClient, guardianUrl, signer, guardianState, buildExternalParams, walletSource, activeScheme, refreshAccount],
   );
 
-  // Initialization
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const client = await createMidenClient();
-        setMidenClient(client);
+  // Initialization. Starting the in-browser Miden client downloads and compiles
+  // the SDK (tens of MB of WASM), so it can take a while on a first visit;
+  // Create/Load wait for it (waitForClient) instead of failing.
+  const connectToGuardianRef = useRef(connectToGuardian);
+  connectToGuardianRef.current = connectToGuardian;
+  const startClient = useCallback(async () => {
+    setClientStartup({ phase: "starting" });
+    try {
+      // A local store left by an older SDK (e.g. a previous deployment on this
+      // domain) can stop the client from starting: reset it once and retry.
+      const client = await startWithStoreReset(
+        () => createMidenClient(),
+        () => deleteDatabase(MIDEN_DB_NAME),
+        (err) => console.warn("Miden client failed to start; resetting its local data and retrying.", err),
+      );
+      setMidenClient(client);
 
-        await connectToGuardian(guardianUrl, client);
-
-        if (LOCAL_KEYS_ENABLED) {
-          setGeneratingSigner(true);
-          let signerInfo = await loadSignerKeys();
-          if (!signerInfo) {
-            signerInfo = initSigner();
-            await saveSignerKeys(signerInfo);
-          }
-          setSigner(signerInfo);
-        }
-      } catch (err) {
-        setError(formatError(err, "Initialization failed"));
-      } finally {
-        setGeneratingSigner(false);
+      const connected = await connectToGuardianRef.current(guardianUrl, client);
+      if (!connected.ok) {
+        setClientStartup({ phase: "error", error: connected.error });
+        return;
       }
-    };
-    init();
+
+      if (LOCAL_KEYS_ENABLED) {
+        setGeneratingSigner(true);
+        let signerInfo = await loadSignerKeys();
+        if (!signerInfo) {
+          signerInfo = initSigner();
+          await saveSignerKeys(signerInfo);
+        }
+        setSigner(signerInfo);
+      }
+      // Ready only once everything a Create/Load needs is in place.
+      setClientStartup({ phase: "ready" });
+    } catch (err) {
+      const message = formatError(err, "Initialization failed");
+      setClientStartup({ phase: "error", error: message });
+      setError(message);
+    } finally {
+      setGeneratingSigner(false);
+    }
+  }, [guardianUrl]);
+
+  useEffect(() => {
+    void startClient();
+    // Start once on mount; retryClientStartup starts it again on demand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requestAccountFunding = useCallback(
     async (targetMultisig?: Multisig): Promise<void> => {
       const account = targetMultisig ?? multisig;
-      if (!account || !midenClient) {
+      // The latest client: this may run from a click made during start-up.
+      const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+      if (!account || !liveClient) {
         throw new Error("The Miden client and multisig account must be ready before funding.");
       }
 
@@ -662,16 +710,16 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         multisigRef.current?.accountId === account.accountId;
       setAccountFunding({ phase: "registering" });
       try {
-        await registerAccountOnNode(midenClient, account.accountId);
+        await registerAccountOnNode(liveClient, account.accountId);
         if (!stillCurrent()) return;
 
         setAccountFunding({ phase: "waiting-for-note" });
         for (let attempt = 0; attempt < 8; attempt += 1) {
-          await midenClient.sync();
+          await liveClient.sync();
           const notes = await account.getConsumableNotes();
           if (!stillCurrent()) return;
           setConsumableNotes(notes);
-          const feeFaucet = await midenClient.feeFaucetId();
+          const feeFaucet = await liveClient.feeFaucetId();
           const feeFaucetHex = feeFaucet.toString().toLowerCase();
           feeFaucet.free();
           if (notes.some(note => note.assets.some(asset =>
@@ -716,13 +764,19 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setError(msg);
         throw new Error(msg);
       }
-      if (!multisigClient || !guardianCommitment) {
-        const msg = "Client not initialized. Try reconnecting to Guardian.";
-        setError(msg);
-        throw new Error(msg);
-      }
-
+      // Wait for start-up rather than failing a click that came in during it.
       setCreating(true);
+      let ready;
+      try {
+        ready = await waitForClient();
+      } catch (startupErr) {
+        setCreating(false);
+        const msg = formatError(startupErr);
+        setError(msg);
+        throw startupErr;
+      }
+      const { multisigClient, guardianCommitment, midenClient } = ready;
+
       setGuardianRegistrationRequired(false);
       setError(null);
       try {
@@ -744,7 +798,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
         const externalParams = buildExternalParams();
         const clientSigner = createSigner(
-          signer,
+          signerRef.current,
           signatureScheme,
           externalParams,
         );
@@ -817,15 +871,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [
+      waitForClient,
       refreshAccount,
-      multisigClient,
-      signer,
       guardianUrl,
-      guardianCommitment,
       guardianPublicKey,
       walletSource,
       buildExternalParams,
-      midenClient,
       requestAccountFunding,
     ],
   );
@@ -837,17 +888,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setError(msg);
         throw new Error(msg);
       }
-      if (!multisigClient) {
-        setError("Client not initialized. Try reconnecting to Guardian.");
-        return;
+      // Wait for start-up rather than failing a click that came in during it.
+      setLoadingAccount(true);
+      let ready;
+      try {
+        ready = await waitForClient();
+      } catch (startupErr) {
+        setLoadingAccount(false);
+        const msg = formatError(startupErr);
+        setError(msg);
+        throw startupErr;
       }
-      if (!guardianCommitment) {
-        setGuardianStatus("error");
-        setError(
-          "Not connected to Guardian. Check the endpoint and try again.",
-        );
-        return;
-      }
+      const { multisigClient, midenClient } = ready;
 
       let normalizedId = accountId;
       if (!normalizedId.startsWith("0x")) {
@@ -866,7 +918,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
         const externalParams = buildExternalParams();
         const clientSigner = createSigner(
-          signer,
+          signerRef.current,
           signatureScheme,
           externalParams,
         );
@@ -926,14 +978,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [
+      waitForClient,
       refreshAccount,
-      multisigClient,
-      signer,
       guardianUrl,
-      guardianCommitment,
       walletSource,
       buildExternalParams,
-      midenClient,
     ],
   );
 
@@ -1631,6 +1680,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleImportProposal,
       handleDisconnect,
       setWalletSource,
+      clientStartup,
+      retryClientStartup: startClient,
       accountOperationBusy,
       setGuardianUrl,
       connectToGuardian,
@@ -1645,6 +1696,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
     }),
     [
+      clientStartup,
+      startClient,
       accountOperationBusy,
       ledger,
       setWalletSource,
