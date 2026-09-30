@@ -1,5 +1,6 @@
 "use client";
 
+import { TokenAmount } from "@/components/TokenAmount";
 import React, { useMemo } from "react";
 import media from "../../../../public/media";
 import Image from "next/image";
@@ -17,22 +18,9 @@ const Assets = () => {
     [detectedConfig?.vaultBalances],
   );
 
-  const { totalBalance, fungibleAssetsWithPercentage } = useMemo(() => {
-    if (vaultBalances.length === 0) {
-      return { totalBalance: 0, fungibleAssetsWithPercentage: [] };
-    }
-
-    const totalBigInt = vaultBalances.reduce((sum, b) => sum + BigInt(b.amount), BigInt(0));
-    const totalDisplay = Number(totalBigInt) / 1000000;
-
-    const withPercentage = vaultBalances.map(b => {
-      const balance = BigInt(b.amount);
-      const percentage = totalBigInt > 0n ? Number((balance * 100n) / totalBigInt) : 0;
-      return { faucetId: b.faucetId, balance: b.amount.toString(), percentage };
-    });
-
-    return { totalBalance: totalDisplay, fungibleAssetsWithPercentage: withPercentage };
-  }, [vaultBalances]);
+  // Different tokens are never added together or compared as shares: each
+  // has its own decimals and value.
+  const [firstBalance, ...otherBalances] = vaultBalances;
 
   const fungibleAssets = useMemo(() => {
     return vaultBalances.map(b => ({
@@ -62,14 +50,16 @@ const Assets = () => {
               <Image src={media.totalTransactionsIcon} alt="total" quality={100} width={16} height={16} />
             </div>
             <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
-              Total Asset Value
+              Balance
             </div>
           </div>
           <div className="mt-auto">
-            <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
-              {totalBalance.toFixed(2)}
+            <div className="text-[22px] md:text-[26px] font-[600] text-[#111] break-all">
+              {firstBalance ? <TokenAmount faucetId={firstBalance.faucetId} amount={firstBalance.amount} /> : "0"}
             </div>
-            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">{vaultBalances.length} token(s)</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">
+              {otherBalances.length > 0 ? `and ${otherBalances.length} more token${otherBalances.length !== 1 ? "s" : ""}` : `${vaultBalances.length} token(s)`}
+            </div>
           </div>
         </div>
 
@@ -98,22 +88,19 @@ const Assets = () => {
               <Image src={media.assetValIcon} alt="distribution" quality={100} width={16} height={16} />
             </div>
             <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
-              Token Distribution
+              By token
             </div>
           </div>
-          <div className="mt-auto flex items-center gap-8">
-            {fungibleAssetsWithPercentage.map((asset, index) => (
-              <React.Fragment key={index}>
-                <div className="flex flex-col gap-0.5">
-                  <div className="text-[15px] font-[500] text-[#111]">Token {index + 1}</div>
-                  <div className="text-[13px] font-[600] text-[#111]">{asset.percentage}%</div>
-                </div>
-                {index < fungibleAssetsWithPercentage.length - 1 && (
-                  <div className="w-[0.5px] h-[27px] bg-[#FF5500]" />
-                )}
-              </React.Fragment>
+          <div className="mt-auto flex flex-col gap-1 overflow-y-auto">
+            {vaultBalances.map((asset) => (
+              <TokenAmount
+                key={asset.faucetId}
+                faucetId={asset.faucetId}
+                amount={asset.amount}
+                className="text-[13px] font-[600] text-[#111] break-all"
+              />
             ))}
-            {fungibleAssetsWithPercentage.length === 0 && (
+            {vaultBalances.length === 0 && (
               <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">No tokens</div>
             )}
           </div>

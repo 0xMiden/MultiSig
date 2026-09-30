@@ -35,40 +35,82 @@ export function formatTokenAmount(units: bigint | string, decimals: number): str
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
-const decimalsCache = new Map<string, Promise<number>>();
+/** What the UI needs to show a token amount. */
+export interface TokenInfo {
+  decimals: number;
+  symbol: string;
+}
+
+const tokenInfoCache = new Map<string, Promise<TokenInfo>>();
+
+/** Upper bound on the metadata lookup; the SDK's RPC transport has no deadline of its own. */
+export const DECIMALS_LOOKUP_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error: unknown) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
 
 /**
- * Decimals of a fungible faucet, read from its on-chain metadata without
- * importing the faucet into the local store. Throws when the faucet is not a
- * readable public fungible faucet, so callers fail closed instead of guessing.
+ * Decimals and symbol of a fungible faucet, read from its on-chain metadata
+ * without importing the faucet into the local store. Throws when the faucet is
+ * not a readable public fungible faucet, so callers fail closed instead of
+ * guessing. Cached per faucet; failures are not cached.
  */
-export function getFaucetDecimals(faucetId: string): Promise<number> {
+export function getTokenInfo(
+  faucetId: string,
+  timeoutMs: number = DECIMALS_LOOKUP_TIMEOUT_MS,
+): Promise<TokenInfo> {
   const key = faucetId.trim().toLowerCase();
-  let pending = decimalsCache.get(key);
+  let pending = tokenInfoCache.get(key);
   if (!pending) {
-    pending = fetchFaucetDecimals(key);
-    decimalsCache.set(key, pending);
+    pending = withTimeout(
+      fetchTokenInfo(key),
+      timeoutMs,
+      `Could not read token details for ${key}: the Miden node did not respond in time.`,
+    );
+    tokenInfoCache.set(key, pending);
     // Do not cache failures: a transient RPC error must not stick.
-    pending.catch(() => decimalsCache.delete(key));
+    pending.catch(() => tokenInfoCache.delete(key));
   }
   return pending;
 }
 
-async function fetchFaucetDecimals(faucetId: string): Promise<number> {
+export async function getFaucetDecimals(
+  faucetId: string,
+  timeoutMs: number = DECIMALS_LOOKUP_TIMEOUT_MS,
+): Promise<number> {
+  return (await getTokenInfo(faucetId, timeoutMs)).decimals;
+}
+
+async function fetchTokenInfo(faucetId: string): Promise<TokenInfo> {
   const rpc = new RpcClient(new Endpoint(MIDEN_RPC_URL));
   try {
     const fetched = await rpc.getAccountDetails(AccountId.fromHex(faucetId));
     const account = fetched.account();
     if (!account) throw new Error('faucet state is private');
-    const decimals = BasicFungibleFaucetComponent.fromAccount(account).decimals();
+    const faucet = BasicFungibleFaucetComponent.fromAccount(account);
+    const decimals = faucet.decimals();
     if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) {
       throw new Error(`unexpected decimals ${decimals}`);
     }
-    return decimals;
+    const symbol = faucet.symbol().toString().trim();
+    return { decimals, symbol: symbol || shortFaucetId(faucetId) };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new Error(`Could not read token details for ${faucetId}: ${reason}`);
   } finally {
     rpc.free();
   }
+}
+
+/** Fallback label when a token has no readable symbol: never a well-known name. */
+export function shortFaucetId(faucetId: string): string {
+  const id = faucetId.trim();
+  return id.length > 12 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { TokenAmount, TokenSymbol } from "@/components/TokenAmount";
 import React, { useState } from "react";
 import Image from "next/image";
 
@@ -58,9 +59,9 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
                 <div className="flex flex-col">
                   <div className="flex gap-2 items-center">
                     <div className="font-[500] text-[12px] text-black uppercase">
-                      MID{index + 1}
+                      <TokenSymbol faucetId={asset.faucetId} />
                     </div>
-                    <div className="text-[8px] text-[#0000007D] font-[400]">Miden Token</div>
+                    <div className="text-[8px] text-[#0000007D] font-[400]">Fungible token</div>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -88,8 +89,7 @@ const TokenHoldings = ({ fungibleAssets, isLoading }: TokenHoldingsProps) => {
 
               {/* Right Side - Values */}
               <div className="flex flex-col items-end">
-                <div className="text-[12px] font-[600] text-[#000000]">{Number(asset.balance) / 1000000}</div>
-                <div className="text-[8px] text-[rgba(0,0,0,0.45)]">{Number(asset.balance) / 1000000} USD</div>
+                <TokenAmount faucetId={asset.faucetId} amount={asset.balance} className="text-[12px] font-[600] text-[#000000]" />
               </div>
             </div>
           ))

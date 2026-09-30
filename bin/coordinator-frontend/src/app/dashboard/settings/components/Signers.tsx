@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import media from "../../../../../public/media";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard, truncateHex } from "@/lib/helpers";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import { planRemoveSigner } from "@/lib/procedures";
 import { toast } from "sonner";
 
 const signerIcons = [media.signer1, media.signer2, media.signer3];
@@ -30,6 +30,7 @@ const Signers = () => {
   const signerCommitments = detectedConfig?.signerCommitments ?? [];
   const currentThreshold = detectedConfig?.threshold ?? 0;
   const numSigners = detectedConfig?.numSigners ?? signerCommitments.length;
+  const removePlan = planRemoveSigner(currentThreshold, numSigners, detectedConfig?.procedureThresholds);
   const myCommitment = multisig?.signerCommitment;
   const displayThreshold = newThreshold ?? currentThreshold;
   const updateSignersThreshold = detectedConfig?.procedureThresholds?.get('update_signers') ?? null;
@@ -48,7 +49,11 @@ const Signers = () => {
       setValidationError("Please enter a signer commitment");
       return;
     }
-    await handleCreateAddSignerProposal(newCommitment.trim(), increaseThreshold);
+    try {
+      await handleCreateAddSignerProposal(newCommitment.trim(), increaseThreshold);
+    } catch {
+      return; // reported by the context; keep the input so it can be retried
+    }
     setNewCommitment("");
     setIncreaseThreshold(false);
   };
@@ -57,15 +62,10 @@ const Signers = () => {
     if (!commitmentToRemove) return;
     setCommitmentToRemove(null);
     setValidationError(null);
-    const remainingSigners = numSigners - 1;
-    const effectiveThreshold = getEffectiveThreshold(
-      'remove_signer',
-      currentThreshold,
-      detectedConfig?.procedureThresholds,
-    );
-    const adjustedThreshold =
-      effectiveThreshold > remainingSigners ? remainingSigners : undefined;
-    await handleCreateRemoveSignerProposal(commitmentToRemove, adjustedThreshold);
+    const plan = planRemoveSigner(currentThreshold, numSigners, detectedConfig?.procedureThresholds);
+    await handleCreateRemoveSignerProposal(commitmentToRemove, plan.newThreshold).catch(() => {
+      /* reported by the context */
+    });
   };
 
   const handleChangeThreshold = async () => {
@@ -75,7 +75,11 @@ const Signers = () => {
       setValidationError(`Threshold must be between 1 and ${numSigners}`);
       return;
     }
-    await handleCreateChangeThresholdProposal(newThreshold);
+    try {
+      await handleCreateChangeThresholdProposal(newThreshold);
+    } catch {
+      return; // reported by the context; keep the value so it can be retried
+    }
     setNewThreshold(null);
   };
 
@@ -296,7 +300,12 @@ const Signers = () => {
                 <p className="text-[13px] text-[rgba(0,0,0,0.6)] leading-relaxed">
                   This will create a proposal to permanently remove the following signer from the multisig.
                   The removal takes effect only after{" "}
-                  <span className="font-[600] text-[#111]">{currentThreshold} of {numSigners}</span> signers approve it.
+                  <span className="font-[600] text-[#111]">{removePlan.approvalsRequired} of {numSigners}</span> signers approve it.
+                  Afterwards the account needs{" "}
+                  <span className="font-[600] text-[#111]">{removePlan.newThreshold} of {removePlan.remainingSigners}</span> signatures
+                  {removePlan.thresholdChanges
+                    ? ` (lowered from ${currentThreshold}, since only ${removePlan.remainingSigners} signers remain).`
+                    : " (unchanged)."}
                 </p>
 
                 {/* Commitment display */}

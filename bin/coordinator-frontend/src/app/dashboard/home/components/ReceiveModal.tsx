@@ -1,4 +1,5 @@
 "use client";
+import { TokenAmount } from "@/components/TokenAmount";
 import { useEffect, useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMultisig } from "@/contexts/MultisigContext";
@@ -58,7 +59,6 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
     if (selectedNoteIds.length === 0) { toast.error("Select at least one note"); return; }
     try {
       await handleCreateConsumeNotesProposal(selectedNoteIds);
-      toast.success("Consume notes proposal created!");
       setSelectedNoteIds([]);
       onClose();
     } catch (error) {
@@ -113,7 +113,6 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
               ) : (
                 notes.map((note, index) => {
                   const isSelected = selectedNoteIds.includes(note.id);
-                  const totalAmount = note.assets.reduce((sum, a) => sum + Number(a.amount), 0) / 1000000;
                   return (
                     <button
                       key={index}
@@ -134,8 +133,14 @@ const ReceiveModal = ({ open, onClose }: ReceiveModalProps) => {
                         )}
                       </div>
                       <div className="flex-1">
-                        <div className="text-[13px] font-[500] text-[#111]">
-                          Receive {totalAmount.toFixed(2)} MIDEN
+                        {/* One line per asset, each in its own token's units and symbol: never
+                            summed, never labelled with a name the token did not give itself. */}
+                        <div className="text-[13px] font-[500] text-[#111] flex flex-col">
+                          {note.assets.length === 0 ? "Note with no assets" : note.assets.map((asset) => (
+                            <span key={asset.faucetId}>
+                              Receive <TokenAmount faucetId={asset.faucetId} amount={asset.amount} />
+                            </span>
+                          ))}
                         </div>
                         <div className="text-[11px] font-mono text-[rgba(0,0,0,0.35)] mt-0.5">
                           {note.id.slice(0, 12)}…

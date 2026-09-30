@@ -30,6 +30,7 @@ import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagn
 import { registerDevnetAccount } from './devnetRegistration';
 import { configureProverWorkflow } from './proverFallback';
 import { markExecutionPushed } from './pendingCandidate';
+import { retryProposalSubmission } from './proposalSubmission';
 import { toast } from 'sonner';
 
 const registrationRequests = new Map<string, Promise<void>>();
@@ -151,9 +152,9 @@ export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
 
 /**
  * Relays a private note's contents to its recipient via the note transport
- * service. Call this as soon as the proposal exists — before execution, not
- * after — so the block hint sendPrivate captures (the client's current sync
- * height) stays at or before the note's eventual on-chain commitment.
+ * service. Call this before execution, never after, so the block hint
+ * (`scanAfterBlockNum`, the client's current sync height) is at or before the
+ * note's on-chain commitment.
  */
 export async function relayPrivateNote(
   midenClient: MidenClient,
@@ -162,6 +163,29 @@ export async function relayPrivateNote(
   scanAfterBlockNum: number,
 ): Promise<void> {
   await midenClient.notes.sendPrivate({ note, to: recipientId, scanAfterBlockNum });
+}
+
+/**
+ * Delivers every private note a proposal will create to its recipient, from
+ * the proposal's own transaction summary, so any cosigner can run it right
+ * before executing. Throws if the summary holds no private note: executing
+ * then would commit a note nobody can reconstruct.
+ */
+export async function relayProposalNotes(
+  midenClient: MidenClient,
+  txSummaryBase64: string,
+  recipientId: string,
+  extractNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
+): Promise<number> {
+  const notes = extractNotes(txSummaryBase64);
+  if (notes.length === 0) {
+    throw new Error('This private send has no private note to deliver, so it cannot be executed safely.');
+  }
+  const scanAfterBlockNum = await midenClient.getSyncHeight();
+  for (const note of notes) {
+    await relayPrivateNote(midenClient, note, recipientId, scanAfterBlockNum);
+  }
+  return notes.length;
 }
 
 export async function registerAccountNoteTag(
@@ -173,8 +197,17 @@ export async function registerAccountNoteTag(
   await midenClient.tags.add(tag.asU32());
 }
 
-/** Syncs before executing and falls back to local proving (see proverFallback.ts). */
-function withProverFallback(multisig: Multisig): Multisig {
+/**
+ * Wires each multisig for the app: sync before executing with a local-proving
+ * fallback (proverFallback.ts), and re-submission of a built proposal when the
+ * Guardian push fails transiently (proposalSubmission.ts).
+ */
+function prepareMultisig(multisig: Multisig): Multisig {
+  retryProposalSubmission(multisig, {
+    onRetry(attempt, error) {
+      console.warn(`Guardian did not accept the proposal (attempt ${attempt}); retrying with the same data.`, error);
+    },
+  });
   configureProverWorkflow(multisig, {
     onPushed() {
       markExecutionPushed(multisig.accountId);
@@ -223,7 +256,7 @@ export async function createMultisigAccount(
   };
   const multisig = await multisigClient.create(config, signer);
   instrumentMultisig(multisig, multisigClient);
-  return withProverFallback(multisig);
+  return prepareMultisig(multisig);
 }
 
 export async function loadMultisigAccount(
@@ -233,7 +266,7 @@ export async function loadMultisigAccount(
 ): Promise<Multisig> {
   const multisig = await multisigClient.load(accountId, signer);
   instrumentMultisig(multisig, multisigClient);
-  return withProverFallback(multisig);
+  return prepareMultisig(multisig);
 }
 
 /** Restore an unused local account after Guardian registration was interrupted. */
@@ -269,5 +302,5 @@ export async function loadPendingMultisigAccount(
   guardian.setSigner(signer);
   const multisig = new Multisig(account, config, guardian, signer, midenClient, accountId, MIDEN_RPC_URL);
   instrumentMultisig(multisig, multisigClient);
-  return withProverFallback(multisig);
+  return prepareMultisig(multisig);
 }
