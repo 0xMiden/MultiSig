@@ -10,13 +10,15 @@
 //!
 //! See `.superpowers/sdd/2026-09-30-usdcx-admin-notes-0.17-port/task-7-brief.md`.
 
-use miden_protocol::account::{StorageSlotName, StorageSlotPatch};
+use miden_protocol::account::{StorageMapKey, StorageSlotName, StorageSlotPatch};
 use miden_protocol::errors::MasmError;
 use miden_protocol::transaction::ExecutedTransaction;
 use miden_protocol::{Felt, Word};
 use miden_standards::account::access::PausableStorage;
 use miden_standards::account::faucets::FungibleFaucet;
+use miden_standards::account::policies::MinBurnAmount;
 use miden_testing::assert_transaction_executor_error;
+use xusdc_encoding::account::xreserve::XReserveFaucetExtension;
 
 use usdcx_admin_notes::testing::mock_chain_with_faucet_roles;
 
@@ -52,7 +54,7 @@ fn value_delta(tx: &ExecutedTransaction, name: &StorageSlotName) -> Word {
 /// acted on by a deployed-equivalent 0.17 faucet.
 #[tokio::test]
 async fn set_max_supply_note_consumes_on_0_17_faucet() {
-    let (chain, faucet_id, admin, _pauser, _other) = mock_chain_with_faucet_roles();
+    let (chain, faucet_id, admin, _pauser, _attest_admin, _other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::set_max_supply(faucet_id, admin, 5_000_000, serial(100))
         .expect("building the set_max_supply note");
 
@@ -77,7 +79,7 @@ async fn set_max_supply_note_consumes_on_0_17_faucet() {
 /// traps it — `set_max_supply` cannot be reached by an unauthorized sender.
 #[tokio::test]
 async fn set_max_supply_note_from_non_admin_fails_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, _pauser, other) = mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::set_max_supply(faucet_id, other, 5_000_000, serial(101))
         .expect("building the set_max_supply note");
 
@@ -96,7 +98,7 @@ async fn set_max_supply_note_from_non_admin_fails_on_0_17_faucet() {
 /// faucet's `is_paused` slot flips to 1.
 #[tokio::test]
 async fn pause_note_from_dom_pauser_consumes_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, pauser, _other) = mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, pauser, _attest_admin, _other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::pause(faucet_id, pauser, false, serial(102))
         .expect("building the pause note");
 
@@ -123,7 +125,7 @@ async fn pause_note_from_dom_pauser_consumes_on_0_17_faucet() {
 /// role gate.
 #[tokio::test]
 async fn pause_note_from_non_pauser_fails_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, _pauser, other) = mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::pause(faucet_id, other, false, serial(103))
         .expect("building the pause note");
 
@@ -132,6 +134,117 @@ async fn pause_note_from_non_pauser_fails_on_0_17_faucet() {
         .unauthenticated_input_note(note.clone())
         .build()
         .expect("building the pause transaction")
+        .execute()
+        .await;
+
+    assert_transaction_executor_error!(result, err_sender_lacks_role());
+}
+
+/// A `set_min_burn` note sent by the `ADMIN` holder is CONSUMED by the faucet: the transaction
+/// succeeds and the stock `MinBurnAmount` floor slot is updated to the new floor — the same
+/// faucet-owned coverage gap the whole-branch review flagged (Task 7 only covered
+/// `set_max_supply`/`pause`; `set_min_burn`'s script also lives in `xusdc-encoding`).
+#[tokio::test]
+async fn set_min_burn_note_consumes_on_0_17_faucet() {
+    let (chain, faucet_id, admin, _pauser, _attest_admin, _other) =
+        mock_chain_with_faucet_roles();
+    let note = usdcx_admin_notes::set_min_burn(faucet_id, admin, 5_000, serial(104))
+        .expect("building the set_min_burn note");
+
+    let tx = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(note.clone())
+        .build()
+        .expect("building the set_min_burn transaction")
+        .execute()
+        .await
+        .expect("the 0.17 faucet must consume an ADMIN-sent set_min_burn note");
+
+    assert_eq!(
+        value_delta(&tx, MinBurnAmount::slot_name())[0],
+        Felt::try_from(5_000u64).expect("floor within the field"),
+        "set_min_burn must write the new floor into the stock MinBurnAmount slot",
+    );
+}
+
+/// The same builder, sent by an account holding no role, PASSES network auth (the script is
+/// allowlisted) but TRAPS at the procedure's own `ADMIN` gate.
+#[tokio::test]
+async fn set_min_burn_note_from_non_admin_fails_on_0_17_faucet() {
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) =
+        mock_chain_with_faucet_roles();
+    let note = usdcx_admin_notes::set_min_burn(faucet_id, other, 5_000, serial(105))
+        .expect("building the set_min_burn note");
+
+    let result = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(note.clone())
+        .build()
+        .expect("building the set_min_burn transaction")
+        .execute()
+        .await;
+
+    assert_transaction_executor_error!(result, err_sender_lacks_role());
+}
+
+/// A `set_attester` note sent by the `ATTEST_ADMIN` holder is CONSUMED: the transaction succeeds
+/// and the faucet's `xReserveAttesters` map slot gains the enabled marker at the
+/// creator-committed commitment key — proving the storage-param marshaling (parameters travel in
+/// note storage, not note args) is correct for this builder too.
+#[tokio::test]
+async fn set_attester_note_consumes_on_0_17_faucet() {
+    let (chain, faucet_id, _admin, _pauser, attest_admin, _other) =
+        mock_chain_with_faucet_roles();
+    let commitment = serial(200);
+    let note =
+        usdcx_admin_notes::set_attester(faucet_id, attest_admin, commitment, true, serial(106))
+            .expect("building the set_attester note");
+
+    let tx = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(note.clone())
+        .build()
+        .expect("building the set_attester transaction")
+        .execute()
+        .await
+        .expect("the 0.17 faucet must consume an ATTEST_ADMIN-sent set_attester note");
+
+    let StorageSlotPatch::Map(delta) = tx
+        .account_patch()
+        .storage()
+        .get(XReserveFaucetExtension::xreserve_attesters_slot())
+        .expect("xReserveAttesters slot delta")
+    else {
+        panic!("xReserveAttesters must be a Map slot delta");
+    };
+    let written = delta
+        .entries()
+        .expect("map patch carries entries")
+        .as_map()
+        .get(&StorageMapKey::new(commitment))
+        .copied()
+        .expect("the commitment key must appear in the xReserveAttesters delta");
+    assert_eq!(
+        written,
+        Word::from([Felt::from(1u32), Felt::ZERO, Felt::ZERO, Felt::ZERO]),
+        "set_attester must write the enabled marker at the creator-committed commitment key",
+    );
+}
+
+/// The same builder, sent by an account holding no role, PASSES network auth (the script is
+/// allowlisted) but TRAPS at the procedure's own `ATTEST_ADMIN` gate.
+#[tokio::test]
+async fn set_attester_note_from_non_attest_admin_fails_on_0_17_faucet() {
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) =
+        mock_chain_with_faucet_roles();
+    let note = usdcx_admin_notes::set_attester(faucet_id, other, serial(201), true, serial(107))
+        .expect("building the set_attester note");
+
+    let result = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(note.clone())
+        .build()
+        .expect("building the set_attester transaction")
         .execute()
         .await;
 

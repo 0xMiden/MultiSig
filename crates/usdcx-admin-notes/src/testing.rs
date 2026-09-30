@@ -107,16 +107,19 @@ pub fn other_account() -> AccountId {
 /// `build_faucet_account` shape carries a seed and nonce zero — an undeployed account — and
 /// `MockChainBuilder::add_account` rejects that).
 ///
-/// `admin` holds the built-in `ADMIN` role; `pauser` holds `DOM_PAUSER`; `other` holds neither.
-/// Returns `(chain, faucet_id, admin, pauser, other)`.
+/// `admin` holds the built-in `ADMIN` role; `pauser` holds `DOM_PAUSER`; `attest_admin` holds
+/// `ATTEST_ADMIN`; `other` holds neither.
+/// Returns `(chain, faucet_id, admin, pauser, attest_admin, other)`.
 ///
 /// This is the Round-trip guard fixture (Task 7 of the 0.17 port): proving a note this crate
 /// BUILDS is actually CONSUMABLE by a deployed-equivalent faucet, and that its RBAC role gate is
 /// enforced on-chain — not merely mirrored by this crate's own [`crate::account_has_role`]
 /// read-back.
-pub fn mock_chain_with_faucet_roles() -> (MockChain, AccountId, AccountId, AccountId, AccountId) {
+pub fn mock_chain_with_faucet_roles()
+-> (MockChain, AccountId, AccountId, AccountId, AccountId, AccountId) {
     let admin = dummy_account_id(1);
     let pauser = dummy_account_id(2);
+    let attest_admin = dummy_account_id(4);
     let other = dummy_account_id(3);
 
     let fee_parameters = FeeParameters::new(0);
@@ -125,7 +128,7 @@ pub fn mock_chain_with_faucet_roles() -> (MockChain, AccountId, AccountId, Accou
     let builder = XReserveStablecoinBuilder::builder()
         .token_supply(AssetAmount::new(1_000_000).expect("1_000_000 is a valid token supply"))
         .owner(admin)
-        .attest_admin_holders(Vec::new())
+        .attest_admin_holders(vec![attest_admin])
         .pauser_holders(vec![pauser])
         .unpauser_holders(Vec::new())
         .blocklist_manager_holders(Vec::new())
@@ -156,5 +159,5 @@ pub fn mock_chain_with_faucet_roles() -> (MockChain, AccountId, AccountId, Accou
         .expect("registering the faucet account in the MockChain");
     let chain = chain_builder.build().expect("building the MockChain");
 
-    (chain, faucet_id, admin, pauser, other)
+    (chain, faucet_id, admin, pauser, attest_admin, other)
 }
