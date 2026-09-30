@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerDevnetAccount } from '../../src/lib/devnetRegistration';
 
-// Ported from scripts/test-devnet-registration.cjs; only fetch is stubbed.
+// Only fetch is stubbed.
 const id = '0x108514e7b43d60411774d3c16e20b9';
 const genesis = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
 const field = (tag: number, data: Buffer) => Buffer.concat([Buffer.from([tag, data.length]), data]);

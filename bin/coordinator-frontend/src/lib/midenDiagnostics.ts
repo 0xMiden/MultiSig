@@ -1,10 +1,15 @@
-// Temporary, development-only diagnostics. No extra sync, RPC, or signing calls.
-// Deliberately exclude request bodies, signatures, keys, and serialized notes.
+// Opt-in Miden SDK diagnostics: the one debugging aid in the app. Off in every
+// build unless NEXT_PUBLIC_MIDEN_DIAGNOSTICS=1; when off, nothing is wrapped and
+// nothing is logged, so the SDK runs unmodified. Instance-level wrappers only
+// (the SDK's bundle is never rewritten). No extra sync, RPC or signing calls;
+// request bodies, signatures, keys and serialized notes are never logged, but
+// logs do include account IDs, note IDs and vault balances.
+export const DIAGNOSTICS_ENABLED = process.env.NEXT_PUBLIC_MIDEN_DIAGNOSTICS === '1';
 import type { MidenClient } from '@miden-sdk/miden-sdk';
 import type { Multisig, ConsumableNote } from '@openzeppelin/miden-multisig-client';
 
 export async function logReceiveFunding(client: MidenClient, multisig: Multisig, notes: ConsumableNote[]): Promise<void> {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (!DIAGNOSTICS_ENABLED) return;
   try {
     const feeId = await client.feeFaucetId();
     const feeFaucet = feeId.toString().toLowerCase();
@@ -42,7 +47,7 @@ export function diagnosticId(value: object | null | undefined): string | null {
 }
 
 export function diagnosticLog(event: string, data: unknown): void {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (!DIAGNOSTICS_ENABLED) return;
   try {
     console.log(`[MIDEN-DIAG] ${event} ${JSON.stringify({
       time: new Date().toISOString(), data,
@@ -123,7 +128,7 @@ function callDetails(method: string, args: unknown[]): unknown {
 // Instance-only wrappers preserve `this`, return values, and original errors.
 // Private SDK hooks are optional: report unsupported hooks rather than failing.
 function wrap(target: object, method: string, after?: (result: unknown) => void): void {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (!DIAGNOSTICS_ENABLED) return;
   try {
     const record = target as Dynamic;
     const original = record[method];
@@ -179,7 +184,7 @@ export function instrumentPublicClient(client: object): void {
 }
 
 export function instrumentMultisig(multisig: object, owner: object): void {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (!DIAGNOSTICS_ENABLED) return;
   linkDiagnosticClient(multisig, owner, 'multisig');
   wrap(multisig, 'getRawClient', (raw) => {
     if (!raw || typeof raw !== 'object') return;

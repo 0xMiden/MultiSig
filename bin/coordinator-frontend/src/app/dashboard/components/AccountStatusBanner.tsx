@@ -120,8 +120,10 @@ const AccountStatusBanner = () => {
             </span>
             <span className="text-[12px] font-[400] text-[#FF5500]">
               The account loaded, but its signers, threshold and balances
-              could not be read. Check the console for{" "}
-              <code className="font-mono">[DEBUG]</code> logs.
+              could not be read.{" "}
+              {error || pendingCandidateWarning
+                ? "The reason is shown above."
+                : "Retry to read them again."}
             </span>
           </div>
           <button

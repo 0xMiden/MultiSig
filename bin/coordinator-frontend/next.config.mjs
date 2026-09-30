@@ -19,14 +19,7 @@ const nextConfig = {
   async headers() {
     return [{ source: '/:path*', headers: staticSecurityHeaders(process.env.NODE_ENV === 'production') }]
   },
-  webpack: (config, { webpack, dev }) => {
-    if (dev) {
-      config.module.rules.push({
-        test: /(?:Cargo-[^/]+|web-client-methods-worker)\.js$/,
-        include: path.join(__dirname, 'node_modules/@miden-sdk/miden-sdk/dist'),
-        use: [path.join(__dirname, 'scripts/miden-diagnostics-loader.cjs')],
-      });
-    }
+  webpack: (config, { webpack }) => {
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,

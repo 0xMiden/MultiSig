@@ -95,8 +95,6 @@ export async function createMidenClient(rpcUrl = MIDEN_RPC_URL): Promise<MidenCl
   return client;
 }
 
-/** @deprecated Use createMidenClient */
-export const createWebClient = createMidenClient;
 
 export function initializeSigner(): SignerInfo {
   const falconSecretKey = AuthSecretKey.rpoFalconWithRNG(undefined);

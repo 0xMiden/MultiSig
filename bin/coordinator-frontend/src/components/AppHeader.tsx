@@ -20,7 +20,7 @@ export function AppHeader() {
     disconnectMidenWallet,
     openParaModal,
     ledger,
-    creating, loadingAccount, creatingProposal, signingProposal, executingProposal, releasingCandidate, syncingState, registeringOnGuardian, privateSendProgress,
+    accountOperationBusy,
     guardianStatus,
     guardianUrl,
     connectToGuardian,
@@ -92,7 +92,7 @@ export function AppHeader() {
               <div className="text-[12px] font-[500] mb-2">WALLET SOURCE</div>
               <div className="flex flex-col gap-1.5">
                 <button type="button"
-                  disabled={creating || loadingAccount || creatingProposal || !!signingProposal || !!executingProposal || releasingCandidate || syncingState || registeringOnGuardian || privateSendProgress.step === "creating-proposal"}
+                  disabled={accountOperationBusy}
                   onClick={() => { ledger.show(); setWalletPopoverOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-[11px] rounded-sm border disabled:opacity-50 ${walletSource === 'ledger' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'}`}>
                   {ledger.signer ? 'CHANGE LEDGER ADDRESS' : 'CONNECT LEDGER (USB)'}

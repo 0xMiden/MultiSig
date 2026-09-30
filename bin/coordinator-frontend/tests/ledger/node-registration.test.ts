@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// Ported from scripts/test-registration.cjs. The RPC setting goes through the
+// The RPC setting goes through the
 // real config/psm.ts (so devnet is the resolved URL, as in production), and the
 // direct devnet RPC and the SDK registration are counted separately.
 async function setup({ rpc = 'devnet', allowed = true, rpcError, sdkError }: {

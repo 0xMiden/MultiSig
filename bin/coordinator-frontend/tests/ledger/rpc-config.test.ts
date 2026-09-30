@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// Ported from scripts/test-rpc-config.cjs: config/psm.ts is evaluated through
+// config/psm.ts is evaluated through
 // the real module graph, one fresh copy per environment.
 async function config(env: Record<string, string | undefined>) {
   vi.resetModules();
