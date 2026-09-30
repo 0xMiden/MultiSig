@@ -1,18 +1,18 @@
 //! wasm-bindgen JS bindings for the admin-note builders and the faucet-RBAC
 //! role check. Built with `wasm-pack build --target web --features wasm`.
 //!
-//! Interop is bytes-only: `Word`/`NoteId`/`NoteScriptRoot`/`Account` cross the
+//! Interop is bytes-only: `Word`/`NoteScriptRoot`/`Account` cross the
 //! boundary as serialized bytes (round-tripped with the `@miden-sdk` types on the
-//! JS side, which share the same 0.16.1 serialization); account ids cross as hex.
+//! JS side, which share the same 0.17 serialization); account ids cross as hex.
 //! Each builder returns a serialized `Note` (`Uint8Array`); the frontend
 //! deserializes it with `@miden-sdk`'s `Note.deserialize`.
 
 use miden_protocol::account::{Account, AccountId};
-use miden_protocol::asset::{Asset, FungibleAsset};
-use miden_protocol::note::{NoteId, NoteScriptRoot};
+use miden_protocol::asset::FungibleAsset;
+use miden_protocol::note::NoteScriptRoot;
 use miden_protocol::utils::serde::{Deserializable, Serializable};
 use miden_protocol::Word;
-use miden_standards::note::RbacConfig;
+use miden_standards::note::config::RbacConfig;
 use wasm_bindgen::prelude::*;
 
 use crate as builders;
@@ -77,29 +77,6 @@ pub fn build_set_note_fee(
     let note =
         builders::set_note_fee(acct(faucet_hex)?, acct(sender_hex)?, root, fee_asset, word(serial)?)
             .map_err(js)?;
-    Ok(note.to_bytes())
-}
-
-/// Build a fee-sponsorship note. `feature_note_id` is serialized `NoteId` bytes.
-#[wasm_bindgen]
-pub fn build_fee_sponsorship(
-    sender_hex: &str,
-    target_account_hex: &str,
-    feature_note_id: &[u8],
-    asset_faucet_hex: &str,
-    asset_amount: u64,
-    serial: &[u8],
-) -> Result<Vec<u8>, JsError> {
-    let note_id = NoteId::read_from_bytes(feature_note_id).map_err(js)?;
-    let asset: Asset = FungibleAsset::new(acct(asset_faucet_hex)?, asset_amount).map_err(js)?.into();
-    let note = builders::fee_sponsorship(
-        acct(sender_hex)?,
-        acct(target_account_hex)?,
-        note_id,
-        asset,
-        word(serial)?,
-    )
-    .map_err(js)?;
     Ok(note.to_bytes())
 }
 
