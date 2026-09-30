@@ -3,6 +3,7 @@ import { LOCAL_KEYS_ENABLED } from "@/config/psm";
 import React, { useState, useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { truncateHex, copyToClipboard } from "@/lib/helpers";
+import { SignerChip } from "@/components/SignerChip";
 import { AccountId, AccountInterface, NetworkId } from "@miden-sdk/miden-sdk";
 import { MIDEN_NETWORK } from "@/config/psm";
 import { BECH32_PREFIX } from "@/lib/midenNetwork";
@@ -24,10 +25,8 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     guardianStatus,
     connectToGuardian,
     activeCommitment,
-    activeScheme,
     walletSource,
     setWalletSource,
-    signer,
     generatingSigner,
     syncingState,
     handleSync,
@@ -44,7 +43,6 @@ const TaskBar: React.FC<TaskBarProps> = () => {
   const [guardianUrlDraft, setGuardianUrlDraft] = useState(guardianUrl);
   const [guardianEditorError, setGuardianEditorError] = useState<string | null>(null);
   const [guardianConnecting, setGuardianConnecting] = useState(false);
-  const [showSignerKeys, setShowSignerKeys] = useState(false);
 
   const walletName = useMemo(() => {
     if (typeof window === 'undefined') return "Multisig Wallet";
@@ -248,53 +246,8 @@ const TaskBar: React.FC<TaskBarProps> = () => {
           </div>
         </div>
 
-        {/* Right — commitment display + sync */}
+        {/* Right — sync + who am I */}
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              onClick={() => setShowSignerKeys(!showSignerKeys)}
-              className="flex items-center gap-2 h-8 px-3 text-[11px] font-[500] bg-[rgba(245,245,245,1)] rounded-[8px] hover:bg-[rgba(235,235,235,1)] transition-colors"
-              title={activeCommitment || "Not connected"}
-            >
-              <span className="text-gray-500">{activeScheme.toUpperCase()}</span>
-              <span>{activeCommitment ? truncateHex(activeCommitment, 6, 4) : generatingSigner ? 'Generating...' : 'Not connected'}</span>
-            </button>
-
-            {showSignerKeys && signer && (
-              <div className="absolute top-full right-0 mt-1 z-50 bg-white border border-gray-200 rounded-[8px] shadow-lg p-3 w-[360px]">
-                <div className="text-[10px] font-[500] mb-2">Local Signer Keys</div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-[9px] text-gray-500">Falcon Commitment</div>
-                    <div
-                      className="text-[10px] bg-gray-50 p-1 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
-                      onClick={() => copyToClipboard(signer.falcon.commitment, () => toast.success("Falcon commitment copied"))}
-                      title="Click to copy"
-                    >
-                      {signer.falcon.commitment}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-gray-500">ECDSA Commitment</div>
-                    <div
-                      className="text-[10px] bg-gray-50 p-1 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
-                      onClick={() => copyToClipboard(signer.ecdsa.commitment, () => toast.success("ECDSA commitment copied"))}
-                      title="Click to copy"
-                    >
-                      {signer.ecdsa.commitment}
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowSignerKeys(false)}
-                  className="mt-2 w-full text-[9px] border border-gray-200 rounded-sm py-1 hover:bg-gray-50"
-                >
-                  CLOSE
-                </button>
-              </div>
-            )}
-          </div>
-
           {multisig && (
             <button
               onClick={handleSync}
@@ -311,6 +264,15 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 "SYNC"
               )}
             </button>
+          )}
+
+          {/* Who am I: the connected signer's public key commitment, one click to copy. */}
+          {activeCommitment ? (
+            <SignerChip />
+          ) : (
+            <span className="flex items-center h-8 px-3 text-[11px] font-[500] rounded-[8px] bg-[rgba(245,245,245,1)] text-[rgba(0,0,0,0.5)]">
+              {generatingSigner ? "Generating…" : "Not connected"}
+            </span>
           )}
         </div>
       </div>

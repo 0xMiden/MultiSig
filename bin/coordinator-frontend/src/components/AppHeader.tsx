@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { copyToClipboard, truncateHex } from '@/lib/helpers';
 import { toast } from 'sonner';
+import { SignerChip } from '@/components/SignerChip';
 
 export function AppHeader() {
   const {
@@ -99,7 +100,7 @@ export function AppHeader() {
                 </button>
                 {ledger.selected && ledger.signer && <div className="px-3 text-[10px] break-all">
                   <div title={ledger.selected.path}>{ledger.selected.address}</div>
-                  <button type="button" className="mt-1 text-gray-600 underline" onClick={() => handleCopy(ledger.signer!.commitment, 'Ledger signer commitment')}>Copy signer commitment</button>
+                  <button type="button" className="mt-1 text-gray-600 underline" onClick={() => handleCopy(ledger.signer!.commitment, 'Public key commitment')}>Copy public key commitment</button>
                   <button type="button" onClick={ledger.disconnect} className="ml-3 text-red-600 underline">Disconnect</button>
                 </div>}
                 {ledger.error && !ledger.open && <p role="alert" className="text-[10px] text-red-700">{ledger.error}</p>}
@@ -290,6 +291,9 @@ export function AppHeader() {
             </div>
           )}
         </div>
+
+        {/* Who am I: the connected signer's public key commitment, one click to copy. */}
+        <SignerChip />
       </div>
     </header>
   );
