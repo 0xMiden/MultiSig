@@ -4,6 +4,8 @@ import type { Proposal } from '@openzeppelin/miden-multisig-client';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { TokenAmount } from '@/components/TokenAmount';
 import { describeSignerChange, shortHex } from '@/lib/proposalDescription';
+import { decodeRecipeLabel } from '@/lib/admin/recipe';
+import { describeAdminRecipe } from '@/lib/admin/describe';
 
 /**
  * What a proposal does, from its metadata. The SDK checks the metadata against
@@ -75,6 +77,22 @@ export function ProposalDetails({ proposal }: { proposal: Proposal }) {
         </>
       );
       break;
+    case 'custom': {
+      const recipe = decodeRecipeLabel(md.rawProposalType);
+      if (recipe) {
+        const d = describeAdminRecipe(recipe);
+        body = (
+          <>
+            <span className="font-[600]">{d.title}</span>
+            {d.lines.map((line, i) => <div key={i}>{line}</div>)}
+          </>
+        );
+      } else {
+        // Undecodable label: same message as the generic default below.
+        body = <>Custom transaction: no decoded details are available for this type</>;
+      }
+      break;
+    }
     default:
       body = <>Custom transaction: no decoded details are available for this type</>;
   }
