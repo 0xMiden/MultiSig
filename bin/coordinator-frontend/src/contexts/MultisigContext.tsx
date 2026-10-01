@@ -28,6 +28,7 @@ import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
 import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/admin/adminRequest";
+import { executeCustomProposal } from "@/lib/admin/adminExecute";
 import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
 import type { AdminRecipe } from "@/lib/admin/recipe";
 import { formatError, classifyWalletError, describeExecutionError } from "@/lib/errors";
@@ -1446,7 +1447,16 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
 
 
-        await multisig.executeProposal(proposalId);
+        // Built-ins execute via Guardian's own signed-proposal pipeline. A CUSTOM admin
+        // proposal (e.g. a USDCx admin action) instead needs its deterministic request
+        // rebuilt from its recipe and the resulting execution advice folded in — see
+        // `executeCustomProposal`.
+        if (fresh.metadata.proposalType === "custom") {
+          if (!midenClient) throw new Error("The Miden client is not ready to execute this proposal.");
+          await executeCustomProposal(ms, midenClient, fresh);
+        } else {
+          await multisig.executeProposal(proposalId);
+        }
         setProposals(multisig.listProposals());
         toast.success("Proposal executed successfully");
 
