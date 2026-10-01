@@ -24,9 +24,12 @@ import {
   isProposalActionable,
 } from "@openzeppelin/miden-multisig-client";
 import { GuardianHttpError } from "@openzeppelin/guardian-client";
-import { NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
+import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
+import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/admin/adminRequest";
+import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
+import type { AdminRecipe } from "@/lib/admin/recipe";
 import { formatError, classifyWalletError, describeExecutionError } from "@/lib/errors";
 import {
   createMidenClient,
@@ -191,6 +194,10 @@ export interface MultisigContextValue {
     recipientId: string,
     faucetId: string,
     amount: bigint,
+  ) => Promise<void>;
+  handleCreateAdminProposal: (
+    recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
+      Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
   ) => Promise<void>;
   handleSendPrivateNote: (
     recipientId: string,
@@ -1206,6 +1213,28 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation],
   );
 
+  const handleCreateAdminProposal = useCallback(
+    async (
+      recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
+        Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
+    ) => {
+      await runProposalCreation(`USDCx ${recipe.action}`, async (ms) => {
+        if (!midenClient) throw new Error("Load an account first");
+        const draft: AdminRecipe = {
+          ...recipe,
+          saltHex: recipe.saltHex ?? "",
+          boundBlockNum: recipe.boundBlockNum ?? 0,
+        };
+        const built = await buildAdminTransactionRequest(midenClient, draft);
+        const noteIdHex = Note.deserialize(buildAdminNoteBytes(built.recipe))
+          .id()
+          .toString();
+        return createAdminProposalWith(ms, built, noteIdHex);
+      });
+    },
+    [runProposalCreation, midenClient],
+  );
+
   // Creates the private send proposal only. The note is relayed to the
   // recipient right before execution (see handleExecuteProposal), by whichever
   // signer executes, so a proposal that is never executed relays nothing and
@@ -1618,6 +1647,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleExecuteProposal,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateAdminProposal,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -1692,6 +1722,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleExecuteProposal,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateAdminProposal,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
