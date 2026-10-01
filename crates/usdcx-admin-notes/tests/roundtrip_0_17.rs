@@ -2,7 +2,7 @@
 //! CONSUMABLE — executes and is accepted — by a real 0.17 USDCx faucet, and that its on-chain RBAC
 //! gate is real, not merely mirrored by this crate's own `account_has_role` read-back.
 //!
-//! Builds a production-shaped faucet (`xusdc-encoding`'s `XReserveStablecoinBuilder` composition,
+//! Builds a production-shaped faucet (`miden-usdcx`'s `XReserveStablecoinBuilder` composition,
 //! the same one `build_faucet_account` assembles) inside a `miden-testing::MockChain`, with the
 //! acting accounts granted `ADMIN` / `DOM_PAUSER`, and executes notes built by
 //! `usdcx_admin_notes::{set_max_supply, pause}` against it — both the success path (role holder)
@@ -18,7 +18,7 @@ use miden_standards::account::access::PausableStorage;
 use miden_standards::account::faucets::FungibleFaucet;
 use miden_standards::account::policies::MinBurnAmount;
 use miden_testing::assert_transaction_executor_error;
-use xusdc_encoding::account::xreserve::XReserveFaucetExtension;
+use miden_usdcx::account::xreserve::XReserveFaucetExtension;
 
 use usdcx_admin_notes::testing::mock_chain_with_faucet_roles;
 
@@ -143,7 +143,7 @@ async fn pause_note_from_non_pauser_fails_on_0_17_faucet() {
 /// A `set_min_burn` note sent by the `ADMIN` holder is CONSUMED by the faucet: the transaction
 /// succeeds and the stock `MinBurnAmount` floor slot is updated to the new floor — the same
 /// faucet-owned coverage gap the whole-branch review flagged (Task 7 only covered
-/// `set_max_supply`/`pause`; `set_min_burn`'s script also lives in `xusdc-encoding`).
+/// `set_max_supply`/`pause`; `set_min_burn`'s script also lives in `miden-usdcx`).
 #[tokio::test]
 async fn set_min_burn_note_consumes_on_0_17_faucet() {
     let (chain, faucet_id, admin, _pauser, _attest_admin, _other) =

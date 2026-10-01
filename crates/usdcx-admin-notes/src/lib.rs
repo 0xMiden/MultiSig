@@ -26,7 +26,7 @@ use miden_standards::note::config::{
     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
     FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
 };
-use xusdc_encoding::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSetAttesterNote};
+use miden_usdcx::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSetAttesterNote};
 
 #[cfg(feature = "wasm")]
 pub mod wasm;
@@ -232,7 +232,7 @@ pub fn blocklist(
 }
 
 // ---------------------------------------------------------------------------
-// Faucet-owned admin notes (scripts live in xusdc-encoding)
+// Faucet-owned admin notes (scripts live in miden-usdcx)
 // ---------------------------------------------------------------------------
 
 /// `set_min_burn_amount` (role: ADMIN). Faucet-owned builder; enforces the floor

@@ -29,7 +29,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # Enables the wasm-bindgen JS bindings (built with wasm-pack --target web).
 wasm = ["dep:wasm-bindgen", "dep:getrandom"]
-# Exposes `pub mod testing` (faucet + MockChain fixtures built on xusdc-encoding's production
+# Exposes `pub mod testing` (faucet + MockChain fixtures built on miden-usdcx's production
 # account builder), for use by this crate's own integration tests. Not meant for downstream
 # consumers. `dep:miden-testing`: `testing.rs` builds a `miden_testing::MockChain` (the round-trip
 # guard fixture), and since `testing.rs` compiles into the LIB target (not a test target), that
@@ -38,17 +38,17 @@ wasm = ["dep:wasm-bindgen", "dep:getrandom"]
 testing = ["dep:miden-testing"]
 
 [dependencies]
-miden-protocol  = { version = "=0.17.0-rc.7", default-features = false, features = ["std"] }
-miden-standards = { version = "=0.17.0-rc.7", default-features = false, features = ["std"] }
-miden-tx        = { version = "=0.17.0-rc.7", default-features = false, features = ["std"] }
-xusdc-encoding  = { git = "https://github.com/0xMiden/miden-usdcx", rev = "e68f8bc" }
+miden-protocol  = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
+miden-standards = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
+miden-tx        = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
+miden-usdcx     = { version = "=0.17.0-rc.9" }
 thiserror = { version = "2", default-features = false }
 wasm-bindgen = { version = "0.2", optional = true }
 # Force getrandom's browser backend for the wasm build (pulled transitively by k256).
 getrandom = { version = "0.2", features = ["js"], optional = true }
 # See the `testing` feature above for why this is a normal (optional) dependency rather than a
 # `[dev-dependencies]` entry.
-miden-testing = { version = "=0.17.0-rc.7", optional = true }
+miden-testing = { version = "=0.17.0-rc.9", optional = true }
 
 [dev-dependencies]
 # For the async MockChain round-trip tests (`tests/roundtrip_0_17.rs`): `ExecutedTransaction`

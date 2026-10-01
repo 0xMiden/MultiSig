@@ -1,9 +1,10 @@
-// Round-trip guard (Task 8 of the 0.17 port): the vendored `usdcx-admin-notes` wasm bindings were
-// built against miden-protocol 0.17.0-rc.7 (matching `xusdc-encoding`/the faucet), while this
-// frontend's `@miden-sdk/miden-sdk` is pinned to 0.17.0-rc.4. There was a KNOWN `Note`
-// serialization break earlier in the 0.17 rc line (rc.4 explicitly rejects rc.1 bytes), so this
-// test exists to prove — not assume — that rc.7-built admin-note bytes still deserialize cleanly
-// under the frontend's rc.4 `Note.deserialize`.
+// Round-trip guard: the vendored `usdcx-admin-notes` wasm bindings are built against the
+// miden-protocol version of the deployed faucet (`miden-usdcx`, pinned in the crate's Cargo.toml),
+// while this frontend's `@miden-sdk/miden-sdk` is pinned separately in package.json. `Note`
+// serialization has broken between 0.17 release candidates more than once (an SDK on an older rc
+// rejects newer bytes with `HASHLESS flag is set`), so this test exists to prove — not assume —
+// that the admin-note bytes deserialize under the frontend's `Note.deserialize`. When it fails
+// after a bump on either side, the two are on incompatible protocol versions.
 //
 // See `.superpowers/sdd/2026-09-30-usdcx-admin-notes-0.17-port/task-8-brief.md`.
 import { readFileSync } from 'node:fs';

@@ -14,12 +14,12 @@ use miden_protocol::block::FeeParameters;
 use miden_protocol::{Felt, Word};
 use miden_standards::account::access::RoleBasedAccessControl;
 use miden_testing::MockChain;
-use xusdc_encoding::account::xreserve::XReserveStablecoinBuilder;
-use xusdc_encoding::build_faucet_account;
-use xusdc_encoding::xreserve::encoding::CircleDomain;
+use miden_usdcx::account::xreserve::XReserveStablecoinBuilder;
+use miden_usdcx::build_faucet_account;
+use miden_usdcx::xreserve::encoding::CircleDomain;
 
 /// A deterministic dummy `AccountId`, distinguished only by `seed`. Mirrors the
-/// `xusdc-encoding` test-support convention (`tests/support/mod.rs::test_account_id`).
+/// `miden-usdcx` test-support convention (`tests/support/mod.rs::test_account_id`).
 fn dummy_account_id(seed: u8) -> AccountId {
     AccountId::dummy(
         [seed; 15],
@@ -39,7 +39,7 @@ fn dummy_fee_faucet_id() -> AccountId {
     )
 }
 
-/// Builds a USDCx faucet `Account` (via upstream `xusdc-encoding`'s production
+/// Builds a USDCx faucet `Account` (via upstream `miden-usdcx`'s production
 /// `XReserveStablecoinBuilder`, through its `build_faucet_account` entry point) with the built-in
 /// `ADMIN` role granted to `holder` alone. The four operational sub-roles (`ATTEST_ADMIN`,
 /// `DOM_PAUSER`, `DOM_UNPAUSER`, `BLK_MANAGER`) are seeded empty — irrelevant to this fixture.
@@ -154,7 +154,7 @@ pub fn other_account() -> AccountId {
 
 /// A `miden_testing::MockChain` seeded with a real 0.17 USDCx faucet — the production
 /// `XReserveStablecoinBuilder` composition plus the production keyless `AuthNetworkAccount`
-/// (exactly the shape [`xusdc_encoding::build_faucet_account`] assembles; this fixture composes it
+/// (exactly the shape [`miden_usdcx::build_faucet_account`] assembles; this fixture composes it
 /// manually only to reach `Account::builder(..).build_existing()`, an "already deployed" account
 /// with no seed and nonce one, which is what a `MockChain` genesis account requires; the plain
 /// `build_faucet_account` shape carries a seed and nonce zero — an undeployed account — and
