@@ -50,7 +50,7 @@ export function useFaucetRoles(): RolesState {
           const rpc = new RpcClient(new Endpoint(MIDEN_RPC_URL));
           try {
             const fetched = await rpc.getAccountDetails(AccountId.fromHex(faucetId));
-            faucetAccount = fetched.account();
+            faucetAccount = fetched.account() ?? null;
           } finally {
             rpc.free();
           }
