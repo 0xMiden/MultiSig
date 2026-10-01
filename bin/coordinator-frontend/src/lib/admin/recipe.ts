@@ -1,5 +1,4 @@
-import { Word } from '@miden-sdk/miden-sdk';
-import { deriveP2idSerialNumber } from '@openzeppelin/miden-multisig-client/dist/transaction/p2id';
+import { FeltArray, Poseidon2, Word } from '@miden-sdk/miden-sdk';
 
 /**
  * The set of admin actions the USDCx admin console can propose. This is the
@@ -59,12 +58,18 @@ export interface AdminRecipe {
 const LABEL_PREFIX = 'usdcx.v1.';
 
 /**
- * Derives the deterministic P2ID serial number for an admin note from its
- * salt. Deterministic in the salt: the same salt always produces the same
- * bytes, and different salts produce different bytes.
+ * Derives a deterministic serial number for an admin note from its salt,
+ * via the public `@miden-sdk/miden-sdk` barrel (`Poseidon2.hashElements`).
+ * This intentionally does not reuse OpenZeppelin's `deriveP2idSerialNumber`
+ * (a deep, non-exported subpath import that `tsc`/webpack's exports-map
+ * enforcement rejects in the production build) — the admin serial only
+ * needs to be deterministic in the salt, not bit-identical to the P2ID
+ * derivation, since nothing round-trips this value through the OZ SDK.
+ * Deterministic in the salt: the same salt always produces the same bytes,
+ * and different salts produce different bytes.
  */
 export function deriveAdminSerial(saltHex: string): Uint8Array {
-  return deriveP2idSerialNumber(Word.fromHex(saltHex)).serialize();
+  return Poseidon2.hashElements(new FeltArray(Word.fromHex(saltHex).toFelts())).serialize();
 }
 
 function base64UrlEncode(input: string): string {
@@ -94,8 +99,7 @@ function base64UrlDecode(input: string): string {
  * into the recipe on decode).
  */
 export function encodeRecipeLabel(r: AdminRecipe): string {
-  const rest: Omit<AdminRecipe, 'noteIdHex'> & { noteIdHex?: string } = { ...r };
-  delete rest.noteIdHex;
+  const { noteIdHex: _omit, ...rest } = r;
   return LABEL_PREFIX + base64UrlEncode(JSON.stringify(rest));
 }
 
