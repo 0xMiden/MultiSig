@@ -24,10 +24,10 @@ export type AdminAction =
 export type AdminActionArgs =
   | { action: 'set_max_supply'; maxSupply: string }
   | { action: 'set_min_burn'; minBurn: string }
-  | { action: 'set_note_fee'; noteFee: string }
+  | { action: 'set_note_fee'; noteScriptRoot: string; feeAmount: string }
   | { action: 'rbac_grant'; role: string; accountId: string }
   | { action: 'rbac_revoke'; role: string; accountId: string }
-  | { action: 'set_attester'; attesterId: string }
+  | { action: 'set_attester'; commitment: string; enabled: boolean }
   | { action: 'pause' }
   | { action: 'unpause' }
   | { action: 'blocklist'; accountId: string; blocked: boolean };
