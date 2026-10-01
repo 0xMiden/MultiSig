@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AccountId, Endpoint, RpcClient, type Account } from '@miden-sdk/miden-sdk';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { getAdminConfig } from '@/config/adminConfig';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
 import { evaluateRoles, type Role } from '@/lib/admin/roles';
-import { MIDEN_RPC_URL } from '@/config/psm';
+import { fetchFaucetBytes } from '@/lib/admin/faucetAccount';
 
 export type RolesState =
   | { status: 'loading' }
@@ -45,21 +44,7 @@ export function useFaucetRoles(): RolesState {
 
         const accountHex = multisig.account.id().toString();
 
-        let faucetAccount: Account | null = await midenClient.accounts.get(faucetId);
-        if (!faucetAccount) {
-          const rpc = new RpcClient(new Endpoint(MIDEN_RPC_URL));
-          try {
-            const fetched = await rpc.getAccountDetails(AccountId.fromHex(faucetId));
-            faucetAccount = fetched.account() ?? null;
-          } finally {
-            rpc.free();
-          }
-        }
-        if (!faucetAccount) {
-          throw new Error(`Could not read the faucet account ${faucetId}: account state is private`);
-        }
-
-        const faucetBytes = faucetAccount.serialize();
+        const faucetBytes = await fetchFaucetBytes(midenClient, faucetId);
         const roles = evaluateRoles(faucetBytes, accountHex);
         if (!cancelled) setState({ status: 'ready', roles });
       } catch (err) {
