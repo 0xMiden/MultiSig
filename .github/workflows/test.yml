@@ -54,13 +54,23 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:roundtrip
       - run: npm run test:ledger
+      - run: npm run test:admin
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       # Fake-device Ledger session suite: no external services needed.
       - name: Ledger session suite
         run: npm run test:ledger:ui
-      - name: Build
+      - name: Build (wallet mode)
         run: npm run build
       # Production build: loads the real USB SDK and opens the Ledger dialog.
       - name: Production app suite
         run: npm run test:ledger:app
+      # Compiles the USDCx admin console under `next build`, including the
+      # vendored admin wasm `?url` asset import — the ultimate compile gate
+      # for the admin app mode (see docs/DEPLOY_VERCEL.md).
+      - name: Build (admin mode)
+        env:
+          NEXT_PUBLIC_APP_MODE: admin
+          NEXT_PUBLIC_USDCX_FAUCET_ID: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          NEXT_PUBLIC_USDCX_FEE_FAUCET_ID: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        run: npm run build
