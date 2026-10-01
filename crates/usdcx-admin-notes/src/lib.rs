@@ -15,7 +15,7 @@
 //!
 //! See `docs/usdcx-admin-notes-spec.md`.
 
-use miden_protocol::account::{Account, AccountId, RoleSymbol, StorageMapKey};
+use miden_protocol::account::{Account, AccountId, RoleSymbol, StorageMapKey, StorageSlotContent};
 use miden_protocol::asset::{AssetAmount, FungibleAsset};
 use miden_protocol::crypto::rand::RandomCoin;
 use miden_protocol::errors::NoteError;
@@ -93,6 +93,34 @@ pub fn account_has_role(faucet: &Account, account: AccountId, role: &RoleSymbol)
         Ok(value) => value[0] == Felt::ONE,
         Err(_) => false,
     }
+}
+
+/// Returns every account id currently holding `role` in the RBAC role-membership map of the given
+/// faucet `account` (the standards RBAC layout: membership key `[0, role_symbol, acct_suffix,
+/// acct_prefix] -> [1, 0, 0, 0]` — see [`account_has_role`]). Scans the map's entries directly
+/// (rather than probing membership one account at a time), which is what counting current `ADMIN`
+/// holders for the "last admin" guardrail requires.
+///
+/// Returns an empty `Vec` if the role-membership slot is absent, or is not a storage map (both
+/// should be impossible for a production faucet account, but this mirrors [`account_has_role`]'s
+/// fail-safe-false behavior rather than panicking on a malformed account).
+pub fn rbac_role_members(account: &Account, role: &RoleSymbol) -> Vec<AccountId> {
+    let Some(slot) = account.storage().get(RoleBasedAccessControl::role_membership_slot()) else {
+        return Vec::new();
+    };
+    let StorageSlotContent::Map(map) = slot.content() else {
+        return Vec::new();
+    };
+
+    map.entries()
+        .filter_map(|(key, value)| {
+            let elements = key.as_elements();
+            if elements[1] != role.as_element() || value[0] != Felt::ONE {
+                return None;
+            }
+            AccountId::try_from_elements(elements[2], elements[3]).ok()
+        })
+        .collect()
 }
 
 fn amount(value: u64) -> Result<AssetAmount, AdminNoteError> {

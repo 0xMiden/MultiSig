@@ -19,3 +19,17 @@ fn account_has_role_true_when_member() {
         &usdcx_admin_notes::admin_role()
     ));
 }
+
+/// [`usdcx_admin_notes::rbac_role_members`] must enumerate ALL current `ADMIN` holders by scanning
+/// the RBAC role-membership map, not just report a single genesis owner (what
+/// [`usdcx_admin_notes::account_has_role`] can tell you one account at a time). This is the
+/// primitive the frontend's mandatory "last-ADMIN" guardrail counts on.
+#[test]
+fn rbac_role_members_lists_admins() {
+    let (faucet, admin_a, admin_b) = usdcx_admin_notes::testing::faucet_with_two_admins();
+    let members = usdcx_admin_notes::rbac_role_members(&faucet, &usdcx_admin_notes::admin_role());
+    let ids: std::collections::HashSet<_> = members.iter().map(|id| id.to_hex()).collect();
+    assert!(ids.contains(&admin_a.to_hex()));
+    assert!(ids.contains(&admin_b.to_hex()));
+    assert_eq!(ids.len(), 2);
+}

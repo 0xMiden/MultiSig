@@ -45,6 +45,20 @@ pub fn account_has_role(
     Ok(builders::account_has_role(&faucet, acct(account_hex)?, &role))
 }
 
+/// Returns the hex account ids of every current holder of `role` on the faucet, given the
+/// faucet's serialized `Account` bytes (same fetch path as [`account_has_role`]). Used to drive
+/// the frontend's mandatory "last-ADMIN" guardrail, which `account_has_role`'s one-account-at-a-
+/// time boolean cannot support.
+#[wasm_bindgen]
+pub fn rbac_role_members(faucet_account: &[u8], role: &str) -> Result<Vec<String>, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    let role = builders::role_symbol(role).map_err(js)?;
+    Ok(builders::rbac_role_members(&faucet, &role)
+        .iter()
+        .map(|id| id.to_hex())
+        .collect())
+}
+
 // --- stock admin notes -----------------------------------------------------
 
 /// Build a `set_max_supply` note. Returns serialized `Note` bytes.

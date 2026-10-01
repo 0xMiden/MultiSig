@@ -19,6 +19,7 @@ import {
   build_set_max_supply,
   build_set_min_burn,
   build_set_note_fee,
+  rbac_role_members,
 } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 
 // Dummy account ids / bytes dumped from the Rust crate's own `testing` fixtures
@@ -116,4 +117,13 @@ describe('every admin note deserializes under @miden-sdk 0.17', () => {
     );
     expect(() => Note.deserialize(bytes)).not.toThrow();
   });
+});
+
+// Export-survival smoke check (Task 2 of the usdcx-admin-console-frontend plan): `rbac_role_members`
+// is the primitive the frontend's mandatory "last-ADMIN" guardrail counts on (the shipped wasm only
+// had a boolean `account_has_role`, which can't count role holders). This only proves the export
+// survived re-vendoring into `@/lib/usdcxAdminWasm` — the Rust-side behavior (the RBAC map scan
+// itself) is covered by `usdcx-admin-notes`'s own `rbac_role_members_lists_admins` test.
+test('rbac_role_members survives vendoring', () => {
+  expect(typeof rbac_role_members).toBe('function');
 });

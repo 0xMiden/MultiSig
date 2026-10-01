@@ -6,9 +6,13 @@
 //! dependency rather than compiling it with `cfg(test)` set; the feature is what makes this
 //! module visible to them (enabled via the self-referential `[dev-dependencies]` entry).
 
-use miden_protocol::account::{Account, AccountId, AccountIdVersion, AccountType, AssetCallbackFlag};
+use miden_protocol::account::{
+    Account, AccountId, AccountIdVersion, AccountType, AssetCallbackFlag, StorageMapKey,
+};
 use miden_protocol::asset::{AssetAmount, AssetId};
 use miden_protocol::block::FeeParameters;
+use miden_protocol::{Felt, Word};
+use miden_standards::account::access::RoleBasedAccessControl;
 use miden_testing::MockChain;
 use xusdc_encoding::account::xreserve::XReserveStablecoinBuilder;
 use xusdc_encoding::build_faucet_account;
@@ -61,6 +65,55 @@ pub fn faucet_with_admin() -> (Account, AccountId, AccountId) {
     .expect("the production faucet builder should succeed for a minimal RBAC seed");
 
     (faucet, holder, other)
+}
+
+/// Builds a USDCx faucet `Account` (same production builder as [`faucet_with_admin`]) with the
+/// built-in `ADMIN` role granted to TWO accounts: `admin_a` is seeded as the faucet's sole `owner`
+/// at construction time (the production [`XReserveStablecoinBuilder`] only accepts a single
+/// `ADMIN` holder at genesis — see its `owner` field), and `admin_b` is granted `ADMIN` afterward
+/// by writing directly into the RBAC role-membership map via [`miden_protocol::account::AccountStorage::set_map_item`]
+/// (mirroring the exact key layout [`crate::account_has_role`] reads: `[0, role_symbol,
+/// acct_suffix, acct_prefix] -> [1, 0, 0, 0]`).
+///
+/// Exercises [`crate::rbac_role_members`], which must enumerate every current `ADMIN` holder, not
+/// just the genesis owner.
+///
+/// Returns `(faucet, admin_a, admin_b)`.
+pub fn faucet_with_two_admins() -> (Account, AccountId, AccountId) {
+    let admin_a = dummy_account_id(1);
+    let admin_b = dummy_account_id(2);
+
+    let mut faucet = build_faucet_account(
+        [0u8; 32],
+        AssetAmount::new(1_000_000).expect("1_000_000 is a valid token supply"),
+        admin_a,
+        Vec::new(), // attest_admin_holders
+        Vec::new(), // pauser_holders
+        Vec::new(), // unpauser_holders
+        Vec::new(), // blocklist_manager_holders
+        FeeParameters::new(0),
+        AssetId::new_fungible(dummy_fee_faucet_id()),
+        CircleDomain::MIDEN,
+    )
+    .expect("the production faucet builder should succeed for a minimal RBAC seed");
+
+    let admin_role = RoleBasedAccessControl::admin_role();
+    let key = StorageMapKey::new(Word::from([
+        Felt::ZERO,
+        admin_role.as_element(),
+        admin_b.suffix(),
+        admin_b.prefix().as_felt(),
+    ]));
+    faucet
+        .storage_mut()
+        .set_map_item(
+            RoleBasedAccessControl::role_membership_slot(),
+            key,
+            Word::from([Felt::ONE, Felt::ZERO, Felt::ZERO, Felt::ZERO]),
+        )
+        .expect("granting ADMIN to a second holder directly in the RBAC role-membership map");
+
+    (faucet, admin_a, admin_b)
 }
 
 /// A deterministic `(faucet, sender)` pair of `AccountId`s for exercising the stock

@@ -49,6 +49,14 @@ export function build_set_min_burn(faucet_hex: string, sender_hex: string, min_b
  */
 export function build_set_note_fee(faucet_hex: string, sender_hex: string, note_script_root: Uint8Array, fee_faucet_hex: string, fee_amount: bigint, serial: Uint8Array): Uint8Array;
 
+/**
+ * Returns the hex account ids of every current holder of `role` on the faucet, given the
+ * faucet's serialized `Account` bytes (same fetch path as [`account_has_role`]). Used to drive
+ * the frontend's mandatory "last-ADMIN" guardrail, which `account_has_role`'s one-account-at-a-
+ * time boolean cannot support.
+ */
+export function rbac_role_members(faucet_account: Uint8Array, role: string): string[];
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -62,10 +70,12 @@ export interface InitOutput {
   readonly build_set_max_supply: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
   readonly build_set_min_burn: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
   readonly build_set_note_fee: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
+  readonly rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __externref_table_dealloc: (a: number) => void;
+  readonly __externref_drop_slice: (a: number, b: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_start: () => void;
 }
