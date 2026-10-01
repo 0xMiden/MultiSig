@@ -6,13 +6,25 @@ import { useRouter, usePathname } from "next/navigation";
 import media from "../../../../public/media";
 import { SidebarPage } from "@/types";
 import { clearWalletCookie } from "@/lib/walletCookie";
+import { isAdminMode } from "@/config/appMode";
 
-const sidebarPages: SidebarPage[] = [
+// Admin builds present the admin mask only — Home/Assets are end-user wallet
+// surfaces and are gated at the route level too (see src/middleware.ts and
+// src/lib/admin/routeGuard.ts), so they're dropped from the nav here as well.
+const adminSidebarPages: SidebarPage[] = [
+  { pageName: "Admin", path: "/dashboard/admin", pageIcon: media.peopleIcon },
+  { pageName: "Transactions", path: "/dashboard/transactions", pageIcon: media.transactionsIcon },
+  { pageName: "Settings", path: "/dashboard/settings", pageIcon: media.settingsIcon },
+];
+
+const walletSidebarPages: SidebarPage[] = [
   { pageName: "Home", path: "/dashboard/home", pageIcon: media.HomeIcon },
   { pageName: "Assets", path: "/dashboard/assets", pageIcon: media.assetsIcon },
   { pageName: "Transactions", path: "/dashboard/transactions", pageIcon: media.transactionsIcon },
   { pageName: "Settings", path: "/dashboard/settings", pageIcon: media.settingsIcon },
 ];
+
+const sidebarPages: SidebarPage[] = isAdminMode ? adminSidebarPages : walletSidebarPages;
 
 interface SidebarProps {
   collapsed: boolean;

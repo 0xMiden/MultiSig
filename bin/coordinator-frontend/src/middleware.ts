@@ -8,6 +8,8 @@ import {
   PARA_ENVIRONMENT,
 } from '@/config/psm';
 import { buildContentSecurityPolicy } from '@/lib/securityHeaders';
+import { isAdminMode } from '@/config/appMode';
+import { adminRouteGuard } from '@/lib/admin/routeGuard';
 
 // Pages get a per-request nonce so Next.js can mark its own inline scripts as
 // trusted; everything else inline is refused.
@@ -60,6 +62,14 @@ export function middleware(request: NextRequest) {
   // Redirect /dashboard to /dashboard/home
   if (pathname === '/dashboard') {
     return NextResponse.redirect(new URL('/dashboard/home', request.url));
+  }
+
+  // App-mode gating: the admin build must present the admin mask (not the
+  // end-user wallet) and vice-versa, enforced here at the route level rather
+  // than only by hiding nav links. See `src/lib/admin/routeGuard.ts`.
+  const appModeGuard = adminRouteGuard(pathname, isAdminMode);
+  if (appModeGuard) {
+    return NextResponse.redirect(new URL(appModeGuard.redirectTo, request.url));
   }
 
   // Allow access in all other cases

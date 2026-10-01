@@ -11,6 +11,7 @@ import { DashboardUIProvider, useDashboardUI } from "@/contexts/DashboardUIConte
 import type { ActionType } from "medina-agent";
 import "medina-agent/styles.css";
 import AccountStatusBanner from "./components/AccountStatusBanner";
+import { isAdminMode } from "@/config/appMode";
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT?.trim() ?? "";
 
@@ -80,8 +81,14 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
         </main>
       </div>
 
-      <SendModal open={isSendModalOpen} onClose={closeSendModal} />
-      <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
+      {/* Send/Receive are end-user wallet surfaces — never mount them in the
+          admin build (the admin build never needs to move funds this way). */}
+      {!isAdminMode && (
+        <>
+          <SendModal open={isSendModalOpen} onClose={closeSendModal} />
+          <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
+        </>
+      )}
 
       {ChatLauncher && (
         <ChatLauncher
