@@ -1,11 +1,22 @@
 import { readFileSync } from 'node:fs';
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { Note } from '@miden-sdk/miden-sdk';
 import type { Proposal } from '@openzeppelin/miden-multisig-client';
 import { initSync } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 import { __setInitializedForTests, buildAdminNoteBytes } from '@/lib/admin/noteBuilders';
 import { deriveStateFromProposal, resolveAdminNoteId } from '@/lib/admin/consumption';
 import type { AdminRecipe } from '@/lib/admin/recipe';
+
+// Wraps the real `buildAdminNoteBytes` in a `vi.fn` (delegating to the actual implementation, so
+// every other test here still gets real, deserializable note bytes) purely so calls to it can be
+// observed -- this is what makes "never calls the note builder when noteIdHex is present" (and
+// its contrasting case below) a genuine assertion instead of an inference from the return value.
+// `vi.mock` calls are hoisted above imports by vitest, so the `buildAdminNoteBytes` imported above
+// is already this mocked version.
+vi.mock('@/lib/admin/noteBuilders', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/admin/noteBuilders')>();
+  return { ...actual, buildAdminNoteBytes: vi.fn(actual.buildAdminNoteBytes) };
+});
 
 // Same dummy account ids as `tests/admin/noteBuilders.test.ts` (dumped from the Rust crate's own
 // `testing` fixtures), so these are proven-valid inputs for `buildAdminNoteBytes`.
@@ -19,6 +30,11 @@ beforeAll(() => {
     ),
   });
   __setInitializedForTests();
+});
+
+beforeEach(() => {
+  // Each test's assertions on `buildAdminNoteBytes` are about calls made within that test only.
+  vi.mocked(buildAdminNoteBytes).mockClear();
 });
 
 function recipe(overrides: Partial<AdminRecipe> = {}): AdminRecipe {
@@ -130,10 +146,18 @@ describe('resolveAdminNoteId', () => {
   it('never calls the note builder when noteIdHex is already present', () => {
     const r = recipe({ noteIdHex: '0xdeadbeef' });
     expect(resolveAdminNoteId(r)).toBe('0xdeadbeef');
-    // Sanity that the builder would have produced a *different* id for this recipe, so this
-    // assertion is not vacuous -- if resolveAdminNoteId silently rebuilt, it would not return
-    // the literal '0xdeadbeef' we set above.
-    const rebuilt = Note.deserialize(buildAdminNoteBytes(r)).id().toString();
-    expect(rebuilt).not.toBe('0xdeadbeef');
+    // Genuine observation of the builder itself (`buildAdminNoteBytes` is a `vi.fn` spy wrapping
+    // the real implementation -- see the `vi.mock` above), not an inference from the return
+    // value: resolveAdminNoteId must short-circuit entirely on the noteIdHex path.
+    expect(buildAdminNoteBytes).not.toHaveBeenCalled();
+  });
+
+  it('calls the note builder when noteIdHex is absent (contrasting case)', () => {
+    const r = recipe();
+    const id = resolveAdminNoteId(r);
+    expect(buildAdminNoteBytes).toHaveBeenCalledTimes(1);
+    expect(buildAdminNoteBytes).toHaveBeenCalledWith(r);
+    // And the id it returns is in fact derived from that call's result.
+    expect(id).toBe(Note.deserialize(vi.mocked(buildAdminNoteBytes).mock.results[0].value).id().toString());
   });
 });
