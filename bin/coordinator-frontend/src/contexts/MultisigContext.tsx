@@ -15,6 +15,7 @@ import {
   type Multisig,
   type MultisigClient,
   type AccountState,
+  type SyncStateResult,
   type DetectedMultisigConfig,
   type Proposal,
   type SignatureScheme,
@@ -45,6 +46,7 @@ import {
   loadPendingMultisigAccount,
   createSigner,
   registerAccountNoteTag,
+  privateNoteIdsToDeliver,
   relayProposalNotes,
   registerAccountOnNode,
 } from "@/lib/multisigApi";
@@ -327,8 +329,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   latestLedgerSigner.current = ledger.signer;
   // Pull Guardian state (unless the caller already has it), proposals and notes
   // for a multisig, and publish them with the account's config.
-  const refreshAccount = useCallback(async (ms: Multisig, knownState?: AccountState) => {
-    const state = knownState ?? await ms.syncState();
+  const refreshAccount = useCallback(async (ms: Multisig, knownSync?: SyncStateResult) => {
+    const sync = knownSync ?? await ms.syncState();
+    // `local` means Guardian had nothing newer and the sync skipped its state fetch;
+    // fetch it here so `guardianState` still holds what Guardian has.
+    const state = sync.source === "guardian" ? sync.state : await ms.fetchState();
     const [synced, notes] = await Promise.all([ms.syncProposals(), ms.getConsumableNotes()]);
     setGuardianState(state);
     setDetectedConfig(AccountInspector.fromAccount(ms.account));
@@ -1431,21 +1436,20 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
         executing = { id: fresh.id, nonce: fresh.nonce };
 
-        // A private note must reach its recipient before the transaction that
-        // commits it runs; otherwise the funds land in a note nobody can use.
-        // Nothing has been sent to Guardian yet, so a failure here locks nothing.
+        // A private note has to be delivered to its recipient, or the funds land in a
+        // note nobody can use. The note transport only takes a note with its inclusion
+        // proof, which exists once the transaction is committed, so delivery happens
+        // after execution (below). What can be checked up front is that there is a
+        // private note to deliver and a client to deliver it with; nothing has been
+        // sent to Guardian yet, so a failure here locks nothing.
+        let privateDelivery: { noteIds: string[]; recipientId: string } | undefined;
         if (fresh.metadata.proposalType === "p2id" && fresh.metadata.noteType === "private") {
           if (!midenClient) throw new Error("The Miden client is not ready to deliver the private note.");
-          try {
-            await relayProposalNotes(midenClient, fresh.txSummary, fresh.metadata.recipientId);
-          } catch (relayError) {
-            throw new Error(
-              `Could not deliver the private note to the recipient, so the transfer was not executed. ` +
-                `Try again. (${relayError instanceof Error ? relayError.message : String(relayError)})`,
-            );
-          }
+          privateDelivery = {
+            noteIds: privateNoteIdsToDeliver(fresh.txSummary),
+            recipientId: fresh.metadata.recipientId,
+          };
         }
-
 
         // Built-ins execute via Guardian's own signed-proposal pipeline. A CUSTOM admin
         // proposal (e.g. a USDCx admin action) instead needs its deterministic request
@@ -1477,6 +1481,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             await handleLocalStateAhead(multisig, message);
           } finally {
             setSyncingState(false);
+          }
+        }
+
+        // The transfer is executed; a delivery failure must not be reported (or
+        // handled) as a failed execution, so it is caught here and not rethrown.
+        if (privateDelivery && midenClient) {
+          try {
+            await relayProposalNotes(midenClient, privateDelivery.noteIds, privateDelivery.recipientId);
+            toast.success("Private note delivered to the recipient");
+          } catch (relayError) {
+            const message =
+              `The transfer was executed, but the private note could not be delivered to the recipient, ` +
+              `who cannot use the funds until it is. ` +
+              `(${relayError instanceof Error ? relayError.message : String(relayError)})`;
+            setError(message);
+            toast.error(message);
           }
         }
       } catch (err) {
