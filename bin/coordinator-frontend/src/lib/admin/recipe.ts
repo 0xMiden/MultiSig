@@ -55,7 +55,11 @@ export interface AdminRecipe {
   noteIdHex?: string;
 }
 
-const LABEL_PREFIX = 'usdcx.v1.';
+// The label is carried in the OpenZeppelin custom proposal's `proposalType`, which the client
+// validates against `^[a-z0-9_]+$` and lowercases before storing as `rawProposalType`. So the
+// prefix uses `_` separators (not `.`) and the payload is base32 over [a-z2-7] (not base64url,
+// which has `-`, `_`, and case) -- every character survives both the regex and the lowercasing.
+const LABEL_PREFIX = 'usdcx_v1_';
 
 /**
  * Derives a deterministic serial number for an admin note from its salt,
@@ -72,40 +76,73 @@ export function deriveAdminSerial(saltHex: string): Uint8Array {
   return Poseidon2.hashElements(new FeltArray(Word.fromHex(saltHex).toFelts())).serialize();
 }
 
-function base64UrlEncode(input: string): string {
-  const base64 =
-    typeof Buffer !== 'undefined'
-      ? Buffer.from(input, 'utf-8').toString('base64')
-      : btoa(unescape(encodeURIComponent(input)));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+// RFC 4648 base32, lowercase, no padding. The alphabet is [a-z2-7], a subset of the custom
+// proposal type's permitted [a-z0-9_], and lowercasing it is a no-op -- so a base32 payload passes
+// the OpenZeppelin `createCustomProposal` validation and round-trips through its `toLowerCase()`.
+const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
+
+function utf8ToBytes(input: string): Uint8Array {
+  return typeof Buffer !== 'undefined'
+    ? new Uint8Array(Buffer.from(input, 'utf-8'))
+    : new TextEncoder().encode(input);
 }
 
-function base64UrlDecode(input: string): string {
-  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = base64.length % 4;
-  if (pad === 2) base64 += '==';
-  else if (pad === 3) base64 += '=';
-  else if (pad !== 0) throw new Error('Invalid base64url string');
-
+function bytesToUtf8(bytes: Uint8Array): string {
   return typeof Buffer !== 'undefined'
-    ? Buffer.from(base64, 'base64').toString('utf-8')
-    : decodeURIComponent(escape(atob(base64)));
+    ? Buffer.from(bytes).toString('utf-8')
+    : new TextDecoder().decode(bytes);
+}
+
+function base32Encode(input: string): string {
+  const bytes = utf8ToBytes(input);
+  let bits = 0;
+  let value = 0;
+  let out = '';
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    out += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  }
+  return out;
+}
+
+function base32Decode(input: string): string {
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const ch of input) {
+    const idx = BASE32_ALPHABET.indexOf(ch);
+    if (idx === -1) throw new Error('Invalid base32 character');
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      out.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  return bytesToUtf8(new Uint8Array(out));
 }
 
 /**
- * Encodes a recipe into a note label of the form `usdcx.v1.<base64url>`,
+ * Encodes a recipe into a note label of the form `usdcx_v1_<base32>`,
  * where the payload is the JSON-serialized recipe with `noteIdHex` stripped
  * (it is derived, not part of the signed binding, and must not be fed back
  * into the recipe on decode).
  */
 export function encodeRecipeLabel(r: AdminRecipe): string {
   const { noteIdHex: _omit, ...rest } = r;
-  return LABEL_PREFIX + base64UrlEncode(JSON.stringify(rest));
+  return LABEL_PREFIX + base32Encode(JSON.stringify(rest));
 }
 
 /**
  * Decodes a note label produced by `encodeRecipeLabel`. Returns `null` for
- * any label that is not a `usdcx.v1.` label, or that fails to decode/parse.
+ * any label that is not a `usdcx_v1_` label, or that fails to decode/parse.
  */
 export function decodeRecipeLabel(label: string): AdminRecipe | null {
   if (!label.startsWith(LABEL_PREFIX)) {
@@ -113,7 +150,7 @@ export function decodeRecipeLabel(label: string): AdminRecipe | null {
   }
   try {
     const payload = label.slice(LABEL_PREFIX.length);
-    const json = base64UrlDecode(payload);
+    const json = base32Decode(payload);
     return JSON.parse(json) as AdminRecipe;
   } catch {
     return null;

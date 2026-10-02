@@ -22,7 +22,7 @@ const recipe: AdminRecipe = {
 const FIXED_BYTES = new Uint8Array([1, 2, 3, 4]);
 
 describe('createAdminProposalWith', () => {
-  it('submits the serialized request under a usdcx.v1. label and persists the recipe', async () => {
+  it('submits the serialized request under a usdcx_v1_ label and persists the recipe', async () => {
     const createCustomProposal = vi.fn().mockResolvedValue({ id: 'p1' });
     const ms = { createCustomProposal };
     const built = {
@@ -36,7 +36,7 @@ describe('createAdminProposalWith', () => {
     const [bytes, label, opts] = createCustomProposal.mock.calls[0];
     expect(bytes).toBe(FIXED_BYTES);
     expect(typeof label).toBe('string');
-    expect(label.startsWith('usdcx.v1.')).toBe(true);
+    expect(label.startsWith('usdcx_v1_')).toBe(true);
     expect(opts).toEqual({});
 
     // The label never carries noteIdHex (it's derived, not part of the signed binding) — decoding

@@ -65,7 +65,7 @@ function proposal(status: Proposal['status'], signatureCount: number): Proposal 
       signature: {},
       timestamp: new Date().toISOString(),
     })),
-    metadata: { proposalType: 'custom', description: '', rawProposalType: 'usdcx.v1.x' },
+    metadata: { proposalType: 'custom', description: '', rawProposalType: 'usdcx_v1_x' },
     verification: { status: 'unchecked' },
   } as unknown as Proposal;
 }

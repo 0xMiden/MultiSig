@@ -10,10 +10,21 @@ const r: AdminRecipe = {
 
 it('label round-trips', () => {
   const label = encodeRecipeLabel(r);
-  expect(label.startsWith('usdcx.v1.')).toBe(true);
+  expect(label.startsWith('usdcx_v1_')).toBe(true);
   expect(decodeRecipeLabel(label)).toEqual({ ...r });
 });
 it('ignores non-usdcx labels', () => { expect(decodeRecipeLabel('p2id')).toBeNull(); });
+
+// The label is carried in OpenZeppelin's custom-proposal `proposalType`, which is validated
+// against ^[a-z0-9_]+$ and lowercased before storage. A label that fails either silently breaks
+// every admin proposal, so guard both here rather than only in a mocked submitter.
+it('label is lowercase snake_case (passes the OZ proposalType validator)', () => {
+  expect(encodeRecipeLabel(r)).toMatch(/^[a-z0-9_]+$/);
+});
+it('decodes after the label is lowercased (OZ stores proposalType.toLowerCase())', () => {
+  const label = encodeRecipeLabel(r);
+  expect(decodeRecipeLabel(label.toLowerCase())).toEqual({ ...r });
+});
 it('serial is deterministic in the salt', () => {
   const a = deriveAdminSerial(salt), b = deriveAdminSerial(salt);
   expect(Buffer.from(a).toString('hex')).toBe(Buffer.from(b).toString('hex'));
