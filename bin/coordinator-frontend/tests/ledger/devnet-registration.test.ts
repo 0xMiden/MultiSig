@@ -37,8 +37,8 @@ describe('registerDevnetAccount', () => {
     const calls = stubFetch([response(status()), response(Buffer.alloc(0))]);
     let identity: { genesis: string } | undefined;
     await registerDevnetAccount(id, 'guardian', (value) => { identity = value as { genesis: string }; });
-    expect(calls[0].url).toBe('https://rpc.devnet.miden.io/rpc.Api/Status');
-    expect(calls[1].url).toBe('https://rpc.devnet.miden.io/rpc.Api/RegisterAccount');
+    expect(calls[0].url).toBe('https://rpc.devnet.miden.io/miden.node.v1.NodeService/Status');
+    expect(calls[1].url).toBe('https://rpc.devnet.miden.io/miden.node.v1.NodeService/RegisterAccount');
     expect(identity?.genesis).toBe(`0x${genesis.toString('hex')}`);
     expect((calls[1].headers as Record<string, string>).accept)
       .toBe(`application/vnd.miden; version=0.17.0-rc.2; genesis=${identity?.genesis}`);

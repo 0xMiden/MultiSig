@@ -53,7 +53,7 @@ async function call(method: 'Status' | 'RegisterAccount', payload: Uint8Array, a
   const frame = new Uint8Array(5 + payload.length);
   new DataView(frame.buffer).setUint32(1, payload.length);
   frame.set(payload, 5);
-  const response = await fetch(`${DEVNET_RPC}/rpc.Api/${method}`, {
+  const response = await fetch(`${DEVNET_RPC}/miden.node.v1.NodeService/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/grpc-web+proto', 'x-grpc-web': '1', ...(accept ? { accept } : {}) },
     body: frame,
