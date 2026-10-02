@@ -6,6 +6,7 @@ import { Field, ToggleField, textInputClass } from './fields';
 import { parseWordHex } from '@/lib/admin/validation';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -20,8 +21,8 @@ export function SetAttesterForm({ faucetBytesState, inflightRecipes }: GroupProp
   return (
     <AdminActionCard
       action="set_attester"
-      title="Set attester"
-      description="Enables or disables an attester commitment for this faucet."
+      title={ACTION_INFO.set_attester.title}
+      description={ACTION_INFO.set_attester.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'set_attester', commitment: parseWordHex(commitment), enabled })}

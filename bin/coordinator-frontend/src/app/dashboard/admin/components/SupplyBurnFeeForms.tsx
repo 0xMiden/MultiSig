@@ -8,6 +8,7 @@ import { getAdminConfig } from '@/config/adminConfig';
 import { shortFaucetId } from '@/lib/tokenAmounts';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -21,8 +22,8 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
   return (
     <AdminActionCard
       action="set_max_supply"
-      title="Set max supply"
-      description="Sets the faucet's maximum issuable supply, in base units."
+      title={ACTION_INFO.set_max_supply.title}
+      description={ACTION_INFO.set_max_supply.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'set_max_supply', maxSupply: parseU64(maxSupply).toString() })}
@@ -48,8 +49,8 @@ export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps
   return (
     <AdminActionCard
       action="set_min_burn"
-      title="Set min burn"
-      description="Sets the minimum amount that can be burned, in base units."
+      title={ACTION_INFO.set_min_burn.title}
+      description={ACTION_INFO.set_min_burn.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'set_min_burn', minBurn: parseMinBurn(minBurn).toString() })}
@@ -78,8 +79,8 @@ export function SetNoteFeeForm({ faucetBytesState, inflightRecipes }: GroupProps
   return (
     <AdminActionCard
       action="set_note_fee"
-      title="Set note fee"
-      description="Sets the fee required to submit notes using a given note script."
+      title={ACTION_INFO.set_note_fee.title}
+      description={ACTION_INFO.set_note_fee.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({

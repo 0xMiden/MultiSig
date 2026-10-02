@@ -7,6 +7,7 @@ import { normalizeAccountId } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -23,7 +24,7 @@ export function BlocklistForm({ faucetBytesState, inflightRecipes }: GroupProps)
     <AdminActionCard
       action="blocklist"
       title={blocked ? 'Block account' : 'Unblock account'}
-      description="Adds or removes an account from this faucet's blocklist."
+      description={ACTION_INFO.blocklist.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'blocklist', accountId: normalizeAccountId(accountId, cfg.networkId), blocked })}

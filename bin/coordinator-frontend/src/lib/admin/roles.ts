@@ -82,3 +82,31 @@ export const ACTION_LABEL: Record<AdminAction, string> = {
   unpause: 'Unpause the faucet',
   blocklist: 'Block or unblock accounts',
 };
+
+/** Card title and one-line description of each admin action, as shown on the admin page. */
+export const ACTION_INFO: Record<AdminAction, { title: string; description: string }> = {
+  set_max_supply: {
+    title: 'Set max supply',
+    description: "Sets the faucet's maximum issuable supply, in base units.",
+  },
+  set_min_burn: {
+    title: 'Set min burn',
+    description: 'Sets the minimum amount that can be burned, in base units.',
+  },
+  set_note_fee: {
+    title: 'Set note fee',
+    description: 'Sets the fee required to submit notes using a given note script.',
+  },
+  rbac_grant: { title: 'Grant role', description: 'Grants an RBAC role to an account on this faucet.' },
+  rbac_revoke: { title: 'Revoke role', description: 'Revokes an RBAC role from an account on this faucet.' },
+  set_attester: {
+    title: 'Set attester',
+    description: 'Enables or disables an attester commitment for this faucet.',
+  },
+  pause: { title: 'Pause USDCx', description: 'Pauses all transfers and operations on this faucet.' },
+  unpause: { title: 'Unpause USDCx', description: 'Resumes transfers and operations on this faucet.' },
+  blocklist: {
+    title: 'Block or unblock account',
+    description: "Adds or removes an account from this faucet's blocklist.",
+  },
+};

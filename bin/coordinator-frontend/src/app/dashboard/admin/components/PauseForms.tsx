@@ -3,6 +3,7 @@
 import { AdminActionCard } from './AdminActionCard';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -14,8 +15,8 @@ export function PauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
   return (
     <AdminActionCard
       action="pause"
-      title="Pause USDCx"
-      description="Pauses all transfers and operations on this faucet."
+      title={ACTION_INFO.pause.title}
+      description={ACTION_INFO.pause.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'pause' })}
@@ -33,8 +34,8 @@ export function UnpauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
   return (
     <AdminActionCard
       action="unpause"
-      title="Unpause USDCx"
-      description="Resumes transfers and operations on this faucet."
+      title={ACTION_INFO.unpause.title}
+      description={ACTION_INFO.unpause.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => ({ action: 'unpause' })}

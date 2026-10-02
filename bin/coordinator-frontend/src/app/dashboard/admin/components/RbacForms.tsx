@@ -8,6 +8,7 @@ import { getAdminConfig } from '@/config/adminConfig';
 import { ROLES } from '@/lib/admin/roles';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -36,8 +37,8 @@ export function RbacGrantForm({ faucetBytesState, inflightRecipes }: GroupProps)
   return (
     <AdminActionCard
       action="rbac_grant"
-      title="Grant role"
-      description="Grants an RBAC role to an account on this faucet."
+      title={ACTION_INFO.rbac_grant.title}
+      description={ACTION_INFO.rbac_grant.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => {
@@ -74,8 +75,8 @@ export function RbacRevokeForm({ faucetBytesState, inflightRecipes }: GroupProps
   return (
     <AdminActionCard
       action="rbac_revoke"
-      title="Revoke role"
-      description="Revokes an RBAC role from an account on this faucet."
+      title={ACTION_INFO.rbac_revoke.title}
+      description={ACTION_INFO.rbac_revoke.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       buildArgs={() => {
