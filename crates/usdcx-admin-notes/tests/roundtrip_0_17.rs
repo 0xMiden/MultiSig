@@ -14,9 +14,10 @@ use miden_protocol::account::{StorageMapKey, StorageSlotName, StorageSlotPatch};
 use miden_protocol::errors::MasmError;
 use miden_protocol::transaction::ExecutedTransaction;
 use miden_protocol::{Felt, Word};
-use miden_standards::account::access::PausableStorage;
+use miden_standards::account::access::{PausableStorage, RoleBasedAccessControl};
 use miden_standards::account::faucets::FungibleFaucet;
 use miden_standards::account::policies::MinBurnAmount;
+use miden_standards::note::config::RbacConfig;
 use miden_testing::assert_transaction_executor_error;
 use miden_usdcx::account::xreserve::XReserveFaucetExtension;
 
@@ -249,4 +250,55 @@ async fn set_attester_note_from_non_attest_admin_fails_on_0_17_faucet() {
         .await;
 
     assert_transaction_executor_error!(result, err_sender_lacks_role());
+}
+
+/// The current `ADMIN` can grant `ADMIN` itself to another account: the faucet consumes the
+/// grant and writes the grantee into the role-membership map under `ADMIN`. This is how an admin
+/// multisig gets its role on a deployed faucet: the faucet's existing admin sends exactly this
+/// note.
+#[tokio::test]
+async fn admin_can_grant_admin_to_another_account() {
+    let (chain, faucet_id, admin, _pauser, _attest_admin, other) = mock_chain_with_faucet_roles();
+    let admin_role = usdcx_admin_notes::admin_role();
+
+    let grant = usdcx_admin_notes::rbac(
+        faucet_id,
+        admin,
+        RbacConfig::GrantRole { role: admin_role.clone(), account: other },
+        serial(300),
+    )
+    .expect("building the ADMIN grant note");
+
+    let tx = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(grant)
+        .build()
+        .expect("building the grant transaction")
+        .execute()
+        .await
+        .expect("the faucet must accept an ADMIN grant sent by the current ADMIN");
+
+    let StorageSlotPatch::Map(delta) = tx
+        .account_patch()
+        .storage()
+        .get(RoleBasedAccessControl::role_membership_slot())
+        .expect("role-membership slot delta")
+    else {
+        panic!("role membership must be a Map slot delta");
+    };
+    // Same key layout `account_has_role` reads: [0, role, account suffix, account prefix].
+    let key = StorageMapKey::new(Word::from([
+        Felt::ZERO,
+        admin_role.as_element(),
+        other.suffix(),
+        other.prefix().as_felt(),
+    ]));
+    let written = delta
+        .entries()
+        .expect("map patch carries entries")
+        .as_map()
+        .get(&key)
+        .copied()
+        .expect("the grantee's ADMIN membership key must appear in the delta");
+    assert_eq!(written[0], Felt::ONE, "the grantee must be recorded as an ADMIN member");
 }
