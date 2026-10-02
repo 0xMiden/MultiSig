@@ -505,9 +505,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       };
     }
     if (walletSource === "miden-wallet") {
-      if (!midenWalletSession.connected) throw new Error("Connect the Miden Wallet first");
+      if (!midenWalletSession.connected) throw new Error("Connect Bread first");
       if (!midenWalletSession.commitment || !midenWalletSession.scheme) {
-        throw new Error("The Miden Wallet did not share its signing key. Reconnect it and try again");
+        throw new Error("Bread did not share its signing key. Reconnect it and try again");
       }
       return {
         walletSource: "miden-wallet",

@@ -1,6 +1,6 @@
 # Coordinator Frontend
 
-Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Miden Wallet extension, or a Ledger over direct USB.
+Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Bread extension, or a Ledger over direct USB.
 
 ## RC compatibility baseline
 
@@ -22,7 +22,7 @@ This application is configured for Miden **devnet** and communicates directly wi
 - Node.js 20.19 or newer
 - npm
 - A Guardian `0.18.0-rc.2` endpoint configured for the same Miden devnet
-- Optional: Miden Wallet browser extension or a Para API key
+- Optional: Bread browser extension or a Para API key
 
 ## Environment setup
 
@@ -67,7 +67,7 @@ npm run build
 
 This is the **direct USB** integration: browser → WebHID → Ledger Ethereum app.
 There is no Wallet Provider login, Ledger API key, app ID, `dAppIdentifier` or
-`originToken` to configure. Para credentials and the Miden Wallet extension are
+`originToken` to configure. Para credentials and the Bread extension are
 not required for Ledger testing.
 
 ### Prepare and connect
@@ -213,7 +213,7 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - `src/lib/multisigApi.ts` — Guardian/Miden client setup, node registration, and private-note transport
 - `src/lib/proposalActions.ts` — centralized proposal action policy
 - `src/lib/initClient.ts` — browser Miden client and local signer-key initialization
-- `src/hooks/useMidenWallet.ts` — Miden Wallet extension adapter
+- `src/hooks/useMidenWallet.ts` — Bread extension adapter
 - `src/hooks/useParaSession.ts` — Para signer integration
 - `src/config/psm.ts` — runtime endpoint and network configuration
 
@@ -222,5 +222,5 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0-rc.2` on devnet. Restart Next.js after changing `.env.local`.
 - **Old account or decoding errors:** clear this origin's site data, reload, and create a fresh RC account.
 - **Funding note does not appear:** use **Retry funding**. Confirm the RPC is devnet and the invitation code is accepted by that node.
-- **Miden Wallet does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
+- **Bread does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
 - **Para does not appear:** set `NEXT_PUBLIC_PARA_API_KEY` and restart the development server.

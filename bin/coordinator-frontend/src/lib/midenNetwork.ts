@@ -1,6 +1,6 @@
 /**
  * The one Miden network this deployment talks to. Every network-specific
- * choice (RPC, the Miden Wallet's network, the Bech32 address prefix) derives
+ * choice (RPC, Bread's network, the Bech32 address prefix) derives
  * from it, so they cannot disagree.
  */
 export type MidenNetwork = 'devnet' | 'testnet' | 'mainnet' | 'local' | 'custom';

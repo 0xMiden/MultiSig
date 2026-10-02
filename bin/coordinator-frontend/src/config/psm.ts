@@ -11,7 +11,7 @@ const rpcEndpoints: Record<string, string> = {
 };
 const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'devnet';
 export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? configuredRpc;
-// The network identity behind the RPC: the Miden Wallet's network and the
+// The network identity behind the RPC: Bread's network and the
 // Bech32 address prefix follow it (set NEXT_PUBLIC_MIDEN_NETWORK for a custom RPC).
 export const MIDEN_NETWORK: MidenNetwork = resolveMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK, configuredRpc);
 export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';

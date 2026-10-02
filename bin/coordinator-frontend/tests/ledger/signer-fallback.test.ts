@@ -19,7 +19,7 @@ describe('createSigner (review finding 6)', () => {
 
   it('never falls back to a browser key in production builds', async () => {
     const createSigner = await loadCreateSigner(false);
-    expect(() => createSigner(localKeys, 'falcon')).toThrow('Connect a wallet (Ledger, Para or the Miden Wallet) first.');
+    expect(() => createSigner(localKeys, 'falcon')).toThrow('Connect a wallet (Ledger, Para or Bread) first.');
     expect(() => createSigner(null, 'ecdsa', undefined)).toThrow('Connect a wallet');
   });
 

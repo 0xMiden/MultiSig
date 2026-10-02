@@ -17,7 +17,7 @@ export function classifyWalletError(err: unknown): string {
     return 'Signing was cancelled';
   }
   if (lower.includes('walletnotready') || lower.includes('not detected') || lower.includes('not found') || lower.includes('not installed')) {
-    return 'Wallet extension not detected. Please install the Miden Wallet browser extension.';
+    return 'Wallet extension not detected. Please install the Bread browser extension.';
   }
   if (lower.includes('not connected') || lower.includes('no wallet')) {
     return 'Wallet is not connected';

@@ -7,7 +7,7 @@ Multi-signature account management on the [Miden](https://miden.io) network. Mul
 This branch integrates Ledger **directly over USB**, using WebHID and the Ledger
 Ethereum app to sign EIP-712 messages. It does not use Ledger Wallet Provider:
 no Ledger API key, app ID, `dAppIdentifier` or `originToken` is needed. Para
-credentials and the Miden Wallet extension are also unnecessary for this path.
+credentials and the Bread extension are also unnecessary for this path.
 
 ### Run the branch
 
@@ -235,7 +235,7 @@ The frontend supports four wallet sources for signing:
 | **Ledger USB** | ECDSA / EIP-712 | Direct WebHID connection; user selects and confirms an address |
 | **Local keys** | Falcon / ECDSA | Browser-generated keys stored in IndexedDB |
 | **[Para](https://getpara.com)** | ECDSA | External EVM wallets (MetaMask, etc.) via Para SDK |
-| **[Miden Wallet](https://github.com/demox-labs/miden-wallet)** | Falcon / ECDSA | Miden Wallet browser extension |
+| **[Bread](https://github.com/demox-labs/miden-wallet)** | Falcon / ECDSA | Bread browser extension |
 
 ## Workspace Structure
 

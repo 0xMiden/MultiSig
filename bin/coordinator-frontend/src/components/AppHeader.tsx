@@ -84,7 +84,7 @@ export function AppHeader() {
             {walletSource === 'local' && !paraSession.connected && !midenWalletSession.connected && 'LOCAL KEYS'}
             {walletSource === 'local' && paraSession.connected && 'LOCAL (PARA AVAIL)'}
             {walletSource === 'para' && (paraSession.connected ? 'PARA' : 'PARA · NOT CONNECTED')}
-            {walletSource === 'miden-wallet' && (midenWalletSession.connected ? 'MIDEN WALLET' : 'MIDEN WALLET · NOT CONNECTED')}
+            {walletSource === 'miden-wallet' && (midenWalletSession.connected ? 'BREAD' : 'BREAD · NOT CONNECTED')}
             {walletSource === 'ledger' && (ledger.signer ? 'LEDGER ●' : 'LEDGER DISCONNECTED')}
             {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
@@ -149,7 +149,7 @@ export function AppHeader() {
                         walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                       }`}
                     >
-                      MIDEN WALLET (connected)
+                      BREAD (connected)
                     </button>
                     <button
                       onClick={() => disconnectMidenWallet()}
@@ -163,7 +163,7 @@ export function AppHeader() {
                     onClick={() => { connectMidenWallet(); setWalletPopoverOpen(false); }}
                     className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
-                    CONNECT MIDEN WALLET
+                    CONNECT BREAD
                   </button>
                 )}
                 {midenWalletSession.connected && midenWalletSession.commitment && (

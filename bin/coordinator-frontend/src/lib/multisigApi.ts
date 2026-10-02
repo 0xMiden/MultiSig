@@ -109,7 +109,7 @@ export function createSigner(
   // Only the explicit "local keys" source reaches this point; every external
   // source either returned above or was refused by the caller.
   if (!LOCAL_KEYS_ENABLED) {
-    throw new Error('Connect a wallet (Ledger, Para or the Miden Wallet) first.');
+    throw new Error('Connect a wallet (Ledger, Para or Bread) first.');
   }
   if (!signerInfo) throw new Error('Local keys are still being generated. Try again in a moment.');
   const activeSigner = signatureScheme === 'ecdsa' ? signerInfo.ecdsa : signerInfo.falcon;

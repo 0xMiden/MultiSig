@@ -40,7 +40,7 @@ const CreateNewAccount = () => {
   const walletSourceLabel = walletSource === 'ledger' ? 'You (Ledger)' : walletSource === 'para'
     ? 'You (Para)'
     : walletSource === 'miden-wallet'
-      ? 'You (Miden Wallet)'
+      ? 'You (Bread)'
       : 'You (Local)';
 
   // Auto-populate Signer 1 with the active wallet commitment.
@@ -481,7 +481,7 @@ const CreateNewAccount = () => {
                               </div>
                               <div className="flex flex-col space-y-1.5">
                                 {[
-                                  'Open Miden Wallet extension',
+                                  'Open the Bread extension',
                                   'Click Settings icon',
                                   'Click Advanced settings',
                                   'Copy Account public key',

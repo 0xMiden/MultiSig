@@ -58,12 +58,12 @@ const Page = () => {
                   <Image src={Svg.logo} alt="logo" fill objectFit="contain" />
                 </div>
                 <div className="font-geist text-[16px] font-[600] text-[#111]">
-                  Miden Wallet Not Detected
+                  Bread Not Detected
                 </div>
               </div>
               <p className="text-[13px] font-geist text-[rgba(0,0,0,0.6)] leading-relaxed">
-                It looks like you haven&apos;t installed the Miden Wallet browser extension.
-                Install it to use Miden Wallet, or choose Ledger or Para from the wallet menu. Accounts can only be
+                It looks like you haven&apos;t installed the Bread browser extension.
+                Install it to use Bread, or choose Ledger or Para from the wallet menu. Accounts can only be
                 created or loaded with a connected wallet.
               </p>
               <div className="flex flex-col space-y-2">
@@ -73,7 +73,7 @@ const Page = () => {
                   rel="noopener noreferrer"
                   className="h-[44px] w-full flex items-center justify-center bg-[#FF5500] text-white font-geist text-[14px] font-[500] rounded-[8px] hover:bg-[#e04a00] transition-colors"
                 >
-                  Download Miden Wallet
+                  Download Bread
                 </a>
                 <button
                   onClick={() => setShowInstallModal(false)}

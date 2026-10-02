@@ -35,6 +35,8 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     midenWalletSession,
     connectMidenWallet,
     openParaModal,
+    ledger,
+    accountOperationBusy,
   } = useMultisig();
 
   const [isCopied, setIsCopied] = useState(false);
@@ -217,6 +219,19 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 Local
               </button>
             )}
+            {/* Opens the Ledger panel to connect a device or change its address; the
+                source switches to Ledger once an address is confirmed there. */}
+            <button
+              onClick={() => ledger.show()}
+              disabled={accountOperationBusy}
+              className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all disabled:opacity-50 ${
+                walletSource === 'ledger'
+                  ? 'bg-white text-[#FF5500] shadow-xs'
+                  : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
+              }`}
+            >
+              Ledger {ledger.signer ? '(connected)' : ''}
+            </button>
             <button
               onClick={() => {
                 if (paraSession.connected) setWalletSource('para');
@@ -241,7 +256,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
               }`}
             >
-              Wallet {midenWalletSession.connected ? '(connected)' : ''}
+              Bread {midenWalletSession.connected ? '(connected)' : ''}
             </button>
           </div>
         </div>
