@@ -12,7 +12,8 @@ import { isAdminMode } from "@/config/appMode";
 // surfaces and are gated at the route level too (see src/middleware.ts and
 // src/lib/admin/routeGuard.ts), so they're dropped from the nav here as well.
 const adminSidebarPages: SidebarPage[] = [
-  { pageName: "Admin", path: "/dashboard/admin", pageIcon: media.peopleIcon },
+  { pageName: "Admin", path: "/dashboard/admin", pageIcon: media.actionIcon },
+  { pageName: "Roles", path: "/dashboard/admin/roles", pageIcon: media.peopleIcon },
   { pageName: "Transactions", path: "/dashboard/transactions", pageIcon: media.transactionsIcon },
   { pageName: "Settings", path: "/dashboard/settings", pageIcon: media.settingsIcon },
 ];

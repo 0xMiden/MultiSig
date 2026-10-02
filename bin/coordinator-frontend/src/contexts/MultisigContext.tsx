@@ -20,6 +20,7 @@ import {
   type Proposal,
   type SignatureScheme,
   type ProcedureThreshold,
+  type ProcedureName,
   type ParaSigningContext,
   AccountInspector,
   isProposalActionable,
@@ -219,6 +220,8 @@ export interface MultisigContextValue {
     newThreshold?: number,
   ) => Promise<void>;
   handleCreateChangeThresholdProposal: (newThreshold: number) => Promise<void>;
+  /** Proposes a per-procedure signature threshold that overrides the account's default. */
+  handleCreateProcedureThresholdProposal: (procedure: ProcedureName, threshold: number) => Promise<void>;
   handleCreateSwitchGuardianProposal: (
     newEndpoint: string,
     newPubkey: string,
@@ -440,15 +443,21 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     wasMidenConnected.current = midenWalletSession.connected;
   }, [midenWalletSession.connected, setWalletSource]);
 
-  // Attempt to auto-connect external wallets on mount
+  // Attempt to auto-connect external wallets once the Miden client exists. The
+  // wallet's connect handler derives the key commitment with the SDK's WASM,
+  // which is loaded while the client is created; connecting any earlier (on
+  // mount) fails in that handler and leaves the wallet "not connected".
+  const autoConnectAttempted = useRef(false);
   useEffect(() => {
+    if (!midenClient || autoConnectAttempted.current) return;
+    autoConnectAttempted.current = true;
     const savedSource = localStorage.getItem("currentWalletSource");
     if (savedSource === "miden-wallet") {
       connectMidenWalletRaw().catch(() => {
         // Silently ignore auto-connect failures
       });
     }
-  }, [connectMidenWalletRaw]);
+  }, [connectMidenWalletRaw, midenClient]);
 
   // Null means "not connected": an external wallet source never borrows the
   // browser's local key.
@@ -1193,6 +1202,15 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation],
   );
 
+  const handleCreateProcedureThresholdProposal = useCallback(
+    async (procedure: ProcedureName, threshold: number) => {
+      await runProposalCreation("Procedure threshold", (ms) =>
+        ms.createUpdateProcedureThresholdProposal(procedure, threshold),
+      );
+    },
+    [runProposalCreation],
+  );
+
   const handleCreateConsumeNotesProposal = useCallback(
     async (noteIds: string[]) => {
       const selectedNotes = consumableNotes.filter((n) => noteIds.includes(n.id));
@@ -1685,6 +1703,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateAddSignerProposal,
       handleCreateRemoveSignerProposal,
       handleCreateChangeThresholdProposal,
+      handleCreateProcedureThresholdProposal,
       handleCreateSwitchGuardianProposal,
       handleExportProposal,
       handleSignProposalOffline,
@@ -1760,6 +1779,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateAddSignerProposal,
       handleCreateRemoveSignerProposal,
       handleCreateChangeThresholdProposal,
+      handleCreateProcedureThresholdProposal,
       handleCreateSwitchGuardianProposal,
       handleExportProposal,
       handleSignProposalOffline,

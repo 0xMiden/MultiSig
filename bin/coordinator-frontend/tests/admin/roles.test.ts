@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ACTION_ROLE, ROLES, rolesFromChecker, type Role } from '@/lib/admin/roles';
+import { ACTION_ROLE, ROLES, actionsOfRole, holdersFromLister, rolesFromChecker, type Role } from '@/lib/admin/roles';
 
 // Per ruling R-pre1: unit-test only the PURE logic here. `evaluateRoles` wraps
 // `account_has_role` over a real serialized faucet `Account`, which this suite does not attempt
@@ -67,5 +67,33 @@ describe('rolesFromChecker', () => {
     expect(new Set(seen)).toEqual(new Set(ROLES));
     // No duplicate calls for any role.
     expect(seen.length).toBe(new Set(seen).size);
+  });
+});
+
+describe('actionsOfRole', () => {
+  it('lists every action a role unlocks, and each action exactly once across roles', () => {
+    expect(actionsOfRole('ADMIN')).toEqual(['set_max_supply', 'set_min_burn', 'set_note_fee', 'rbac_grant', 'rbac_revoke']);
+    expect(actionsOfRole('DOM_PAUSER')).toEqual(['pause']);
+    expect(actionsOfRole('DOM_UNPAUSER')).toEqual(['unpause']);
+    const all = ROLES.flatMap((role) => actionsOfRole(role));
+    expect(all.sort()).toEqual(Object.keys(ACTION_ROLE).sort());
+  });
+});
+
+describe('holdersFromLister', () => {
+  it('asks for every role once and keeps each role with its own holders', () => {
+    const asked: string[] = [];
+    const holders = holdersFromLister((role) => {
+      asked.push(role);
+      return role === 'ADMIN' ? ['0xaa', '0xbb'] : role === 'BLK_MANAGER' ? ['0xcc'] : [];
+    });
+    expect(asked).toEqual([...ROLES]);
+    expect(holders).toEqual({
+      ADMIN: ['0xaa', '0xbb'],
+      ATTEST_ADMIN: [],
+      DOM_PAUSER: [],
+      DOM_UNPAUSER: [],
+      BLK_MANAGER: ['0xcc'],
+    });
   });
 });

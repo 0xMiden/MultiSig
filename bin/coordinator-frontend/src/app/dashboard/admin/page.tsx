@@ -8,6 +8,7 @@ import { useFaucetAccountBytes } from '@/hooks/useFaucetAccountBytes';
 import { AdminBanner } from '@/components/admin/AdminBanner';
 import { ACTION_ROLE } from '@/lib/admin/roles';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
+import { AdminFundingCard } from './components/AdminFundingCard';
 import { AdminProposalList } from './components/AdminProposalList';
 import { SetMaxSupplyForm, SetMinBurnForm, SetNoteFeeForm } from './components/SupplyBurnFeeForms';
 import { RbacGrantForm, RbacRevokeForm } from './components/RbacForms';
@@ -18,7 +19,7 @@ import { BlocklistForm } from './components/BlocklistForm';
 export const dynamic = 'force-dynamic';
 
 export default function AdminPage() {
-  const { proposals } = useMultisig();
+  const { proposals, multisig } = useMultisig();
   const rolesState = useFaucetRoles();
   const faucetBytesState = useFaucetAccountBytes();
 
@@ -48,8 +49,17 @@ export default function AdminPage() {
   return (
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
       <AdminBanner />
+      <AdminFundingCard />
 
-      {rolesState.status === 'loading' && (
+      {/* Roles are detected for the loaded multisig, so with none loaded there is nothing to
+          wait for: say what is missing instead of spinning. */}
+      {!multisig && (
+        <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
+          No multisig is loaded yet. Connect your wallet (top right) to load it and see the actions its roles allow.
+        </div>
+      )}
+
+      {multisig && rolesState.status === 'loading' && (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-[3px] border-[#FF5500] border-t-transparent rounded-full animate-spin" />

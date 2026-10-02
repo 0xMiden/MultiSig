@@ -62,7 +62,10 @@ export function AdminBanner() {
 
       <div>
         <div className="text-[11px] font-[500] text-[rgba(0,0,0,0.45)] mb-1.5">Detected roles</div>
-        {rolesState.status === 'loading' && (
+        {rolesState.status === 'loading' && !multisig && (
+          <div className="text-[12px] text-[rgba(0,0,0,0.5)]">Load a multisig to detect its roles.</div>
+        )}
+        {rolesState.status === 'loading' && multisig && (
           <div className="flex items-center gap-2 text-[12px] text-[rgba(0,0,0,0.5)]">
             <div className="w-3.5 h-3.5 shrink-0 border-2 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
             Detecting roles…

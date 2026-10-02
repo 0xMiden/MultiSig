@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletForm } from "../../../hooks/useWalletForm";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { isAdminMode } from "@/config/appMode";
+import { adminProcedureThresholds } from "@/lib/admin/accountDefaults";
 import { toast } from "sonner";
 
 // Force dynamic rendering to avoid WASM loading issues during build
@@ -203,7 +205,8 @@ const CreateNewAccount = () => {
         .filter((k: string) => k.trim() !== '');
       const threshold = parseInt(formData.signatureThreshold, 10);
 
-      await handleCreate(otherCommitments, threshold, undefined, activeScheme);
+      const procedureThresholds = isAdminMode ? adminProcedureThresholds(threshold) : undefined;
+      await handleCreate(otherCommitments, threshold, procedureThresholds, activeScheme);
 
       toast.success("Multisig account created successfully!");
       router.push("/dashboard/home");

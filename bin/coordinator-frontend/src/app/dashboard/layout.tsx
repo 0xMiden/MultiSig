@@ -81,14 +81,11 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
         </main>
       </div>
 
-      {/* Send/Receive are end-user wallet surfaces — never mount them in the
-          admin build (the admin build never needs to move funds this way). */}
-      {!isAdminMode && (
-        <>
-          <SendModal open={isSendModalOpen} onClose={closeSendModal} />
-          <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
-        </>
-      )}
+      {/* Sending is an end-user wallet surface and is never mounted in the admin
+          build. Receiving is: an admin multisig pays fees from its own vault, so
+          it has to be able to consume the notes that fund it. */}
+      {!isAdminMode && <SendModal open={isSendModalOpen} onClose={closeSendModal} />}
+      <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
 
       {ChatLauncher && (
         <ChatLauncher
