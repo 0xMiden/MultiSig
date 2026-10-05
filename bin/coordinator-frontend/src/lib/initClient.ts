@@ -80,17 +80,60 @@ export async function clearSignerKeys(): Promise<void> {
   });
 }
 
+/** Deletes the web client's IndexedDB store, resolving even if the delete is blocked. */
+function deleteMidenStore(): Promise<void> {
+  return new Promise((resolve) => {
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.deleteDatabase(MIDEN_DB_NAME);
+    } catch {
+      resolve();
+      return;
+    }
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    // A blocked delete (another tab holds the DB open) still resolves so the
+    // retry can surface the real, actionable error instead of hanging.
+    request.onblocked = () => resolve();
+  });
+}
+
 export async function createMidenClient(rpcUrl = MIDEN_RPC_URL): Promise<MidenClient> {
   // Note: do NOT sync here. Syncing before any note tags are registered
   // advances the cursor past the current tip, causing the client to miss
   // public notes minted before tag registration. Tags are added in
   // handleCreate/handleLoad/handleSync and the first sync happens there.
-  const client = await MidenClient.create({
-    rpcUrl,
-    noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
-    proverUrl: MIDEN_PROVER_URL,
-    storeName: MIDEN_DB_NAME,
-  });
+  const create = () =>
+    MidenClient.create({
+      rpcUrl,
+      noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
+      proverUrl: MIDEN_PROVER_URL,
+      storeName: MIDEN_DB_NAME,
+    });
+
+  let client: MidenClient;
+  try {
+    client = await create();
+  } catch (firstError) {
+    // The web client's IndexedDB store ("IdxdbStore") fails to open when the
+    // database was written by a different web-SDK version — a stale schema from
+    // earlier testing. The multisig's state is reconstructable from Guardian and
+    // the node, so dropping the local store and rebuilding it is safe, and the
+    // only recovery from a store that will not open. Retry exactly once.
+    await deleteMidenStore();
+    try {
+      client = await create();
+    } catch {
+      // The wipe did not help. The usual remaining cause is another tab of this
+      // app holding the database open (which also blocks the delete). Tell the
+      // user what to do; keep the original error for context.
+      const detail = firstError instanceof Error ? firstError.message : String(firstError);
+      throw new Error(
+        `Could not open the local database (${detail}). Close any other tabs of this app and reload; ` +
+          `if it persists, clear this site's data in the browser.`,
+      );
+    }
+  }
   instrumentPublicClient(client);
   return client;
 }
