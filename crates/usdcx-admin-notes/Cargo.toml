@@ -38,17 +38,17 @@ wasm = ["dep:wasm-bindgen", "dep:getrandom"]
 testing = ["dep:miden-testing"]
 
 [dependencies]
-miden-protocol  = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
-miden-standards = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
-miden-tx        = { version = "=0.17.0-rc.9", default-features = false, features = ["std"] }
-miden-usdcx     = { version = "=0.17.0-rc.9" }
+miden-protocol  = { version = "=0.17.0", default-features = false, features = ["std"] }
+miden-standards = { version = "=0.17.0", default-features = false, features = ["std"] }
+miden-tx        = { version = "=0.17.0", default-features = false, features = ["std"] }
+miden-usdcx     = { version = "=0.17.0" }
 thiserror = { version = "2", default-features = false }
 wasm-bindgen = { version = "0.2", optional = true }
 # Force getrandom's browser backend for the wasm build (pulled transitively by k256).
 getrandom = { version = "0.2", features = ["js"], optional = true }
 # See the `testing` feature above for why this is a normal (optional) dependency rather than a
 # `[dev-dependencies]` entry.
-miden-testing = { version = "=0.17.0-rc.9", optional = true }
+miden-testing = { version = "=0.17.0", optional = true }
 
 [dev-dependencies]
 # For the async MockChain round-trip tests (`tests/roundtrip_0_17.rs`): `ExecutedTransaction`
