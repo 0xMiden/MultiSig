@@ -5,6 +5,7 @@ import type { Proposal } from '@openzeppelin/miden-multisig-client';
 import { decodeRecipeLabel } from '@/lib/admin/recipe';
 import { describeAdminRecipe } from '@/lib/admin/describe';
 import { useAdminNoteConsumption } from '@/hooks/useAdminNoteConsumption';
+import { useMultisig } from '@/contexts/MultisigContext';
 import type { ConsumptionState } from '@/lib/admin/consumption';
 
 const STATE_LABELS: Record<ConsumptionState, string> = {
@@ -40,6 +41,7 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   // instance per id via the list's `key`, so `proposal.id` never changes within it).
   const recipe = useMemo(() => (rawProposalType ? decodeRecipeLabel(rawProposalType) : null), [rawProposalType]);
   const state = useAdminNoteConsumption(proposal, recipe);
+  const { handleCancelProposal, cancelingProposal } = useMultisig();
 
   return (
     <div className="flex items-center justify-between gap-3 py-2.5 border-b border-[rgba(0,0,0,0.06)] last:border-0">
@@ -51,9 +53,22 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
           {proposal.id.slice(0, 16)}…
         </div>
       </div>
-      <span className={`shrink-0 text-[11px] font-[500] px-2 py-1 rounded-full ${STATE_COLORS[state]}`}>
-        {STATE_LABELS[state]}
-      </span>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`text-[11px] font-[500] px-2 py-1 rounded-full ${STATE_COLORS[state]}`}>
+          {STATE_LABELS[state]}
+        </span>
+        {state !== 'applied' && (
+          <button
+            type="button"
+            onClick={() => handleCancelProposal(proposal.id)}
+            disabled={cancelingProposal === proposal.id}
+            title="Cancel this request: release any account lock and hide it"
+            className="text-[11px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+          >
+            {cancelingProposal === proposal.id ? '…' : 'Cancel'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -61,9 +76,10 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
 /** Lifecycle status for every admin ('custom' proposalType) proposal: proposal-level state, and
  * once executed, whether the admin note it carries has actually been consumed at the faucet. */
 export function AdminProposalList({ proposals }: { proposals: Proposal[] }) {
+  const { dismissedProposalIds } = useMultisig();
   const adminProposals = useMemo(
-    () => proposals.filter((p) => p.metadata.proposalType === 'custom'),
-    [proposals],
+    () => proposals.filter((p) => p.metadata.proposalType === 'custom' && !dismissedProposalIds.has(p.id)),
+    [proposals, dismissedProposalIds],
   );
 
   if (adminProposals.length === 0) return null;

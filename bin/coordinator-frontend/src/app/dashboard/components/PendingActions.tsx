@@ -16,12 +16,17 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     detectedConfig,
     activeCommitment,
     syncingState,
+    handleCancelProposal,
+    cancelingProposal,
+    dismissedProposalIds,
   } = useMultisig();
 
-  // Filter to only show pending (not yet executed) proposals
+  // Filter to only show pending (not yet executed) proposals, excluding ones the user cancelled.
   const pendingProposals = useMemo(() => {
-    return proposals.filter(p => p.status === 'pending' || p.status === 'ready');
-  }, [proposals]);
+    return proposals.filter(
+      (p) => (p.status === 'pending' || p.status === 'ready') && !dismissedProposalIds.has(p.id),
+    );
+  }, [proposals, dismissedProposalIds]);
 
   const handleViewAll = () => {
     router.push('/dashboard/transactions');
@@ -129,6 +134,15 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <ProposalActionButton proposal={proposal} className="mx-1 w-[10%] px-1" />
+                <button
+                  type="button"
+                  onClick={() => handleCancelProposal(proposal.id)}
+                  disabled={cancelingProposal === proposal.id}
+                  title="Cancel this request: release any account lock and hide it"
+                  className="mx-1 w-[10%] px-1 py-1 text-[10px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+                >
+                  {cancelingProposal === proposal.id ? "…" : "Cancel"}
+                </button>
               </div>
             );
           })

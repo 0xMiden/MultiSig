@@ -193,6 +193,9 @@ export interface MultisigContextValue {
   retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
   handleExecuteProposal: (proposalId: string) => Promise<void>;
+  handleCancelProposal: (proposalId: string) => Promise<void>;
+  cancelingProposal: string | null;
+  dismissedProposalIds: ReadonlySet<string>;
   unlockAccount: () => Promise<void>;
   handleCreateP2idProposal: (
     recipientId: string,
@@ -305,6 +308,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [creatingProposal, setCreatingProposal] = useState(false);
   const [signingProposal, setSigningProposal] = useState<string | null>(null);
+  const [cancelingProposal, setCancelingProposal] = useState<string | null>(null);
+  const [dismissedProposalIds, setDismissedProposalIds] = useState<ReadonlySet<string>>(new Set());
   const [executingProposal, setExecutingProposal] = useState<string | null>(
     null,
   );
@@ -1324,6 +1329,75 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   const loadedAccountId = multisig?.accountId ?? null;
 
+  // Locally-dismissed (cancelled) proposal ids, per account. The Guardian has no delete-proposal
+  // API, so a stuck proposal that will never execute is hidden client-side; the account lock, if
+  // any, is released via abandonCandidate in handleCancelProposal.
+  useEffect(() => {
+    if (!loadedAccountId || typeof window === "undefined") {
+      setDismissedProposalIds(new Set());
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(`dismissedProposals:${loadedAccountId}`);
+      setDismissedProposalIds(new Set<string>(raw ? (JSON.parse(raw) as string[]) : []));
+    } catch {
+      setDismissedProposalIds(new Set());
+    }
+  }, [loadedAccountId]);
+
+  const handleCancelProposal = useCallback(
+    async (proposalId: string) => {
+      const ms = multisigRef.current;
+      if (!ms) return;
+      setCancelingProposal(proposalId);
+      try {
+        const proposal = ms.listProposals().find((p) => p.id === proposalId);
+        // Best-effort: if this proposal pushed a canonicalization candidate that will never land
+        // (e.g. an execute that failed client-side), release the account lock. Harmless and
+        // idempotent when there is no such candidate.
+        if (proposal) {
+          try {
+            await ms.abandonCandidate(proposal.nonce);
+            for (let i = 0; i < 8; i++) {
+              const status = await ms.abandonStatus(proposal.nonce);
+              if (status === "abandoned" || status === "landed") break;
+              await new Promise((r) => setTimeout(r, 2000));
+            }
+          } catch {
+            // Not a candidate, or already resolved — proceed to hide it locally regardless.
+          }
+        }
+        setDismissedProposalIds((prev) => {
+          const next = new Set(prev);
+          next.add(proposalId);
+          if (loadedAccountId && typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(
+                `dismissedProposals:${loadedAccountId}`,
+                JSON.stringify([...next]),
+              );
+            } catch {
+              /* storage unavailable — dismissal is in-memory for this session */
+            }
+          }
+          return next;
+        });
+        try {
+          setProposals(await ms.syncProposals());
+        } catch {
+          /* keep the current list if the refresh fails */
+        }
+        await refreshAccount(ms);
+        toast.success("Request cancelled");
+      } catch (err) {
+        toast.error(`Failed to cancel: ${err instanceof Error ? err.message : "Unknown"}`);
+      } finally {
+        setCancelingProposal(null);
+      }
+    },
+    [loadedAccountId, refreshAccount],
+  );
+
   // Switching account starts a fresh session: nothing from the previous
   // account's lock, warnings or funding carries over.
   useEffect(() => {
@@ -1693,6 +1767,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      handleCancelProposal,
+      cancelingProposal,
+      dismissedProposalIds,
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,
@@ -1769,6 +1846,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      handleCancelProposal,
+      cancelingProposal,
+      dismissedProposalIds,
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,
