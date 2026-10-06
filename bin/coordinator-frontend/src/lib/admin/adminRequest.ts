@@ -1,4 +1,8 @@
 import {
+  AccountId,
+  AccountStorageRequirements,
+  ForeignAccount,
+  ForeignAccountArray,
   Note,
   NoteArray,
   Word,
@@ -52,6 +56,14 @@ export async function buildAdminTransactionRequestBuilder(
 ): Promise<{ builder: TransactionRequestBuilder; recipe: AdminRecipe }> {
   await initAdminWasm();
 
+  // Sync to the tip so the fee FPI's foreign-account load references a block where the faucet
+  // exists (a stale sync height produced the transient `before_foreign_load` failures).
+  try {
+    await client.sync();
+  } catch {
+    // A transient sync failure shouldn't block building; the builder below surfaces real errors.
+  }
+
   const saltWord = recipe.saltHex ? Word.fromHex(recipe.saltHex) : freshSaltWord();
   // Capture the hex before the salt is passed to `feeAwareTransactionRequestBuilder`: per
   // `MultisigAuthOptions.feeConversionSalt`'s doc, the `Word` is moved across the WASM boundary
@@ -67,7 +79,19 @@ export async function buildAdminTransactionRequestBuilder(
   // The note's serial derives from `saltHex` (see `deriveAdminSerial` in `./recipe`), so the note
   // must be built from `full`, not the original `recipe`, once the salt is finalized.
   const note = Note.deserialize(buildAdminNoteBytes(full));
-  const withNote = builder.withOwnOutputNotes(new NoteArray([note]));
+
+  // The admin note's fee is estimated by FPI'ing the faucet's `estimate_note_fee` procedure. The
+  // web `MidenClient` — unlike the Rust client — does NOT lazily fetch the foreign account that FPI
+  // targets, so we must provide the faucet explicitly as a public foreign account or the executor
+  // fails with `before_foreign_load` ("account not found"). Empty `AccountStorageRequirements` is
+  // the default (no specific storage slots required) — the executor loads the whole account.
+  const faucetForeign = ForeignAccount.public(
+    AccountId.fromHex(full.faucetId),
+    new AccountStorageRequirements(),
+  );
+  const withNote = builder
+    .withForeignAccounts(new ForeignAccountArray([faucetForeign]))
+    .withOwnOutputNotes(new NoteArray([note]));
 
   return { builder: withNote, recipe: full };
 }
