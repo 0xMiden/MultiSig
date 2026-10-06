@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminActionCard } from './AdminActionCard';
 import { Field, textInputClass, readOnlyInputClass } from './fields';
 import { parseU64, parseMinBurn, parseNoteScriptRoot } from '@/lib/admin/validation';
@@ -8,6 +8,8 @@ import { getAdminConfig } from '@/config/adminConfig';
 import { shortFaucetId } from '@/lib/tokenAmounts';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { useFaucetConfig } from '@/hooks/useFaucetConfig';
+import { initAdminWasm, readNoteFee } from '@/lib/admin/noteBuilders';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
@@ -18,6 +20,7 @@ interface GroupProps {
 /** ADMIN-gated: set the faucet's max issuable supply, in base units. */
 export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupProps) {
   const [maxSupply, setMaxSupply] = useState('');
+  const current = useFaucetConfig(faucetBytesState);
 
   return (
     <AdminActionCard
@@ -29,7 +32,10 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
       buildArgs={() => ({ action: 'set_max_supply', maxSupply: parseU64(maxSupply).toString() })}
       onSubmitted={() => setMaxSupply('')}
     >
-      <Field label="New max supply (base units)">
+      <Field
+        label="New max supply (base units)"
+        hint={current ? `Current: ${current.maxSupply}` : undefined}
+      >
         <input
           type="text"
           value={maxSupply}
@@ -45,6 +51,7 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
 /** ADMIN-gated: set the faucet's minimum burn amount, in base units. */
 export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps) {
   const [minBurn, setMinBurn] = useState('');
+  const current = useFaucetConfig(faucetBytesState);
 
   return (
     <AdminActionCard
@@ -56,7 +63,10 @@ export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps
       buildArgs={() => ({ action: 'set_min_burn', minBurn: parseMinBurn(minBurn).toString() })}
       onSubmitted={() => setMinBurn('')}
     >
-      <Field label="New min burn (base units)">
+      <Field
+        label="New min burn (base units)"
+        hint={current ? `Current: ${current.minBurn}` : undefined}
+      >
         <input
           type="text"
           value={minBurn}
@@ -74,7 +84,30 @@ export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps
 export function SetNoteFeeForm({ faucetBytesState, inflightRecipes }: GroupProps) {
   const [noteScriptRoot, setNoteScriptRoot] = useState('');
   const [feeAmount, setFeeAmount] = useState('');
+  const [currentFee, setCurrentFee] = useState<string | null>(null);
   const cfg = getAdminConfig();
+
+  // The fee is per note-script, so it only resolves once a valid root is entered.
+  useEffect(() => {
+    const validRoot = /^0x[0-9a-fA-F]{64}$/.test(noteScriptRoot.trim());
+    if (faucetBytesState.status !== 'ready' || !validRoot) {
+      setCurrentFee(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        await initAdminWasm();
+        const fee = readNoteFee(faucetBytesState.bytes, noteScriptRoot.trim());
+        if (!cancelled) setCurrentFee(fee === null ? 'not set (free)' : fee.toString());
+      } catch {
+        if (!cancelled) setCurrentFee(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [faucetBytesState, noteScriptRoot]);
 
   return (
     <AdminActionCard
@@ -105,7 +138,10 @@ export function SetNoteFeeForm({ faucetBytesState, inflightRecipes }: GroupProps
       <Field label="Fee faucet" hint="Always the chain's native fee faucet -- read-only.">
         <input type="text" readOnly value={cfg.feeFaucetId ? shortFaucetId(cfg.feeFaucetId) : 'Not configured'} className={readOnlyInputClass} />
       </Field>
-      <Field label="Fee amount (base units)">
+      <Field
+        label="Fee amount (base units)"
+        hint={currentFee !== null ? `Current fee for this script: ${currentFee}` : undefined}
+      >
         <input
           type="text"
           value={feeAmount}

@@ -355,6 +355,55 @@ export function build_set_note_fee(faucet_hex, sender_hex, note_script_root, fee
 }
 
 /**
+ * The faucet's current maximum issuable supply (base units), from its serialized `Account` bytes.
+ * @param {Uint8Array} faucet_account
+ * @returns {bigint}
+ */
+export function current_max_supply(faucet_account) {
+    const ptr0 = passArray8ToWasm0(faucet_account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.current_max_supply(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return BigInt.asUintN(64, ret[0]);
+}
+
+/**
+ * The faucet's current minimum burn amount (base units), from its serialized `Account` bytes.
+ * @param {Uint8Array} faucet_account
+ * @returns {bigint}
+ */
+export function current_min_burn(faucet_account) {
+    const ptr0 = passArray8ToWasm0(faucet_account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.current_min_burn(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return BigInt.asUintN(64, ret[0]);
+}
+
+/**
+ * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
+ * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
+ * @param {Uint8Array} faucet_account
+ * @param {Uint8Array} note_script_root
+ * @returns {bigint | undefined}
+ */
+export function note_fee(faucet_account, note_script_root) {
+    const ptr0 = passArray8ToWasm0(faucet_account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(note_script_root, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.note_fee(ptr0, len0, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    return ret[0] === 0 ? undefined : BigInt.asUintN(64, ret[1]);
+}
+
+/**
  * Returns the hex account ids of every current holder of `role` on the faucet, given the
  * faucet's serialized `Account` bytes (same fetch path as [`account_has_role`]). Used to drive
  * the frontend's mandatory "last-ADMIN" guardrail, which `account_has_role`'s one-account-at-a-

@@ -104,3 +104,30 @@ export function buildAdminNoteBytes(r: AdminRecipe): Uint8Array {
       );
   }
 }
+
+/**
+ * Reads the faucet's current minimum burn amount (base units) from its serialized account bytes.
+ * `initAdminWasm()` must have run first.
+ */
+export function readCurrentMinBurn(faucetBytes: Uint8Array): bigint {
+  return wasm.current_min_burn(faucetBytes);
+}
+
+/**
+ * Reads the faucet's current maximum issuable supply (base units) from its serialized account
+ * bytes. `initAdminWasm()` must have run first.
+ */
+export function readCurrentMaxSupply(faucetBytes: Uint8Array): bigint {
+  return wasm.current_max_supply(faucetBytes);
+}
+
+/**
+ * Reads the current fee (base units) scheduled for `noteScriptRootHex` in the faucet's constant
+ * fee policy, or `null` when no explicit fee is set for that script. `initAdminWasm()` must have
+ * run first; `noteScriptRootHex` must be a valid 64-hex-char word.
+ */
+export function readNoteFee(faucetBytes: Uint8Array, noteScriptRootHex: string): bigint | null {
+  const root = Word.fromHex(noteScriptRootHex).serialize();
+  const fee = wasm.note_fee(faucetBytes, root);
+  return fee === undefined || fee === null ? null : fee;
+}

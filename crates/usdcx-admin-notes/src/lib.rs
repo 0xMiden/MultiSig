@@ -15,13 +15,16 @@
 //!
 //! See `docs/usdcx-admin-notes-spec.md`.
 
-use miden_protocol::account::{Account, AccountId, RoleSymbol, StorageMapKey, StorageSlotContent};
+use miden_protocol::account::{
+    Account, AccountId, RoleSymbol, StorageMapKey, StorageSlotContent, StorageSlotName,
+};
 use miden_protocol::asset::{AssetAmount, FungibleAsset};
 use miden_protocol::crypto::rand::RandomCoin;
 use miden_protocol::errors::NoteError;
 use miden_protocol::note::{Note, NoteScriptRoot};
 use miden_protocol::{Felt, Word};
 use miden_standards::account::access::RoleBasedAccessControl;
+use miden_standards::account::policies::MinBurnAmount;
 use miden_standards::note::config::{
     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
     FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
@@ -121,6 +124,53 @@ pub fn rbac_role_members(account: &Account, role: &RoleSymbol) -> Vec<AccountId>
             AccountId::try_from_elements(elements[2], elements[3]).ok()
         })
         .collect()
+}
+
+// ---------------------------------------------------------------------------
+// Current on-chain config readers (for displaying current values in the UI)
+// ---------------------------------------------------------------------------
+
+/// The canonical integer value of a field element. A `Felt` serializes as its 8-byte canonical
+/// little-endian integer, so this reads it back without depending on a `Felt`→`u64` accessor whose
+/// name/trait varies across the miden-core/winter versions in the dependency graph.
+fn felt_to_u64(f: Felt) -> u64 {
+    use miden_protocol::utils::serde::Serializable;
+    let bytes = f.to_bytes();
+    let mut buf = [0u8; 8];
+    let n = core::cmp::min(8, bytes.len());
+    buf[..n].copy_from_slice(&bytes[..n]);
+    u64::from_le_bytes(buf)
+}
+
+/// The faucet's current minimum burn amount (base units), read from the `MinBurnAmount` component's
+/// value slot. Returns 0 if the slot is absent (not a valid faucet).
+pub fn current_min_burn(faucet: &Account) -> u64 {
+    faucet
+        .storage()
+        .get_item(MinBurnAmount::slot_name())
+        .map(|w| felt_to_u64(w[0]))
+        .unwrap_or(0)
+}
+
+/// The faucet's current maximum issuable supply (base units), read from the fungible faucet's
+/// token-config slot (`[token_supply, max_supply, decimals, token_symbol]`). Returns 0 if absent.
+pub fn current_max_supply(faucet: &Account) -> u64 {
+    let slot = StorageSlotName::new("miden::standards::faucets::fungible::token_config")
+        .expect("token config slot name is valid");
+    faucet.storage().get_item(&slot).map(|w| felt_to_u64(w[1])).unwrap_or(0)
+}
+
+/// The current fee (base units) scheduled for `note_script_root` in the faucet's constant fee
+/// policy, or `None` when no explicit fee is scheduled for that script (the fee schedule stores
+/// `root -> [fee, 0, 0, 1]`, where the last element marks a set entry; unset keys read as zero).
+pub fn note_fee(faucet: &Account, note_script_root: &NoteScriptRoot) -> Option<u64> {
+    let slot = StorageSlotName::new("miden::standards::fees::policies::basic_constant_fee::fee_schedule")
+        .expect("fee schedule slot name is valid");
+    let key = StorageMapKey::new(Word::from(*note_script_root));
+    match faucet.storage().get_map_item(&slot, key) {
+        Ok(value) if value[3] == Felt::ONE => Some(felt_to_u64(value[0])),
+        _ => None,
+    }
 }
 
 fn amount(value: u64) -> Result<AssetAmount, AdminNoteError> {

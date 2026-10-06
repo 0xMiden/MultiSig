@@ -59,6 +59,31 @@ pub fn rbac_role_members(faucet_account: &[u8], role: &str) -> Result<Vec<String
         .collect())
 }
 
+// --- current on-chain config readers ---------------------------------------
+
+/// The faucet's current minimum burn amount (base units), from its serialized `Account` bytes.
+#[wasm_bindgen]
+pub fn current_min_burn(faucet_account: &[u8]) -> Result<u64, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    Ok(builders::current_min_burn(&faucet))
+}
+
+/// The faucet's current maximum issuable supply (base units), from its serialized `Account` bytes.
+#[wasm_bindgen]
+pub fn current_max_supply(faucet_account: &[u8]) -> Result<u64, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    Ok(builders::current_max_supply(&faucet))
+}
+
+/// The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
+/// fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
+#[wasm_bindgen]
+pub fn note_fee(faucet_account: &[u8], note_script_root: &[u8]) -> Result<Option<u64>, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    let root = NoteScriptRoot::read_from_bytes(note_script_root).map_err(js)?;
+    Ok(builders::note_fee(&faucet, &root))
+}
+
 // --- stock admin notes -----------------------------------------------------
 
 /// Build a `set_max_supply` note. Returns serialized `Note` bytes.

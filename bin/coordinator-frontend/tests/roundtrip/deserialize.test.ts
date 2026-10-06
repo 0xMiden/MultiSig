@@ -21,6 +21,9 @@ import {
   build_set_min_burn,
   build_set_note_fee,
   rbac_role_members,
+  current_min_burn,
+  current_max_supply,
+  note_fee,
 } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 
 // Dummy account ids / bytes dumped from the Rust crate's own `testing` fixtures
@@ -127,4 +130,12 @@ describe('every admin note deserializes under @miden-sdk 0.17', () => {
 // itself) is covered by `usdcx-admin-notes`'s own `rbac_role_members_lists_admins` test.
 test('rbac_role_members survives vendoring', () => {
   expect(typeof rbac_role_members).toBe('function');
+});
+
+// The current-value readers (Set-max-supply/min-burn/note-fee forms show the current on-chain
+// value). This proves the exports survive vendoring; their correctness is covered by the crate.
+test('current-value readers survive vendoring', () => {
+  expect(typeof current_min_burn).toBe('function');
+  expect(typeof current_max_supply).toBe('function');
+  expect(typeof note_fee).toBe('function');
 });

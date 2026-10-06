@@ -50,6 +50,22 @@ export function build_set_min_burn(faucet_hex: string, sender_hex: string, min_b
 export function build_set_note_fee(faucet_hex: string, sender_hex: string, note_script_root: Uint8Array, fee_faucet_hex: string, fee_amount: bigint, serial: Uint8Array): Uint8Array;
 
 /**
+ * The faucet's current maximum issuable supply (base units), from its serialized `Account` bytes.
+ */
+export function current_max_supply(faucet_account: Uint8Array): bigint;
+
+/**
+ * The faucet's current minimum burn amount (base units), from its serialized `Account` bytes.
+ */
+export function current_min_burn(faucet_account: Uint8Array): bigint;
+
+/**
+ * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
+ * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
+ */
+export function note_fee(faucet_account: Uint8Array, note_script_root: Uint8Array): bigint | undefined;
+
+/**
  * Returns the hex account ids of every current holder of `role` on the faucet, given the
  * faucet's serialized `Account` bytes (same fetch path as [`account_has_role`]). Used to drive
  * the frontend's mandatory "last-ADMIN" guardrail, which `account_has_role`'s one-account-at-a-
@@ -70,6 +86,9 @@ export interface InitOutput {
   readonly build_set_max_supply: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
   readonly build_set_min_burn: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
   readonly build_set_note_fee: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
+  readonly current_max_supply: (a: number, b: number) => [bigint, number, number];
+  readonly current_min_burn: (a: number, b: number) => [bigint, number, number];
+  readonly note_fee: (a: number, b: number, c: number, d: number) => [number, bigint, number, number];
   readonly rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
