@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { AdminActionCard } from './AdminActionCard';
 import { Field, textInputClass, readOnlyInputClass } from './fields';
-import { parseU64, parseMinBurn, parseNoteScriptRoot } from '@/lib/admin/validation';
+import { parseU64, parseMinBurn, parseNoteScriptRoot, ValidationError } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
-import { shortFaucetId } from '@/lib/tokenAmounts';
+import { shortFaucetId, groupDigits } from '@/lib/tokenAmounts';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
@@ -29,12 +29,27 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
       description={ACTION_INFO.set_max_supply.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
-      buildArgs={() => ({ action: 'set_max_supply', maxSupply: parseU64(maxSupply).toString() })}
+      buildArgs={() => {
+        const value = parseU64(maxSupply);
+        // The faucet rejects a new max supply below what it has already issued
+        // (ERR_NEW_MAX_SUPPLY_BELOW_TOKEN_SUPPLY). Catch it here -- before a proposal is created,
+        // signed and executed -- rather than letting it fail silently at note consumption.
+        if (current && value < BigInt(current.tokenSupply)) {
+          throw new ValidationError(
+            `Can't be less than current token supply of ${groupDigits(current.tokenSupply)} base units`,
+          );
+        }
+        return { action: 'set_max_supply', maxSupply: value.toString() };
+      }}
       onSubmitted={() => setMaxSupply('')}
     >
       <Field
         label="New max supply (base units)"
-        hint={current ? `Current: ${current.maxSupply}` : undefined}
+        hint={
+          current
+            ? `Current: ${groupDigits(current.maxSupply)} · can't be below current token supply of ${groupDigits(current.tokenSupply)}`
+            : undefined
+        }
       >
         <input
           type="text"

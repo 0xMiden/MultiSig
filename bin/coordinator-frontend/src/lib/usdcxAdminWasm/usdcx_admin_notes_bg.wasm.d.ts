@@ -12,6 +12,7 @@ export const build_set_min_burn: (a: number, b: number, c: number, d: number, e:
 export const build_set_note_fee: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
 export const current_max_supply: (a: number, b: number) => [bigint, number, number];
 export const current_min_burn: (a: number, b: number) => [bigint, number, number];
+export const current_token_supply: (a: number, b: number) => [bigint, number, number];
 export const note_fee: (a: number, b: number, c: number, d: number) => [number, bigint, number, number];
 export const rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];
 export const __wbindgen_externrefs: WebAssembly.Table;

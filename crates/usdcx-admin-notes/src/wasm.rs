@@ -75,6 +75,14 @@ pub fn current_max_supply(faucet_account: &[u8]) -> Result<u64, JsError> {
     Ok(builders::current_max_supply(&faucet))
 }
 
+/// The faucet's current token supply (base units already issued), from its serialized `Account`
+/// bytes. This is the floor a new max supply must not drop below.
+#[wasm_bindgen]
+pub fn current_token_supply(faucet_account: &[u8]) -> Result<u64, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    Ok(builders::current_token_supply(&faucet))
+}
+
 /// The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
 /// fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
 #[wasm_bindgen]

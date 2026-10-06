@@ -26,6 +26,15 @@ export function parseTokenAmount(input: string, decimals: number): bigint {
   return units;
 }
 
+/**
+ * Groups a non-negative integer string in thousands (e.g. "1000000" -> "1,000,000"). Bigint-safe:
+ * operates on the string, so it never loses precision the way `Number(...).toLocaleString()` would
+ * for base-unit amounts above `Number.MAX_SAFE_INTEGER`.
+ */
+export function groupDigits(value: string): string {
+  return value.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 /** Formats base units as a decimal string, dropping trailing fractional zeros. */
 export function formatTokenAmount(units: bigint | string, decimals: number): string {
   const value = BigInt(units);

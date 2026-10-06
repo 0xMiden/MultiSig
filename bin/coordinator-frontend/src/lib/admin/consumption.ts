@@ -1,6 +1,14 @@
-import { Note, type MidenClient } from '@miden-sdk/miden-sdk';
+import {
+  Endpoint,
+  Note,
+  NoteId,
+  RpcClient,
+  type MidenClient,
+  type NetworkNoteStatusInfo,
+} from '@miden-sdk/miden-sdk';
 import type { Proposal } from '@openzeppelin/miden-multisig-client';
 
+import { MIDEN_RPC_URL } from '@/config/psm';
 import { buildAdminNoteBytes } from './noteBuilders';
 import type { AdminRecipe } from './recipe';
 
@@ -80,4 +88,76 @@ export function resolveAdminNoteId(recipe: AdminRecipe): string {
 export async function isNoteConsumed(client: MidenClient, noteIdHex: string): Promise<boolean> {
   const records = await client.notes.list({ ids: [noteIdHex] });
   return records.some((record) => record.isConsumed());
+}
+
+/** The node's ntx-builder view of an admin (network) note, mapped onto the lifecycle. */
+export interface NetworkNoteConsumption {
+  state: 'applied' | 'awaiting_consumption' | 'failed';
+  /** The node's last execution error for this note, when it has one -- surfaced to the user. */
+  detail?: string;
+}
+
+/** True for the node's "no ntx-builder record for this note" response, which is not an error. */
+function isNoteNotFound(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /not\s*found/i.test(msg);
+}
+
+/**
+ * A read-only `RpcClient` pointed at the node, memoized for the page's lifetime.
+ *
+ * `getNetworkNoteStatus` lives on the WASM `RpcClient`, which the wrapped `MidenClient` does not
+ * surface, so we talk to the node directly for it. One shared client (rather than one per poll, of
+ * which there is one per executed proposal every few seconds) avoids opening a fresh connection on
+ * every tick; it is never freed, which is fine for a long-lived page.
+ */
+let networkRpc: RpcClient | undefined;
+function networkRpcClient(): RpcClient {
+  if (!networkRpc) {
+    networkRpc = new RpcClient(new Endpoint(MIDEN_RPC_URL));
+  }
+  return networkRpc;
+}
+
+/**
+ * Queries the node's network-transaction-builder view of an admin note via `getNetworkNoteStatus`
+ * and maps it onto a {@link NetworkNoteConsumption}. Unlike `isNoteConsumed` -- which only sees this
+ * client's locally-tracked input notes and so can never explain WHY a note has not applied -- this
+ * exposes the ntx-builder's own verdict and its `lastError` (e.g. "new max supply is less than
+ * current token supply"), which is the whole point: an admin change that executed on the multisig
+ * but is rejected by the faucet when the ntx-builder tries to consume its note otherwise fails
+ * silently.
+ *
+ * Returns `'not_found'` when the node has no ntx-builder record for the note yet -- not yet ingested
+ * (still propagating), or not a network note. That is neither an error nor terminal; the caller
+ * keeps polling (and may fall back to a local `isNoteConsumed` check).
+ *
+ * Status mapping (`NetworkNoteStatusInfo.status`):
+ * - `NullifierCommitted` -> `applied` (the faucet consumed the note and the consume committed).
+ * - `Discarded` -> `failed` (the ntx-builder gave up; `detail` is its last error).
+ * - `Pending` / `NullifierInflight` -> `awaiting_consumption`, with `detail` carrying `lastError`
+ *   when the node has already attempted and failed at least once -- so a note that keeps failing a
+ *   deterministic check (and may be retried indefinitely rather than ever reaching `Discarded`)
+ *   still shows the user its reason instead of an endless silent "awaiting".
+ */
+export async function getNetworkNoteConsumption(
+  noteIdHex: string,
+): Promise<NetworkNoteConsumption | 'not_found'> {
+  let info: NetworkNoteStatusInfo;
+  try {
+    info = await networkRpcClient().getNetworkNoteStatus(NoteId.fromHex(noteIdHex));
+  } catch (err) {
+    if (isNoteNotFound(err)) return 'not_found';
+    throw err;
+  }
+  const detail = info.lastError ?? undefined;
+  switch (info.status) {
+    case 'NullifierCommitted':
+      return { state: 'applied' };
+    case 'Discarded':
+      return { state: 'failed', detail: detail ?? 'The faucet discarded this note.' };
+    default:
+      // 'Pending' | 'NullifierInflight' (and any future pending-like status).
+      return { state: 'awaiting_consumption', detail };
+  }
 }

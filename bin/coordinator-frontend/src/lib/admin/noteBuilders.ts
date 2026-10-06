@@ -122,6 +122,15 @@ export function readCurrentMaxSupply(faucetBytes: Uint8Array): bigint {
 }
 
 /**
+ * Reads the faucet's current token supply (base units already issued) from its serialized account
+ * bytes. This is the floor a new max supply must not drop below -- the faucet rejects a
+ * `set_max_supply` below it. `initAdminWasm()` must have run first.
+ */
+export function readCurrentTokenSupply(faucetBytes: Uint8Array): bigint {
+  return wasm.current_token_supply(faucetBytes);
+}
+
+/**
  * Reads the current fee (base units) scheduled for `noteScriptRootHex` in the faucet's constant
  * fee policy, or `null` when no explicit fee is set for that script. `initAdminWasm()` must have
  * run first; `noteScriptRootHex` must be a valid 64-hex-char word.

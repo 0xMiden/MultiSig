@@ -9,6 +9,7 @@ import { AdminBanner } from '@/components/admin/AdminBanner';
 import { ACTION_ROLE } from '@/lib/admin/roles';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
 import { AdminFundingCard } from './components/AdminFundingCard';
+import { FaucetStateCard } from './components/FaucetStateCard';
 import { AdminProposalList } from './components/AdminProposalList';
 import { LockedActionCard } from './components/LockedActionCard';
 import { SetMaxSupplyForm, SetMinBurnForm, SetNoteFeeForm } from './components/SupplyBurnFeeForms';
@@ -76,6 +77,7 @@ export default function AdminPage() {
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
       <AdminBanner />
       <AdminFundingCard />
+      <FaucetStateCard faucetBytesState={faucetBytesState} />
 
       {!multisig && (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">

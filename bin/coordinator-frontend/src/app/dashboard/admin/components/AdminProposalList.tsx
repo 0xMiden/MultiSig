@@ -40,35 +40,50 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   // not `proposal.id`, which eslint correctly flags as redundant: each row is one component
   // instance per id via the list's `key`, so `proposal.id` never changes within it).
   const recipe = useMemo(() => (rawProposalType ? decodeRecipeLabel(rawProposalType) : null), [rawProposalType]);
-  const state = useAdminNoteConsumption(proposal, recipe);
+  const { state, detail } = useAdminNoteConsumption(proposal, recipe);
   const { handleCancelProposal, cancelingProposal } = useMultisig();
 
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-[rgba(0,0,0,0.06)] last:border-0">
-      <div className="min-w-0">
-        <div className="text-[12px] font-[500] text-[#111] truncate">
-          {recipe ? describeAdminRecipe(recipe).title : 'Unknown admin action'}
+    <div className="py-2.5 border-b border-[rgba(0,0,0,0.06)] last:border-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[12px] font-[500] text-[#111] truncate">
+            {recipe ? describeAdminRecipe(recipe).title : 'Unknown admin action'}
+          </div>
+          <div className="text-[11px] text-[rgba(0,0,0,0.45)] font-mono truncate" title={proposal.id}>
+            {proposal.id.slice(0, 16)}…
+          </div>
         </div>
-        <div className="text-[11px] text-[rgba(0,0,0,0.45)] font-mono truncate" title={proposal.id}>
-          {proposal.id.slice(0, 16)}…
+        <div className="flex items-center gap-2 shrink-0">
+          <span className={`text-[11px] font-[500] px-2 py-1 rounded-full ${STATE_COLORS[state]}`}>
+            {STATE_LABELS[state]}
+          </span>
+          {state !== 'applied' && (
+            <button
+              type="button"
+              onClick={() => handleCancelProposal(proposal.id)}
+              disabled={cancelingProposal === proposal.id}
+              title="Cancel this request: release any account lock and hide it"
+              className="text-[11px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+            >
+              {cancelingProposal === proposal.id ? '…' : 'Cancel'}
+            </button>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className={`text-[11px] font-[500] px-2 py-1 rounded-full ${STATE_COLORS[state]}`}>
-          {STATE_LABELS[state]}
-        </span>
-        {state !== 'applied' && (
-          <button
-            type="button"
-            onClick={() => handleCancelProposal(proposal.id)}
-            disabled={cancelingProposal === proposal.id}
-            title="Cancel this request: release any account lock and hide it"
-            className="text-[11px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
-          >
-            {cancelingProposal === proposal.id ? '…' : 'Cancel'}
-          </button>
-        )}
-      </div>
+      {detail && (
+        // The faucet's own execution error for this note, from the node's network-tx-builder. Shown
+        // whether the note has been `failed` (discarded) or is still being retried — a deterministic
+        // rejection (e.g. "new max supply is less than current token supply") may be retried
+        // indefinitely without ever being discarded, so this is often the only place the user sees why.
+        <div
+          className={`mt-1.5 text-[11px] leading-snug break-words rounded-[6px] px-2 py-1 ${
+            state === 'failed' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'
+          }`}
+        >
+          <span className="font-[600]">Faucet rejected the note:</span> {detail}
+        </div>
+      )}
     </div>
   );
 }

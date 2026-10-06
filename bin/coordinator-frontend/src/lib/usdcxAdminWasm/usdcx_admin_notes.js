@@ -385,6 +385,22 @@ export function current_min_burn(faucet_account) {
 }
 
 /**
+ * The faucet's current token supply (base units already issued), from its serialized `Account`
+ * bytes. This is the floor a new max supply must not drop below.
+ * @param {Uint8Array} faucet_account
+ * @returns {bigint}
+ */
+export function current_token_supply(faucet_account) {
+    const ptr0 = passArray8ToWasm0(faucet_account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.current_token_supply(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return BigInt.asUintN(64, ret[0]);
+}
+
+/**
  * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
  * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
  * @param {Uint8Array} faucet_account

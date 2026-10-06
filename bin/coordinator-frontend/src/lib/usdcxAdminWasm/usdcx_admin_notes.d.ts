@@ -60,6 +60,12 @@ export function current_max_supply(faucet_account: Uint8Array): bigint;
 export function current_min_burn(faucet_account: Uint8Array): bigint;
 
 /**
+ * The faucet's current token supply (base units already issued), from its serialized `Account`
+ * bytes. This is the floor a new max supply must not drop below.
+ */
+export function current_token_supply(faucet_account: Uint8Array): bigint;
+
+/**
  * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
  * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
  */
@@ -88,6 +94,7 @@ export interface InitOutput {
   readonly build_set_note_fee: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number, number];
   readonly current_max_supply: (a: number, b: number) => [bigint, number, number];
   readonly current_min_burn: (a: number, b: number) => [bigint, number, number];
+  readonly current_token_supply: (a: number, b: number) => [bigint, number, number];
   readonly note_fee: (a: number, b: number, c: number, d: number) => [number, bigint, number, number];
   readonly rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;

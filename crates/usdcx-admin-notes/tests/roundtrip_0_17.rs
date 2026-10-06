@@ -75,6 +75,32 @@ async fn set_max_supply_note_consumes_on_0_17_faucet() {
     );
 }
 
+/// The faucet rejects a new max supply BELOW the supply it has already issued. The fixture issues
+/// 1_000_000, so a set_max_supply to 100 must fail with `ERR_NEW_MAX_SUPPLY_BELOW_TOKEN_SUPPLY` --
+/// the exact rejection the ntx-builder hit on devnet (a note that executes on the multisig but the
+/// faucet keeps re-attempting and failing at consumption). The admin console's own value check
+/// (`current_token_supply`) catches this before a proposal is created; this proves the faucet
+/// enforces it regardless.
+#[tokio::test]
+async fn set_max_supply_below_token_supply_is_rejected_on_0_17_faucet() {
+    let (chain, faucet_id, admin, _pauser, _attest_admin, _other) = mock_chain_with_faucet_roles();
+    let note = usdcx_admin_notes::set_max_supply(faucet_id, admin, 100, serial(102))
+        .expect("building the set_max_supply note");
+
+    let result = chain
+        .build_transaction(faucet_id)
+        .unauthenticated_input_note(note.clone())
+        .build()
+        .expect("building the set_max_supply transaction")
+        .execute()
+        .await;
+
+    assert_transaction_executor_error!(
+        result,
+        MasmError::from_static_str("new max supply is less than current token supply")
+    );
+}
+
 /// The same builder, but the note's sender holds NEITHER `ADMIN` nor any other role: the faucet's
 /// network auth admits the note (the script is allowlisted) but the procedure's own RBAC gate
 /// traps it — `set_max_supply` cannot be reached by an unauthorized sender.

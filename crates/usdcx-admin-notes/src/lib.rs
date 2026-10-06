@@ -160,6 +160,18 @@ pub fn current_max_supply(faucet: &Account) -> u64 {
     faucet.storage().get_item(&slot).map(|w| felt_to_u64(w[1])).unwrap_or(0)
 }
 
+/// The faucet's current token supply (base units already issued), read from the fungible faucet's
+/// token-config slot (`[token_supply, max_supply, decimals, token_symbol]`). Returns 0 if absent.
+///
+/// This is the floor for `set_max_supply`: the faucet rejects a new max supply below it
+/// (`ERR_NEW_MAX_SUPPLY_BELOW_TOKEN_SUPPLY`), so the frontend reads it to validate the input before
+/// a proposal is ever created.
+pub fn current_token_supply(faucet: &Account) -> u64 {
+    let slot = StorageSlotName::new("miden::standards::faucets::fungible::token_config")
+        .expect("token config slot name is valid");
+    faucet.storage().get_item(&slot).map(|w| felt_to_u64(w[0])).unwrap_or(0)
+}
+
 /// The current fee (base units) scheduled for `note_script_root` in the faucet's constant fee
 /// policy, or `None` when no explicit fee is scheduled for that script (the fee schedule stores
 /// `root -> [fee, 0, 0, 1]`, where the last element marks a set entry; unset keys read as zero).
