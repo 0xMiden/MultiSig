@@ -2,20 +2,8 @@
 import { LOCAL_KEYS_ENABLED } from "@/config/psm";
 import React, { useState, useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { truncateHex, copyToClipboard } from "@/lib/helpers";
+import { truncateHex, copyToClipboard, toBech32Address } from "@/lib/helpers";
 import { SignerChip } from "@/components/SignerChip";
-import { AccountId, AccountInterface, NetworkId } from "@miden-sdk/miden-sdk";
-import { MIDEN_NETWORK } from "@/config/psm";
-import { BECH32_PREFIX } from "@/lib/midenNetwork";
-
-function bech32NetworkId(): NetworkId {
-  switch (MIDEN_NETWORK) {
-    case "mainnet": return NetworkId.mainnet();
-    case "testnet": return NetworkId.testnet();
-    case "devnet": return NetworkId.devnet();
-    default: return NetworkId.custom(BECH32_PREFIX[MIDEN_NETWORK]);
-  }
-}
 import { toast } from "sonner";
 import { TaskBarProps } from "@/types";
 
@@ -59,19 +47,13 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     return multisig?.accountId ?? localStorage.getItem("currentWalletId") ?? null;
   }, [multisig]);
 
-  // The account's bech32 address for the active network, shown next to the hex id. We take the plain
-  // account-address form (the part before the "_" routing-params separator) — the canonical
-  // mtst1…/mdev1… string, the same one a sender pastes to send to this account.
-  const bech32Address = useMemo(() => {
-    if (!accountId) return null;
-    try {
-      return AccountId.fromHex(accountId)
-        .toBech32(bech32NetworkId(), AccountInterface.BasicWallet)
-        .split("_")[0];
-    } catch {
-      return null;
-    }
-  }, [accountId]);
+  // The account's bech32 address for the active network, shown next to the hex id — the canonical
+  // mtst1…/mdev1… string, the same one a sender pastes to send to this account. Computed inline
+  // (not memoized) on purpose: the SDK's WASM is initialized lazily, so a conversion attempted on
+  // the first render (before the client loads) throws. A memo keyed on the id would cache that
+  // transient null and never recompute, since the id string is unchanged once the multisig loads —
+  // which is exactly why "Failed to convert" stuck. Re-running each render self-heals once WASM is up.
+  const bech32Address = toBech32Address(accountId);
 
   const copyAccountId = () => {
     if (accountId) {

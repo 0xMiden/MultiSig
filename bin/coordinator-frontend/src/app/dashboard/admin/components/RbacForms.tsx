@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AdminActionCard } from './AdminActionCard';
-import { Field, textInputClass, selectClass } from './fields';
+import { Field, AccountIdField, selectClass } from './fields';
 import { normalizeAccountId, ValidationError } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
 import { ROLES } from '@/lib/admin/roles';
@@ -53,15 +53,7 @@ export function RbacGrantForm({ faucetBytesState, inflightRecipes }: GroupProps)
       <Field label="Role">
         <RoleSelect value={role} onChange={setRole} />
       </Field>
-      <Field label="Target account ID">
-        <input
-          type="text"
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          placeholder="0x…"
-          className={textInputClass}
-        />
-      </Field>
+      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={cfg.networkId} />
     </AdminActionCard>
   );
 }
@@ -91,15 +83,7 @@ export function RbacRevokeForm({ faucetBytesState, inflightRecipes }: GroupProps
       <Field label="Role">
         <RoleSelect value={role} onChange={setRole} />
       </Field>
-      <Field label="Target account ID">
-        <input
-          type="text"
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          placeholder="0x…"
-          className={textInputClass}
-        />
-      </Field>
+      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={cfg.networkId} />
     </AdminActionCard>
   );
 }

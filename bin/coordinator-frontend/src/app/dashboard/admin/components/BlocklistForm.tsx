@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { AdminActionCard } from './AdminActionCard';
-import { Field, ToggleField, textInputClass } from './fields';
+import { AccountIdField, ToggleField } from './fields';
 import { normalizeAccountId } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
 import type { AdminRecipe } from '@/lib/admin/recipe';
@@ -33,15 +33,7 @@ export function BlocklistForm({ faucetBytesState, inflightRecipes }: GroupProps)
         setBlocked(true);
       }}
     >
-      <Field label="Target account ID">
-        <input
-          type="text"
-          value={accountId}
-          onChange={(e) => setAccountId(e.target.value)}
-          placeholder="0x…"
-          className={textInputClass}
-        />
-      </Field>
+      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={cfg.networkId} />
       <ToggleField label="Block this account" value={blocked} onChange={setBlocked} />
     </AdminActionCard>
   );
