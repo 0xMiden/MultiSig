@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import Image from "next/image";
 import media from "../../../../public/media";
 import PendingActions from "../components/PendingActions";
@@ -10,17 +10,15 @@ import { useMultisig } from "@/contexts/MultisigContext";
 export const dynamic = 'force-dynamic';
 
 const Transactions: React.FC = () => {
-  const { proposals, detectedConfig } = useMultisig();
+  const { proposalStats, detectedConfig } = useMultisig();
 
   const threshold = detectedConfig?.threshold ?? 0;
 
-  const stats = useMemo(() => {
-    const total = proposals.length;
-    const executed = proposals.filter(p => p.status === 'finalized').length;
-    const pending = proposals.filter(p => p.status === 'pending' || p.status === 'ready').length;
-    const successRate = total > 0 ? Math.round((executed / total) * 100) : 0;
-    return { total, executed, pending, successRate };
-  }, [proposals]);
+  // Counts come from the durable per-account history, not the live `proposals`
+  // list: Guardian prunes executed/custom proposals from `proposals`, so the
+  // live list would report only what is still pending (e.g. "1 total" after 8
+  // executions). See `@/lib/proposalHistory`.
+  const stats = proposalStats;
 
   return (
     <div className="flex flex-col p-4 w-full">

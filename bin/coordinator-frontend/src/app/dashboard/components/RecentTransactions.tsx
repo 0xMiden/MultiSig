@@ -1,22 +1,26 @@
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import media from "../../../../public/media";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { RecentTransactionsProps } from "@/types";
-import { getEffectiveThreshold } from "@/lib/procedures";
+import type { HistoryStatus } from "@/lib/proposalHistory";
 
-const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixedHeight = false }) => {
+const STATUS_STYLE: Record<HistoryStatus, { label: string; className: string }> = {
+  executed: { label: "Executed", className: "text-[#28A857]" },
+  pending: { label: "Pending", className: "text-[#FF5500]" },
+  discarded: { label: "Discarded", className: "text-[rgba(0,0,0,0.4)]" },
+};
+
+const RecentTransactions: React.FC<RecentTransactionsProps> = ({ fixedHeight = false }) => {
   const router = useRouter();
-  const { proposals, detectedConfig, syncingState } = useMultisig();
+  const { proposalHistory, syncingState } = useMultisig();
 
-  // Show all proposals (both pending and executed) as recent transactions
-  const allProposals = useMemo(() => {
-    return [...proposals].reverse(); // Most recent first
-  }, [proposals]);
-
-  const effectiveThreshold = threshold ?? detectedConfig?.threshold ?? 0;
+  // Durable, decoded, newest-first history. Unlike the live `proposals` list,
+  // this keeps executed/discarded proposals and shows a custom admin proposal's
+  // real action (e.g. "Set max supply") instead of the opaque "custom".
+  const entries = proposalHistory;
 
   const handleViewAll = () => {
     router.push('/dashboard/transactions');
@@ -41,16 +45,16 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
 
       {/* Transactions */}
       <div
-        className={`flex flex-col gap-3 ${allProposals.length > 0
+        className={`flex flex-col gap-3 ${entries.length > 0
           ? fixedHeight
-            ? allProposals.length >= 5
+            ? entries.length >= 5
               ? "h-[400px] overflow-hidden"
               : ""
             : "max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100"
           : "h-[200px]"
           }`}
       >
-        {syncingState ? (
+        {syncingState && entries.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-3">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#00000033] border-t-[#FF5500]"></div>
@@ -59,39 +63,23 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
               </p>
             </div>
           </div>
-        ) : allProposals.length > 0 ? (
-          allProposals.map((proposal) => {
-            // Prefer the threshold snapshot frozen on the proposal at creation time
-            // (metadata.requiredSignatures) over recomputing it from the account's
-            // *current* threshold — otherwise an already-signed/executed proposal
-            // can appear to need more signatures after the threshold later changes.
-            const propThreshold = proposal.metadata?.requiredSignatures ?? getEffectiveThreshold(
-              proposal.metadata?.proposalType,
-              effectiveThreshold,
-              detectedConfig?.procedureThresholds
-            );
-            const sigCount = proposal.signatures?.length ?? 0;
-            const isSend = proposal.metadata?.proposalType === 'p2id';
-            const isExecuted = proposal.status === 'finalized';
+        ) : entries.length > 0 ? (
+          entries.map((entry) => {
+            const isSend = entry.proposalType === 'p2id';
+            const status = STATUS_STYLE[entry.status];
 
             return (
               <div
-                key={proposal.id}
+                key={entry.id}
                 className="flex h-[64px] w-full flex-row items-center relative border border-[rgba(0,0,0,0.08)] rounded-[8px] shrink-0"
               >
                 <div className="font-geist w-[10%] text-center text-[12px] font-[400]">
-                  {proposal.id.slice(0, 8)}...
+                  {entry.id.slice(0, 8)}...
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="font-geist w-[45%] pl-6 text-[12px] font-[400]">
                   <span className="font-geist text-[12px] font-[500]">
-                    {proposal.metadata?.proposalType === 'p2id' ? 'Send transaction' :
-                     proposal.metadata?.proposalType === 'consume_notes' ? 'Receive transaction' :
-                     proposal.metadata?.proposalType === 'add_signer' ? 'Add signer' :
-                     proposal.metadata?.proposalType === 'remove_signer' ? 'Remove signer' :
-                     proposal.metadata?.proposalType === 'change_threshold' ? 'Change threshold' :
-                     proposal.metadata?.proposalType === 'switch_guardian' ? 'Switch Guardian' :
-                     (proposal.metadata?.proposalType ?? 'Unknown')}
+                    {entry.description}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
@@ -106,15 +94,13 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ threshold, fixe
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="flex w-[15%] space-x-1 flex-row items-center justify-center">
                   <span className="text-[12px] text-[#FF5500] font-[400]">
-                    {sigCount}/{propThreshold} signed
+                    {entry.signatureCount}/{entry.requiredSignatures} signed
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
                 <div className="w-[10%] text-center text-[12px] font-[400]">
-                  <span className={`text-[10px] whitespace-nowrap ${
-                    isExecuted ? "text-[#28A857]" : "text-[#FF5500]"
-                  }`}>
-                    {isExecuted ? "Executed" : "Pending"}
+                  <span className={`text-[10px] whitespace-nowrap ${status.className}`}>
+                    {status.label}
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>

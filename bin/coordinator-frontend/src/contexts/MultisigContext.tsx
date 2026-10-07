@@ -33,6 +33,15 @@ import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/adm
 import { executeCustomProposal } from "@/lib/admin/adminExecute";
 import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
 import type { AdminRecipe } from "@/lib/admin/recipe";
+import {
+  recordObserved,
+  recordExecuted,
+  recordDiscarded,
+  historyEntries,
+  statsFromEntries,
+  type ProposalHistoryEntry,
+  type HistoryStats,
+} from "@/lib/proposalHistory";
 import { formatError, classifyWalletError, describeExecutionError } from "@/lib/errors";
 import {
   createMidenClient,
@@ -196,6 +205,15 @@ export interface MultisigContextValue {
   handleCancelProposal: (proposalId: string) => Promise<void>;
   cancelingProposal: string | null;
   dismissedProposalIds: ReadonlySet<string>;
+  /**
+   * Durable, per-account proposal history (newest-first). Unlike `proposals`
+   * (Guardian's pending-only, pruned-on-execute list), this records every
+   * proposal this browser has seen with its decoded action and terminal status,
+   * so executed/discarded proposals and accurate totals survive the prune.
+   */
+  proposalHistory: ProposalHistoryEntry[];
+  /** Totals derived from `proposalHistory` for the Transaction-tab summary cards. */
+  proposalStats: HistoryStats;
   unlockAccount: () => Promise<void>;
   handleCreateP2idProposal: (
     recipientId: string,
@@ -306,6 +324,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [syncingState, setSyncingState] = useState(false);
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [proposalHistory, setProposalHistory] = useState<ProposalHistoryEntry[]>([]);
   const [creatingProposal, setCreatingProposal] = useState(false);
   const [signingProposal, setSigningProposal] = useState<string | null>(null);
   const [cancelingProposal, setCancelingProposal] = useState<string | null>(null);
@@ -1345,6 +1364,19 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadedAccountId]);
 
+  // Fold every observed proposal into the durable per-account history (which
+  // outlives Guardian's prune-on-execute), and surface it newest-first. Loading
+  // an account with an empty proposal list still refreshes from storage, so
+  // prior history shows immediately.
+  useEffect(() => {
+    if (!loadedAccountId) {
+      setProposalHistory([]);
+      return;
+    }
+    const map = recordObserved(loadedAccountId, proposals);
+    setProposalHistory(historyEntries(map));
+  }, [proposals, loadedAccountId]);
+
   const handleCancelProposal = useCallback(
     async (proposalId: string) => {
       const ms = multisigRef.current;
@@ -1382,6 +1414,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           }
           return next;
         });
+        // Record the discard durably so it stays out of the counts and shows as
+        // "Discarded" in history (this browser only — Guardian has no
+        // cross-signer delete, so another signer discards on their own side).
+        setProposalHistory(historyEntries(recordDiscarded(ms.accountId, proposalId)));
         try {
           setProposals(await ms.syncProposals());
         } catch {
@@ -1554,6 +1590,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           await multisig.executeProposal(proposalId);
         }
         setProposals(multisig.listProposals());
+        // Durable record: Guardian prunes this from `proposals` once it is no
+        // longer pending (and never canonicalizes custom proposals at all), so
+        // without this the execution would vanish from the Transaction tab.
+        setProposalHistory(historyEntries(recordExecuted(ms.accountId, proposalId)));
         toast.success("Proposal executed successfully");
 
         // Sync after execution
@@ -1713,6 +1753,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     );
   }, [disconnectMidenWalletRaw]);
 
+  const proposalStats = useMemo<HistoryStats>(() => statsFromEntries(proposalHistory), [proposalHistory]);
+
   const value = useMemo(
     (): MultisigContextValue => ({
       ledger,
@@ -1770,6 +1812,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCancelProposal,
       cancelingProposal,
       dismissedProposalIds,
+      proposalHistory,
+      proposalStats,
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,
@@ -1849,6 +1893,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCancelProposal,
       cancelingProposal,
       dismissedProposalIds,
+      proposalHistory,
+      proposalStats,
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,

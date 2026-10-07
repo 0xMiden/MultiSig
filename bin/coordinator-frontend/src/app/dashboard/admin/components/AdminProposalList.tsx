@@ -41,7 +41,15 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   // instance per id via the list's `key`, so `proposal.id` never changes within it).
   const recipe = useMemo(() => (rawProposalType ? decodeRecipeLabel(rawProposalType) : null), [rawProposalType]);
   const { state, detail } = useAdminNoteConsumption(proposal, recipe);
-  const { handleCancelProposal, cancelingProposal } = useMultisig();
+  const { handleCancelProposal, cancelingProposal, handleExecuteProposal, executingProposal } = useMultisig();
+
+  // A fully-signed admin proposal that never executed (or whose execution did
+  // not land) can be retried — this re-syncs and re-executes at the current
+  // chain tip. If its signed block binding has since expired, the retry fails
+  // the same way and Discard is the resolution. Retry does nothing useful once
+  // the action has actually applied.
+  const canRetry = state === 'threshold_reached' || state === 'failed' || state === 'awaiting_consumption';
+  const isRetrying = executingProposal === proposal.id;
 
   return (
     <div className="py-2.5 border-b border-[rgba(0,0,0,0.06)] last:border-0">
@@ -58,15 +66,26 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
           <span className={`text-[11px] font-[500] px-2 py-1 rounded-full ${STATE_COLORS[state]}`}>
             {STATE_LABELS[state]}
           </span>
+          {canRetry && (
+            <button
+              type="button"
+              onClick={() => handleExecuteProposal(proposal.id).catch(() => {})}
+              disabled={isRetrying || cancelingProposal === proposal.id}
+              title="Retry: re-sync and re-execute this fully-signed proposal at the current chain tip"
+              className="text-[11px] font-[500] text-[#FF5500] hover:text-[#cc4400] disabled:opacity-50 cursor-pointer"
+            >
+              {isRetrying ? '…' : 'Retry'}
+            </button>
+          )}
           {state !== 'applied' && (
             <button
               type="button"
               onClick={() => handleCancelProposal(proposal.id)}
-              disabled={cancelingProposal === proposal.id}
-              title="Cancel this request: release any account lock and hide it"
+              disabled={cancelingProposal === proposal.id || isRetrying}
+              title="Discard this request: release any account lock and record it as discarded (this browser only — Guardian cannot propagate a discard to other signers)"
               className="text-[11px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
             >
-              {cancelingProposal === proposal.id ? '…' : 'Cancel'}
+              {cancelingProposal === proposal.id ? '…' : 'Discard'}
             </button>
           )}
         </div>
