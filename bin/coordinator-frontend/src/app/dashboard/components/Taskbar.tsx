@@ -59,6 +59,20 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     return multisig?.accountId ?? localStorage.getItem("currentWalletId") ?? null;
   }, [multisig]);
 
+  // The account's bech32 address for the active network, shown next to the hex id. We take the plain
+  // account-address form (the part before the "_" routing-params separator) — the canonical
+  // mtst1…/mdev1… string, the same one a sender pastes to send to this account.
+  const bech32Address = useMemo(() => {
+    if (!accountId) return null;
+    try {
+      return AccountId.fromHex(accountId)
+        .toBech32(bech32NetworkId(), AccountInterface.BasicWallet)
+        .split("_")[0];
+    } catch {
+      return null;
+    }
+  }, [accountId]);
+
   const copyAccountId = () => {
     if (accountId) {
       copyToClipboard(accountId, () => {
@@ -69,17 +83,15 @@ const TaskBar: React.FC<TaskBarProps> = () => {
   };
 
   const copyBech32 = () => {
-    if (!accountId) return;
-    try {
-      const bech32 = AccountId.fromHex(accountId).toBech32(bech32NetworkId(), AccountInterface.BasicWallet);
-      copyToClipboard(bech32, () => {
-        setIsBech32Copied(true);
-        setTimeout(() => setIsBech32Copied(false), 2000);
-        toast.success("Bech32 address copied");
-      });
-    } catch {
+    if (!bech32Address) {
       toast.error("Failed to convert account ID to bech32");
+      return;
     }
+    copyToClipboard(bech32Address, () => {
+      setIsBech32Copied(true);
+      setTimeout(() => setIsBech32Copied(false), 2000);
+      toast.success("Bech32 address copied");
+    });
   };
 
   const handleGuardianReconnect = async () => {
@@ -149,6 +161,15 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   )}
                 </button>
               </div>
+              {bech32Address && (
+                <div
+                  className="text-[10px] text-[rgba(0,0,0,0.45)] font-[400] cursor-pointer hover:text-[rgba(0,0,0,0.7)] transition-colors"
+                  title={`${bech32Address} — click to copy`}
+                  onClick={copyBech32}
+                >
+                  {`${bech32Address.slice(0, 12)}…${bech32Address.slice(-6)}`}
+                </div>
+              )}
             </div>
           </div>
         </div>
