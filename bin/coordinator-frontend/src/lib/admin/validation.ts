@@ -74,9 +74,11 @@ export function normalizeAccountId(input: string, networkId: string): string {
     accountId.free();
     return result;
   } catch {
-    // Try AccountId.fromBech32 (convert to lowercase first for case-insensitive handling)
+    // Try AccountId.fromBech32 (convert to lowercase first for case-insensitive handling).
+    // Accept both the plain account address and the full Address form (`<addr>_<routing>`):
+    // only the part before the separator is the account id.
     try {
-      const lowerTrimmed = trimmed.toLowerCase();
+      const lowerTrimmed = trimmed.toLowerCase().split('_')[0];
       const accountId = AccountId.fromBech32(lowerTrimmed);
       // Validate network ID matches
       validateBech32Network(lowerTrimmed, networkId);

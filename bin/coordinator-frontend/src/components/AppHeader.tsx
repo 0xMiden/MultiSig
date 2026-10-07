@@ -3,7 +3,7 @@
 import { LOCAL_KEYS_ENABLED } from '@/config/psm';
 import React, { useState, useEffect, useRef } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { copyToClipboard, truncateHex } from '@/lib/helpers';
+import { copyToClipboard, truncateHex, toBech32Address } from '@/lib/helpers';
 import { toast } from 'sonner';
 import { SignerChip } from '@/components/SignerChip';
 
@@ -196,14 +196,26 @@ export function AppHeader() {
                 <div className="flex flex-col gap-2">
                   {multisig?.accountId && (
                     <div>
-                      <div className="text-[9px] text-gray-400 mb-0.5">Account Address</div>
+                      <div className="text-[9px] text-gray-400 mb-0.5">Account ID</div>
                       <div
                         className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
-                        onClick={() => handleCopy(multisig.accountId, 'Account address')}
-                        title="Click to copy"
+                        onClick={() => handleCopy(multisig.accountId, 'Account ID')}
+                        title="Click to copy hex account ID"
                       >
                         {truncateHex(multisig.accountId, 12, 8)}
                       </div>
+                      {toBech32Address(multisig.accountId) && (
+                        <>
+                          <div className="text-[9px] text-gray-400 mb-0.5 mt-1.5">Address</div>
+                          <div
+                            className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
+                            onClick={() => handleCopy(toBech32Address(multisig.accountId)!, 'Address')}
+                            title="Click to copy address"
+                          >
+                            {toBech32Address(multisig.accountId)}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   <div>

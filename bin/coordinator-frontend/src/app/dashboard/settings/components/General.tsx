@@ -2,7 +2,8 @@ import React, { useState, useMemo } from "react";
 import media from "../../../../../public/media";
 import Image from "next/image";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { copyToClipboard, truncateHex } from "@/lib/helpers";
+import { copyToClipboard, truncateHex, toBech32Address } from "@/lib/helpers";
+import { MIDEN_NETWORK } from "@/config/psm";
 import { toast } from "sonner";
 
 const General = () => {
@@ -138,6 +139,15 @@ const General = () => {
                 </div>
               )}
             </div>
+            {toBech32Address(accountId) && (
+              <span
+                className="mt-1 text-[12px] font-[500] text-[rgba(0,0,0,0.55)] break-all text-center cursor-pointer hover:text-[rgba(0,0,0,0.8)]"
+                onClick={() => handleCopy(toBech32Address(accountId)!)}
+                title="Click to copy address"
+              >
+                {toBech32Address(accountId)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -154,7 +164,7 @@ const General = () => {
               Current Network
             </span>
             <span className="text-[14px] font-[500] text-[#000000]">
-              Miden Devnet
+              Miden {MIDEN_NETWORK.charAt(0).toUpperCase() + MIDEN_NETWORK.slice(1)}
             </span>
           </div>
         </div>
