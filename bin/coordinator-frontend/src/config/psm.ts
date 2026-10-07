@@ -14,7 +14,28 @@ export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? config
 // The network identity behind the RPC: Bread's network and the
 // Bech32 address prefix follow it (set NEXT_PUBLIC_MIDEN_NETWORK for a custom RPC).
 export const MIDEN_NETWORK: MidenNetwork = resolveMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK, configuredRpc);
-export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';
+// The Note Transport Layer delivers PRIVATE notes; public notes come over the
+// node/RPC tag index instead. Delivery is gated purely on note type, so a
+// transport pointed at a different network than the RPC fails silently for
+// private notes only (public notes still arrive). Default it to the SAME
+// network as the RPC so the two can never diverge; the SDK resolves the
+// `testnet`/`devnet` shorthands to concrete transport URLs itself.
+const configuredTransport = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL?.trim() || MIDEN_NETWORK;
+export const MIDEN_NOTE_TRANSPORT_URL = configuredTransport;
+// Warn loudly when an explicit transport override names a different network
+// than the RPC — the leading cause of "public notes arrive, private notes
+// never do". Only standard shorthands are comparable; a custom URL is skipped.
+if (
+  typeof window !== 'undefined' &&
+  ['devnet', 'testnet', 'mainnet'].includes(configuredTransport.toLowerCase()) &&
+  configuredTransport.toLowerCase() !== MIDEN_NETWORK.toLowerCase()
+) {
+  console.warn(
+    `[psm] Note transport network "${configuredTransport}" does not match RPC network ` +
+      `"${MIDEN_NETWORK}". Private notes relayed on "${MIDEN_NETWORK}" will never arrive. ` +
+      `Set NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=${MIDEN_NETWORK} (or unset it).`,
+  );
+}
 // Unset keeps in-browser proving: a remote prover sees the full transaction
 // witness, including private note contents, so using one must be a deliberate
 // choice. In-browser proving can outlast a transaction's expiration window, in
