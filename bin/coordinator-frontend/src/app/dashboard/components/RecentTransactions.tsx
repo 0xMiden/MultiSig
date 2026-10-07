@@ -3,6 +3,7 @@ import React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import media from "../../../../public/media";
+import { isProposalActionable } from "@openzeppelin/miden-multisig-client";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { RecentTransactionsProps } from "@/types";
 import type { HistoryStatus } from "@/lib/proposalHistory";
@@ -15,7 +16,15 @@ const STATUS_STYLE: Record<HistoryStatus, { label: string; className: string }> 
 
 const RecentTransactions: React.FC<RecentTransactionsProps> = ({ fixedHeight = false }) => {
   const router = useRouter();
-  const { proposalHistory, syncingState } = useMultisig();
+  const {
+    proposalHistory,
+    proposals,
+    syncingState,
+    handleCancelProposal,
+    cancelingProposal,
+    handleExecuteProposal,
+    executingProposal,
+  } = useMultisig();
 
   // Durable, decoded, newest-first history. Unlike the live `proposals` list,
   // this keeps executed/discarded proposals and shows a custom admin proposal's
@@ -67,6 +76,15 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ fixedHeight = f
           entries.map((entry) => {
             const isSend = entry.proposalType === 'p2id';
             const status = STATUS_STYLE[entry.status];
+            // A durable-history row can outlive the live Guardian list (which prunes
+            // executed/dead proposals). Retry is only meaningful while the proposal is
+            // still live AND executable; Discard always applies to a pending row (it
+            // marks it terminal locally and releases any lock), which is the only way to
+            // clear a proposal that is stuck pending in history but gone from the live list.
+            const live = proposals.find((p) => p.id === entry.id);
+            const canRetry = entry.status === 'pending' && !!live && isProposalActionable(live);
+            const isRetrying = executingProposal === entry.id;
+            const isDiscarding = cancelingProposal === entry.id;
 
             return (
               <div
@@ -77,7 +95,7 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ fixedHeight = f
                   {entry.id.slice(0, 8)}...
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
-                <div className="font-geist w-[45%] pl-6 text-[12px] font-[400]">
+                <div className="font-geist w-[35%] pl-6 text-[12px] font-[400]">
                   <span className="font-geist text-[12px] font-[500]">
                     {entry.description}
                   </span>
@@ -104,6 +122,30 @@ const RecentTransactions: React.FC<RecentTransactionsProps> = ({ fixedHeight = f
                   </span>
                 </div>
                 <div className="h-full w-[0.5px] bg-[#00000033]"></div>
+                <div className="flex w-[10%] flex-row items-center justify-center gap-2 px-1">
+                  {canRetry && (
+                    <button
+                      type="button"
+                      onClick={() => handleExecuteProposal(entry.id).catch(() => {})}
+                      disabled={isRetrying || isDiscarding}
+                      title="Retry: re-sync and re-execute this proposal at the current chain tip"
+                      className="text-[10px] font-[500] text-[#FF5500] hover:text-[#cc4400] disabled:opacity-50 cursor-pointer"
+                    >
+                      {isRetrying ? '…' : 'Retry'}
+                    </button>
+                  )}
+                  {entry.status === 'pending' && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelProposal(entry.id)}
+                      disabled={isDiscarding || isRetrying}
+                      title="Discard: mark this proposal terminal and release any account lock (this browser only — Guardian cannot propagate a discard to other signers)"
+                      className="text-[10px] font-[500] text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {isDiscarding ? '…' : 'Discard'}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })
