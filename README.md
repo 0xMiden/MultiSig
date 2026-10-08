@@ -35,10 +35,12 @@ NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 ```
 
-Replace the Guardian placeholder with a reachable **0.18.0-rc.2** instance with
-ECDSA support, configured for the same Miden devnet. Use the registration code
-accepted by that deployment. The pinned Miden SDK is **0.17.0-rc.4**; keep the
-lockfile versions together. The root Docker Compose stack runs only the frontend;
+Replace the Guardian placeholder with a reachable **0.18.0** instance with
+ECDSA support on the same Miden network (production runs on testnet with
+`https://guardian-testnet.openzeppelin.com`). Use the registration code
+accepted by that deployment. The Miden SDK is pinned to **0.17.1** for every
+package (see `bin/coordinator-frontend/README.md` for why it overrides the
+multisig client's 0.17.0); keep the lockfile versions together. The root Docker Compose stack runs only the frontend;
 Guardian, RPC and note transport must be provided separately.
 
 ```bash

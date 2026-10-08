@@ -49,8 +49,10 @@ jobs:
           cache: npm
           cache-dependency-path: bin/coordinator-frontend/package-lock.json
       - run: npm ci
+      # High/critical advisories fail, except entries in scripts/audit-allowlist.json
+      # (each with a reason and a review date).
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit-gate.mjs
       - run: npm run typecheck
       - run: npm run test:ledger
       - name: Install Playwright Chromium

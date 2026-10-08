@@ -2,26 +2,27 @@
 
 Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Miden Wallet extension, or a Ledger over direct USB.
 
-## RC compatibility baseline
+## Compatibility baseline
 
-The RC versions are intentionally pinned because Guardian proposal serialization must match the Miden SDK version:
+The versions are pinned together because Guardian proposal serialization must match the Miden SDK version:
 
 | Package group | Version |
 | --- | --- |
-| `@openzeppelin/guardian-client` | `0.18.0-rc.2` |
-| `@openzeppelin/miden-multisig-client` | `0.18.0-rc.2` |
-| `@miden-sdk/*` | `0.17.0-rc.4` |
+| `@openzeppelin/guardian-client` | `0.18.0` |
+| `@openzeppelin/miden-multisig-client` | `0.18.0` |
+| `@miden-sdk/miden-sdk` | `0.17.1`, forced for every package via `overrides` (one SDK copy: the app and the multisig client share WASM objects). `miden-multisig-client` 0.18.0 pins 0.17.0, but 0.17.1 fixes consuming/sending V2 faucet assets such as testnet USDCX ("procedure root could not be found"). `tests/ledger/procedure-roots.test.ts` checks the client's hard-coded procedure roots still match. |
+| other `@miden-sdk/*` | `0.17.0` |
 | `@getpara/*` | `3.20.0` |
 
 Keep the installed versions in `package-lock.json` together; do not independently upgrade the Miden or Guardian packages.
 
-This application is configured for Miden **devnet** and communicates directly with Guardian.
+This application runs on Miden **testnet** in production (devnet also works) and communicates directly with Guardian.
 
 ## Prerequisites
 
 - Node.js 20.19 or newer
 - npm
-- A Guardian `0.18.0-rc.2` endpoint configured for the same Miden devnet
+- A Guardian `0.18` endpoint on the same Miden network (testnet: `https://guardian-testnet.openzeppelin.com`)
 - Optional: Miden Wallet browser extension or a Para API key
 
 ## Environment setup
@@ -37,7 +38,7 @@ NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18.0-rc.2` base URL | none |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18` base URL | none |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden RPC URL or SDK network shorthand | `devnet` |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `devnet` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
@@ -74,8 +75,8 @@ not required for Ledger testing.
 
 1. Check out `ledger-integration` with these changes, then run the install/run
    commands above from `bin/coordinator-frontend`. If `.env.local` does not exist,
-   copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18.0-rc.2**
-   endpoint with ECDSA support on the same Miden devnet as the app. Restart the
+   copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18**
+   endpoint with ECDSA support on the same Miden network as the app. Restart the
    dev server after environment changes. The root Docker Compose stack starts
    only the frontend; Guardian and Miden services must be provided separately.
 2. Open `http://localhost:3000` in desktop **Chrome or Edge**, preferably in a
@@ -219,8 +220,9 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 
 ## Troubleshooting
 
-- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0-rc.2` on devnet. Restart Next.js after changing `.env.local`.
-- **Old account or decoding errors:** clear this origin's site data, reload, and create a fresh RC account.
-- **Funding note does not appear:** use **Retry funding**. Confirm the RPC is devnet and the invitation code is accepted by that node.
+- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to a Guardian `0.18` on the same network as `NEXT_PUBLIC_MIDEN_RPC_URL`. Restart Next.js after changing `.env.local`.
+- **Old account or decoding errors:** the app resets an incompatible local store on start-up; if it persists, clear this origin's site data and reload.
+- **No funds on testnet:** testnet does not fund new accounts; request tokens from the testnet faucet (https://faucet.testnet.miden.io) to the account's `mtst1…` address.
+- **Funding note does not appear (devnet):** use **Retry funding**. Confirm the invitation code is accepted by that node.
 - **Miden Wallet does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
 - **Para does not appear:** set `NEXT_PUBLIC_PARA_API_KEY` and restart the development server.
