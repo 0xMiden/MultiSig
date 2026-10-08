@@ -32,6 +32,7 @@ import { normalizeCommitment } from "@/lib/helpers";
 import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/admin/adminRequest";
 import { executeCustomProposal } from "@/lib/admin/adminExecute";
 import { buildDirectAdminTransactionRequest, submitDirectAdminAction } from "@/lib/admin/directAction";
+import { useOnChainHistory, type OnChainHistory } from "@/hooks/useOnChainHistory";
 import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
 import type { AdminRecipe } from "@/lib/admin/recipe";
 import {
@@ -232,6 +233,8 @@ export interface MultisigContextValue {
   handleDirectAdminAction: (
     recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex">,
   ) => Promise<string>;
+  /** The loaded account's on-chain transaction history, read from the node (History page). */
+  onChainHistory: OnChainHistory;
   handleSendPrivateNote: (
     recipientId: string,
     faucetId: string,
@@ -1396,6 +1399,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     setProposalHistory(historyEntries(map));
   }, [proposals, loadedAccountId]);
 
+  // The account's on-chain history from the node. Besides feeding the History page, it is the
+  // one record of execution that does not depend on which browser pressed Execute: a custom
+  // (admin) proposal is never reported finalized by Guardian, so a proposal executed elsewhere
+  // would otherwise sit in this browser's history as "pending" forever. Any pending proposal
+  // whose admin note is on chain is marked executed here, with the transaction that carried it.
+  const onChainHistory = useOnChainHistory(loadedAccountId, proposalHistory);
+  const { executedOnChain, refresh: refreshOnChainHistory } = onChainHistory;
+  useEffect(() => {
+    if (!loadedAccountId || executedOnChain.length === 0) return;
+    let map: ReturnType<typeof recordExecuted> | null = null;
+    for (const m of executedOnChain) {
+      map = recordExecuted(loadedAccountId, m.proposalId, m.txIdHex);
+    }
+    if (map) setProposalHistory(historyEntries(map));
+  }, [executedOnChain, loadedAccountId]);
+
   const handleCancelProposal = useCallback(
     async (proposalId: string) => {
       const ms = multisigRef.current;
@@ -1614,6 +1633,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         // without this the execution would vanish from the Transaction tab.
         setProposalHistory(historyEntries(recordExecuted(ms.accountId, proposalId)));
         toast.success("Proposal executed successfully");
+        refreshOnChainHistory();
 
         // Sync after execution
         if (midenClient) {
@@ -1673,7 +1693,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         if (accountOpInFlight.current === ms.accountId) accountOpInFlight.current = null;
       }
     },
-    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead],
+    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead, refreshOnChainHistory],
   );
 
   /** Lets any signer release a lock that has outlived every live execution. */
@@ -1837,6 +1857,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateP2idProposal,
       handleCreateAdminProposal,
       handleDirectAdminAction,
+      onChainHistory,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -1919,6 +1940,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateP2idProposal,
       handleCreateAdminProposal,
       handleDirectAdminAction,
+      onChainHistory,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,

@@ -29,12 +29,27 @@ function getStringFromWasm0(ptr, len) {
     return decodeText(ptr, len);
 }
 
+let cachedUint32ArrayMemory0 = null;
+function getUint32ArrayMemory0() {
+    if (cachedUint32ArrayMemory0 === null || cachedUint32ArrayMemory0.byteLength === 0) {
+        cachedUint32ArrayMemory0 = new Uint32Array(wasm.memory.buffer);
+    }
+    return cachedUint32ArrayMemory0;
+}
+
 let cachedUint8ArrayMemory0 = null;
 function getUint8ArrayMemory0() {
     if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getUint32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passArray8ToWasm0(arg, malloc) {
@@ -137,6 +152,36 @@ export function account_has_role(faucet_account, account_hex, role) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] !== 0;
+}
+
+/**
+ * The u32 note tag a note addressed to `account_hex` carries (`NoteTag::with_account_target`),
+ * so wire-level output notes can be grouped by their target: the USDCx faucet (admin notes and
+ * their fee sponsorship) or the chain's fee faucet (fee payment).
+ * @param {string} account_hex
+ * @returns {number}
+ */
+export function account_target_tag(account_hex) {
+    const ptr0 = passStringToWasm0(account_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.account_target_tag(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] >>> 0;
+}
+
+/**
+ * The note-script roots of every admin note kind this crate builds, as `"<label>|<root hex>"`
+ * pairs, so a public note fetched from the node can be named by its script root. Kinds sharing a
+ * script (grant/revoke, pause/unpause) share a root and therefore a label.
+ * @returns {string[]}
+ */
+export function admin_note_kinds() {
+    const ret = wasm.admin_note_kinds();
+    var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v1;
 }
 
 /**
@@ -438,6 +483,48 @@ export function note_fee(faucet_account, note_script_root) {
 }
 
 /**
+ * The id of a note from the fields a `TransactionHeader`'s output `NoteHeader` carries on the
+ * wire (`SyncTransactions`): the serialized details commitment `Word`, and the metadata parts
+ * (`sender` hex, public/private, tag, attachment schemes, serialized attachments commitment).
+ * This is `NoteId::new(details_commitment, metadata)`, so it also names output notes that were
+ * erased in-batch (created and consumed within one batch), which have no inclusion proof and are
+ * otherwise unidentifiable. Returns the id as hex.
+ * @param {Uint8Array} details_commitment
+ * @param {string} sender_hex
+ * @param {boolean} is_public
+ * @param {number} tag
+ * @param {Uint32Array} attachment_schemes
+ * @param {Uint8Array} attachments_commitment
+ * @returns {string}
+ */
+export function note_id_from_header(details_commitment, sender_hex, is_public, tag, attachment_schemes, attachments_commitment) {
+    let deferred6_0;
+    let deferred6_1;
+    try {
+        const ptr0 = passArray8ToWasm0(details_commitment, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(sender_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArray32ToWasm0(attachment_schemes, wasm.__wbindgen_malloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passArray8ToWasm0(attachments_commitment, wasm.__wbindgen_malloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.note_id_from_header(ptr0, len0, ptr1, len1, is_public, tag, ptr2, len2, ptr3, len3);
+        var ptr5 = ret[0];
+        var len5 = ret[1];
+        if (ret[3]) {
+            ptr5 = 0; len5 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred6_0 = ptr5;
+        deferred6_1 = len5;
+        return getStringFromWasm0(ptr5, len5);
+    } finally {
+        wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
+    }
+}
+
+/**
  * Returns the hex account ids of every current holder of `role` on the faucet, given the
  * faucet's serialized `Account` bytes (same fetch path as [`account_has_role`]). Used to drive
  * the frontend's mandatory "last-ADMIN" guardrail, which `account_has_role`'s one-account-at-a-
@@ -521,6 +608,7 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
     cachedDataViewMemory0 = null;
+    cachedUint32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
 
 

@@ -100,6 +100,65 @@ pub fn enabled_attesters(faucet_account: &[u8]) -> Result<Vec<String>, JsError> 
     Ok(builders::enabled_attesters(&faucet).iter().map(|w| w.to_hex()).collect())
 }
 
+// --- on-chain history helpers ----------------------------------------------
+
+/// The id of a note from the fields a `TransactionHeader`'s output `NoteHeader` carries on the
+/// wire (`SyncTransactions`): the serialized details commitment `Word`, and the metadata parts
+/// (`sender` hex, public/private, tag, attachment schemes, serialized attachments commitment).
+/// This is `NoteId::new(details_commitment, metadata)`, so it also names output notes that were
+/// erased in-batch (created and consumed within one batch), which have no inclusion proof and are
+/// otherwise unidentifiable. Returns the id as hex.
+#[wasm_bindgen]
+pub fn note_id_from_header(
+    details_commitment: &[u8],
+    sender_hex: &str,
+    is_public: bool,
+    tag: u32,
+    attachment_schemes: Vec<u32>,
+    attachments_commitment: &[u8],
+) -> Result<String, JsError> {
+    use miden_protocol::note::{
+        NoteAttachmentHeader, NoteAttachmentScheme, NoteAttachments, NoteDetailsCommitment,
+        NoteId, NoteMetadata, NoteTag, NoteType, PartialNoteMetadata,
+    };
+
+    let note_type = if is_public { NoteType::Public } else { NoteType::Private };
+    let partial = PartialNoteMetadata::new(acct(sender_hex)?, note_type).with_tag(NoteTag::new(tag));
+    if attachment_schemes.len() > NoteAttachments::MAX_COUNT {
+        return Err(JsError::new("too many attachment schemes"));
+    }
+    let mut headers = [NoteAttachmentHeader::absent(); NoteAttachments::MAX_COUNT];
+    for (header, raw) in headers.iter_mut().zip(attachment_schemes) {
+        let scheme = u16::try_from(raw).map_err(js)?;
+        if scheme != 0 {
+            *header = NoteAttachmentHeader::new(NoteAttachmentScheme::new(scheme).map_err(js)?);
+        }
+    }
+    let metadata = NoteMetadata::from_parts(partial, headers, word(attachments_commitment)?);
+    let details = NoteDetailsCommitment::from_raw(word(details_commitment)?);
+    Ok(NoteId::new(details, &metadata).to_hex())
+}
+
+/// The note-script roots of every admin note kind this crate builds, as `"<label>|<root hex>"`
+/// pairs, so a public note fetched from the node can be named by its script root. Kinds sharing a
+/// script (grant/revoke, pause/unpause) share a root and therefore a label.
+#[wasm_bindgen]
+pub fn admin_note_kinds() -> Vec<String> {
+    builders::admin_note_kinds()
+        .into_iter()
+        .map(|(label, root)| format!("{label}|{}", Word::from(root).to_hex()))
+        .collect()
+}
+
+/// The u32 note tag a note addressed to `account_hex` carries (`NoteTag::with_account_target`),
+/// so wire-level output notes can be grouped by their target: the USDCx faucet (admin notes and
+/// their fee sponsorship) or the chain's fee faucet (fee payment).
+#[wasm_bindgen]
+pub fn account_target_tag(account_hex: &str) -> Result<u32, JsError> {
+    use miden_protocol::note::NoteTag;
+    Ok(NoteTag::with_account_target(acct(account_hex)?).as_u32())
+}
+
 // --- stock admin notes -----------------------------------------------------
 
 /// Build a `set_max_supply` note. Returns serialized `Note` bytes.

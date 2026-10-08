@@ -1,0 +1,3062 @@
+{
+  "nested": {
+    "miden": {
+      "nested": {
+        "node": {
+          "nested": {
+            "v1": {
+              "nested": {
+                "NodeService": {
+                  "methods": {
+                    "Status": {
+                      "requestType": "StatusRequest",
+                      "responseType": "StatusResponse"
+                    },
+                    "GetLimits": {
+                      "requestType": "GetLimitsRequest",
+                      "responseType": "GetLimitsResponse"
+                    },
+                    "GetAccount": {
+                      "requestType": "GetAccountRequest",
+                      "responseType": "GetAccountResponse"
+                    },
+                    "RegisterAccount": {
+                      "requestType": "RegisterAccountRequest",
+                      "responseType": "RegisterAccountResponse"
+                    },
+                    "IsAccountAllowed": {
+                      "requestType": "IsAccountAllowedRequest",
+                      "responseType": "IsAccountAllowedResponse"
+                    },
+                    "GetBlockByNumber": {
+                      "requestType": "GetBlockByNumberRequest",
+                      "responseType": "GetBlockByNumberResponse"
+                    },
+                    "GetBlockHeaderByNumber": {
+                      "requestType": "GetBlockHeaderByNumberRequest",
+                      "responseType": "GetBlockHeaderByNumberResponse"
+                    },
+                    "GetNotesById": {
+                      "requestType": "GetNotesByIdRequest",
+                      "responseType": "GetNotesByIdResponse"
+                    },
+                    "GetNoteScriptByRoot": {
+                      "requestType": "GetNoteScriptByRootRequest",
+                      "responseType": "GetNoteScriptByRootResponse"
+                    },
+                    "GetTransactionEncryptionKey": {
+                      "requestType": "GetTransactionEncryptionKeyRequest",
+                      "responseType": "GetTransactionEncryptionKeyResponse"
+                    },
+                    "SubmitProvenTx": {
+                      "requestType": "SubmitProvenTxRequest",
+                      "responseType": "SubmitProvenTxResponse"
+                    },
+                    "SubmitProvenTxBatch": {
+                      "requestType": "SubmitProvenTxBatchRequest",
+                      "responseType": "SubmitProvenTxBatchResponse"
+                    },
+                    "SyncTransactions": {
+                      "requestType": "SyncTransactionsRequest",
+                      "responseType": "SyncTransactionsResponse"
+                    },
+                    "SyncNotes": {
+                      "requestType": "SyncNotesRequest",
+                      "responseType": "SyncNotesResponse"
+                    },
+                    "SyncNullifiers": {
+                      "requestType": "SyncNullifiersRequest",
+                      "responseType": "SyncNullifiersResponse"
+                    },
+                    "SyncAccountVault": {
+                      "requestType": "SyncAccountVaultRequest",
+                      "responseType": "SyncAccountVaultResponse"
+                    },
+                    "SyncAccountStorageMaps": {
+                      "requestType": "SyncAccountStorageMapsRequest",
+                      "responseType": "SyncAccountStorageMapsResponse"
+                    },
+                    "SyncChainMmr": {
+                      "requestType": "SyncChainMmrRequest",
+                      "responseType": "SyncChainMmrResponse"
+                    },
+                    "BlockSubscription": {
+                      "requestType": "BlockSubscriptionRequest",
+                      "responseType": "BlockSubscriptionResponse",
+                      "responseStream": true
+                    },
+                    "ProofSubscription": {
+                      "requestType": "ProofSubscriptionRequest",
+                      "responseType": "ProofSubscriptionResponse",
+                      "responseStream": true
+                    },
+                    "GetNetworkNoteStatus": {
+                      "requestType": "GetNetworkNoteStatusRequest",
+                      "responseType": "GetNetworkNoteStatusResponse"
+                    }
+                  }
+                },
+                "RegisterAccountRequest": {
+                  "fields": {
+                    "invitationCode": {
+                      "type": "string",
+                      "id": 1
+                    },
+                    "accountId": {
+                      "type": "account.AccountId",
+                      "id": 2
+                    }
+                  }
+                },
+                "RegisterAccountResponse": {
+                  "fields": {}
+                },
+                "IsAccountAllowedRequest": {
+                  "fields": {
+                    "accountId": {
+                      "type": "account.AccountId",
+                      "id": 1
+                    }
+                  }
+                },
+                "IsAccountAllowedResponse": {
+                  "fields": {
+                    "allowed": {
+                      "type": "bool",
+                      "id": 1
+                    }
+                  }
+                },
+                "BlockSubscriptionRequest": {
+                  "fields": {
+                    "blockFrom": {
+                      "type": "fixed32",
+                      "id": 1
+                    }
+                  }
+                },
+                "BlockSubscriptionResponse": {
+                  "oneofs": {
+                    "_protocolConfig": {
+                      "oneof": [
+                        "protocolConfig"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "block": {
+                      "type": "blockchain.SignedBlock",
+                      "id": 1
+                    },
+                    "committedChainTip": {
+                      "type": "fixed32",
+                      "id": 2
+                    },
+                    "protocolConfig": {
+                      "type": "protocol_config.ProtocolConfig",
+                      "id": 3,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "ProofSubscriptionRequest": {
+                  "fields": {
+                    "blockFrom": {
+                      "type": "fixed32",
+                      "id": 1
+                    }
+                  }
+                },
+                "ProofSubscriptionResponse": {
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "proof": {
+                      "type": "primitives.ExecutionProof",
+                      "id": 2
+                    },
+                    "provenChainTip": {
+                      "type": "fixed32",
+                      "id": 3
+                    }
+                  }
+                },
+                "StatusRequest": {
+                  "fields": {}
+                },
+                "StatusResponse": {
+                  "fields": {
+                    "version": {
+                      "type": "string",
+                      "id": 1
+                    },
+                    "genesisCommitment": {
+                      "type": "primitives.Word",
+                      "id": 2
+                    },
+                    "chainTip": {
+                      "type": "fixed32",
+                      "id": 3
+                    },
+                    "blockProducer": {
+                      "type": "BlockProducerStatus",
+                      "id": 4
+                    }
+                  }
+                },
+                "BlockProducerStatus": {
+                  "fields": {
+                    "version": {
+                      "type": "string",
+                      "id": 1
+                    },
+                    "status": {
+                      "type": "string",
+                      "id": 2
+                    },
+                    "chainTip": {
+                      "type": "fixed32",
+                      "id": 4
+                    },
+                    "mempoolStats": {
+                      "type": "MempoolStats",
+                      "id": 3
+                    }
+                  }
+                },
+                "MempoolStats": {
+                  "fields": {
+                    "unbatchedTransactions": {
+                      "type": "uint64",
+                      "id": 1
+                    },
+                    "proposedBatches": {
+                      "type": "uint64",
+                      "id": 2
+                    },
+                    "provenBatches": {
+                      "type": "uint64",
+                      "id": 3
+                    },
+                    "uncommittedTransactions": {
+                      "type": "uint64",
+                      "id": 4
+                    }
+                  }
+                },
+                "GetBlockHeaderByNumberRequest": {
+                  "oneofs": {
+                    "_blockNum": {
+                      "oneof": [
+                        "blockNum"
+                      ]
+                    },
+                    "_includeMmrProof": {
+                      "oneof": [
+                        "includeMmrProof"
+                      ]
+                    },
+                    "_includeProtocolConfig": {
+                      "oneof": [
+                        "includeProtocolConfig"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "blockNum": {
+                      "type": "uint32",
+                      "id": 1,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "includeMmrProof": {
+                      "type": "bool",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "includeProtocolConfig": {
+                      "type": "bool",
+                      "id": 3,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetBlockHeaderByNumberResponse": {
+                  "oneofs": {
+                    "_mmrPath": {
+                      "oneof": [
+                        "mmrPath"
+                      ]
+                    },
+                    "_chainLength": {
+                      "oneof": [
+                        "chainLength"
+                      ]
+                    },
+                    "_protocolConfig": {
+                      "oneof": [
+                        "protocolConfig"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "blockHeader": {
+                      "type": "blockchain.BlockHeader",
+                      "id": 1
+                    },
+                    "mmrPath": {
+                      "type": "primitives.MerklePath",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "chainLength": {
+                      "type": "fixed32",
+                      "id": 3,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "protocolConfig": {
+                      "type": "protocol_config.ProtocolConfig",
+                      "id": 4,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetBlockByNumberRequest": {
+                  "oneofs": {
+                    "_includeProof": {
+                      "oneof": [
+                        "includeProof"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "includeProof": {
+                      "type": "bool",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetBlockByNumberResponse": {
+                  "oneofs": {
+                    "_block": {
+                      "oneof": [
+                        "block"
+                      ]
+                    },
+                    "_proof": {
+                      "oneof": [
+                        "proof"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "block": {
+                      "type": "blockchain.SignedBlock",
+                      "id": 1,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "proof": {
+                      "type": "primitives.ExecutionProof",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetNotesByIdRequest": {
+                  "fields": {
+                    "noteIds": {
+                      "rule": "repeated",
+                      "type": "note.NoteId",
+                      "id": 1
+                    }
+                  }
+                },
+                "CommittedNote": {
+                  "fields": {
+                    "note": {
+                      "type": "note.Note",
+                      "id": 1
+                    },
+                    "inclusionProof": {
+                      "type": "note.NoteInclusionProof",
+                      "id": 2
+                    }
+                  }
+                },
+                "GetNotesByIdResponse": {
+                  "fields": {
+                    "notes": {
+                      "rule": "repeated",
+                      "type": "CommittedNote",
+                      "id": 1
+                    }
+                  }
+                },
+                "GetNoteScriptByRootRequest": {
+                  "fields": {
+                    "root": {
+                      "type": "primitives.Word",
+                      "id": 1
+                    }
+                  }
+                },
+                "GetNoteScriptByRootResponse": {
+                  "oneofs": {
+                    "_script": {
+                      "oneof": [
+                        "script"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "script": {
+                      "type": "note.NoteScript",
+                      "id": 1,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetAccountRequest": {
+                  "oneofs": {
+                    "_blockNum": {
+                      "oneof": [
+                        "blockNum"
+                      ]
+                    },
+                    "_details": {
+                      "oneof": [
+                        "details"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "accountId": {
+                      "type": "account.AccountId",
+                      "id": 1
+                    },
+                    "blockNum": {
+                      "type": "blockchain.BlockNumber",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "details": {
+                      "type": "AccountDetailRequest",
+                      "id": 3,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  },
+                  "nested": {
+                    "AccountDetailRequest": {
+                      "oneofs": {
+                        "_codeCommitment": {
+                          "oneof": [
+                            "codeCommitment"
+                          ]
+                        },
+                        "_assetVaultCommitment": {
+                          "oneof": [
+                            "assetVaultCommitment"
+                          ]
+                        },
+                        "storageRequest": {
+                          "oneof": [
+                            "allStorageMaps",
+                            "storageMaps"
+                          ]
+                        }
+                      },
+                      "fields": {
+                        "codeCommitment": {
+                          "type": "primitives.Word",
+                          "id": 1,
+                          "options": {
+                            "proto3_optional": true
+                          }
+                        },
+                        "assetVaultCommitment": {
+                          "type": "primitives.Word",
+                          "id": 2,
+                          "options": {
+                            "proto3_optional": true
+                          }
+                        },
+                        "allStorageMaps": {
+                          "type": "bool",
+                          "id": 3
+                        },
+                        "storageMaps": {
+                          "type": "StorageMapDetailRequests",
+                          "id": 4
+                        }
+                      },
+                      "nested": {
+                        "StorageMapDetailRequest": {
+                          "oneofs": {
+                            "slotData": {
+                              "oneof": [
+                                "allEntries",
+                                "mapKeys"
+                              ]
+                            }
+                          },
+                          "fields": {
+                            "slotName": {
+                              "type": "string",
+                              "id": 1
+                            },
+                            "allEntries": {
+                              "type": "bool",
+                              "id": 2
+                            },
+                            "mapKeys": {
+                              "type": "MapKeys",
+                              "id": 3
+                            }
+                          },
+                          "nested": {
+                            "MapKeys": {
+                              "fields": {
+                                "mapKeys": {
+                                  "rule": "repeated",
+                                  "type": "primitives.Word",
+                                  "id": 1
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "StorageMapDetailRequests": {
+                          "fields": {
+                            "storageMaps": {
+                              "rule": "repeated",
+                              "type": "StorageMapDetailRequest",
+                              "id": 1
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "GetAccountResponse": {
+                  "oneofs": {
+                    "_details": {
+                      "oneof": [
+                        "details"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "blockNum": {
+                      "type": "blockchain.BlockNumber",
+                      "id": 1
+                    },
+                    "witness": {
+                      "type": "account.AccountWitness",
+                      "id": 2
+                    },
+                    "details": {
+                      "type": "AccountDetails",
+                      "id": 3,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  },
+                  "nested": {
+                    "AccountDetails": {
+                      "oneofs": {
+                        "_code": {
+                          "oneof": [
+                            "code"
+                          ]
+                        }
+                      },
+                      "fields": {
+                        "header": {
+                          "type": "account.AccountHeader",
+                          "id": 1
+                        },
+                        "storageDetails": {
+                          "type": "AccountStorageDetails",
+                          "id": 2
+                        },
+                        "code": {
+                          "type": "account.AccountCode",
+                          "id": 3,
+                          "options": {
+                            "proto3_optional": true
+                          }
+                        },
+                        "vaultDetails": {
+                          "type": "AccountVaultDetails",
+                          "id": 4
+                        }
+                      }
+                    }
+                  }
+                },
+                "AccountVaultDetails": {
+                  "fields": {
+                    "tooManyAssets": {
+                      "type": "bool",
+                      "id": 1
+                    },
+                    "assets": {
+                      "rule": "repeated",
+                      "type": "asset.Asset",
+                      "id": 2
+                    }
+                  }
+                },
+                "AccountStorageDetails": {
+                  "fields": {
+                    "header": {
+                      "type": "account.AccountStorageHeader",
+                      "id": 1
+                    },
+                    "mapDetails": {
+                      "rule": "repeated",
+                      "type": "AccountStorageMapDetails",
+                      "id": 2
+                    }
+                  },
+                  "nested": {
+                    "AccountStorageMapDetails": {
+                      "oneofs": {
+                        "result": {
+                          "oneof": [
+                            "tooManyEntries",
+                            "allEntries",
+                            "partialMap"
+                          ]
+                        }
+                      },
+                      "fields": {
+                        "slotName": {
+                          "type": "string",
+                          "id": 1
+                        },
+                        "tooManyEntries": {
+                          "type": "bool",
+                          "id": 2
+                        },
+                        "allEntries": {
+                          "type": "AllMapEntries",
+                          "id": 3
+                        },
+                        "partialMap": {
+                          "type": "PartialStorageMap",
+                          "id": 5
+                        }
+                      },
+                      "reserved": [
+                        [
+                          4,
+                          4
+                        ],
+                        "entries_with_proofs"
+                      ],
+                      "nested": {
+                        "AllMapEntries": {
+                          "fields": {
+                            "entries": {
+                              "rule": "repeated",
+                              "type": "StorageMapEntry",
+                              "id": 1
+                            }
+                          },
+                          "nested": {
+                            "StorageMapEntry": {
+                              "fields": {
+                                "key": {
+                                  "type": "primitives.Word",
+                                  "id": 1
+                                },
+                                "value": {
+                                  "type": "primitives.Word",
+                                  "id": 2
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "PartialStorageMap": {
+                          "fields": {
+                            "mapKeys": {
+                              "rule": "repeated",
+                              "type": "primitives.Word",
+                              "id": 1
+                            },
+                            "partialSmt": {
+                              "type": "primitives.PartialSmt",
+                              "id": 2
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "SyncNullifiersRequest": {
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "prefixLen": {
+                      "type": "uint32",
+                      "id": 2
+                    },
+                    "nullifiers": {
+                      "rule": "repeated",
+                      "type": "uint32",
+                      "id": 3
+                    }
+                  }
+                },
+                "SyncNullifiersResponse": {
+                  "fields": {
+                    "paginationInfo": {
+                      "type": "PaginationInfo",
+                      "id": 1
+                    },
+                    "nullifiers": {
+                      "rule": "repeated",
+                      "type": "NullifierUpdate",
+                      "id": 2
+                    }
+                  },
+                  "nested": {
+                    "NullifierUpdate": {
+                      "fields": {
+                        "nullifier": {
+                          "type": "primitives.Word",
+                          "id": 1
+                        },
+                        "blockNum": {
+                          "type": "fixed32",
+                          "id": 2
+                        }
+                      }
+                    }
+                  }
+                },
+                "SyncAccountVaultRequest": {
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "accountId": {
+                      "type": "account.AccountId",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncAccountVaultResponse": {
+                  "fields": {
+                    "paginationInfo": {
+                      "type": "PaginationInfo",
+                      "id": 1
+                    },
+                    "updates": {
+                      "rule": "repeated",
+                      "type": "AccountVaultUpdate",
+                      "id": 2
+                    }
+                  }
+                },
+                "AccountVaultUpdate": {
+                  "oneofs": {
+                    "_asset": {
+                      "oneof": [
+                        "asset"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "vaultKey": {
+                      "type": "primitives.Word",
+                      "id": 1
+                    },
+                    "asset": {
+                      "type": "asset.Asset",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 3
+                    }
+                  }
+                },
+                "NoteSyncAttachment": {
+                  "oneofs": {
+                    "payload": {
+                      "oneof": [
+                        "value",
+                        "commitment"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "scheme": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "value": {
+                      "type": "primitives.Word",
+                      "id": 2
+                    },
+                    "commitment": {
+                      "type": "primitives.Word",
+                      "id": 3
+                    }
+                  }
+                },
+                "NoteSyncMetadata": {
+                  "fields": {
+                    "sender": {
+                      "type": "account.AccountId",
+                      "id": 1
+                    },
+                    "noteType": {
+                      "type": "note.NoteType",
+                      "id": 2
+                    },
+                    "tag": {
+                      "type": "fixed32",
+                      "id": 3
+                    },
+                    "attachments": {
+                      "rule": "repeated",
+                      "type": "NoteSyncAttachment",
+                      "id": 4
+                    },
+                    "version": {
+                      "type": "note.NoteVersion",
+                      "id": 5
+                    }
+                  }
+                },
+                "NoteSyncRecord": {
+                  "fields": {
+                    "metadata": {
+                      "type": "NoteSyncMetadata",
+                      "id": 1
+                    },
+                    "inclusionProof": {
+                      "type": "note.NoteInclusionProof",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncNotesRequest": {
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "noteTags": {
+                      "rule": "repeated",
+                      "type": "fixed32",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncNotesResponse": {
+                  "fields": {
+                    "paginationInfo": {
+                      "type": "PaginationInfo",
+                      "id": 1
+                    },
+                    "blocks": {
+                      "rule": "repeated",
+                      "type": "NoteSyncBlock",
+                      "id": 2
+                    }
+                  },
+                  "nested": {
+                    "NoteSyncBlock": {
+                      "fields": {
+                        "blockHeader": {
+                          "type": "blockchain.BlockHeader",
+                          "id": 1
+                        },
+                        "mmrPath": {
+                          "type": "primitives.MerklePath",
+                          "id": 2
+                        },
+                        "notes": {
+                          "rule": "repeated",
+                          "type": "NoteSyncRecord",
+                          "id": 3
+                        }
+                      }
+                    }
+                  }
+                },
+                "FinalityLevel": {
+                  "values": {
+                    "FINALITY_LEVEL_UNSPECIFIED": 0,
+                    "FINALITY_LEVEL_COMMITTED": 1,
+                    "FINALITY_LEVEL_PROVEN": 2
+                  }
+                },
+                "SyncChainMmrRequest": {
+                  "fields": {
+                    "currentClientBlockHeight": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "finalityLevel": {
+                      "type": "FinalityLevel",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncChainMmrResponse": {
+                  "oneofs": {
+                    "_protocolConfig": {
+                      "oneof": [
+                        "protocolConfig"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "mmrDelta": {
+                      "type": "primitives.MmrDelta",
+                      "id": 2
+                    },
+                    "blockHeader": {
+                      "type": "blockchain.BlockHeader",
+                      "id": 3
+                    },
+                    "blockSignatures": {
+                      "rule": "repeated",
+                      "type": "primitives.Signature",
+                      "id": 4
+                    },
+                    "protocolConfig": {
+                      "type": "protocol_config.ProtocolConfig",
+                      "id": 5,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "SyncAccountStorageMapsRequest": {
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "accountId": {
+                      "type": "account.AccountId",
+                      "id": 3
+                    }
+                  }
+                },
+                "SyncAccountStorageMapsResponse": {
+                  "fields": {
+                    "paginationInfo": {
+                      "type": "PaginationInfo",
+                      "id": 1
+                    },
+                    "updates": {
+                      "rule": "repeated",
+                      "type": "StorageMapUpdate",
+                      "id": 2
+                    }
+                  }
+                },
+                "StorageMapUpdate": {
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "slotName": {
+                      "type": "string",
+                      "id": 2
+                    },
+                    "key": {
+                      "type": "primitives.Word",
+                      "id": 3
+                    },
+                    "value": {
+                      "type": "primitives.Word",
+                      "id": 4
+                    }
+                  }
+                },
+                "BlockRange": {
+                  "fields": {
+                    "blockFrom": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "blockTo": {
+                      "type": "fixed32",
+                      "id": 2
+                    }
+                  }
+                },
+                "PaginationInfo": {
+                  "fields": {
+                    "chainTip": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncTransactionsRequest": {
+                  "fields": {
+                    "blockRange": {
+                      "type": "BlockRange",
+                      "id": 1
+                    },
+                    "accountIds": {
+                      "rule": "repeated",
+                      "type": "account.AccountId",
+                      "id": 2
+                    }
+                  }
+                },
+                "SyncTransactionsResponse": {
+                  "fields": {
+                    "paginationInfo": {
+                      "type": "PaginationInfo",
+                      "id": 1
+                    },
+                    "transactions": {
+                      "rule": "repeated",
+                      "type": "TransactionRecord",
+                      "id": 2
+                    }
+                  }
+                },
+                "TransactionRecord": {
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    },
+                    "header": {
+                      "type": "transaction.TransactionHeader",
+                      "id": 2
+                    },
+                    "outputNoteProofs": {
+                      "rule": "repeated",
+                      "type": "note.NoteInclusionProof",
+                      "id": 3
+                    },
+                    "consumedNoteRefs": {
+                      "rule": "repeated",
+                      "type": "ConsumedNoteRef",
+                      "id": 4
+                    }
+                  }
+                },
+                "ConsumedNoteRef": {
+                  "fields": {
+                    "nullifier": {
+                      "type": "primitives.Word",
+                      "id": 1
+                    },
+                    "noteId": {
+                      "type": "note.NoteId",
+                      "id": 2
+                    }
+                  }
+                },
+                "NetworkNoteStatus": {
+                  "values": {
+                    "NETWORK_NOTE_STATUS_UNSPECIFIED": 0,
+                    "NETWORK_NOTE_STATUS_PENDING": 1,
+                    "NETWORK_NOTE_STATUS_NULLIFIER_INFLIGHT": 2,
+                    "NETWORK_NOTE_STATUS_DISCARDED": 3,
+                    "NETWORK_NOTE_STATUS_NULLIFIER_COMMITTED": 4
+                  }
+                },
+                "GetNetworkNoteStatusRequest": {
+                  "fields": {
+                    "noteId": {
+                      "type": "note.NoteId",
+                      "id": 1
+                    }
+                  }
+                },
+                "GetNetworkNoteStatusResponse": {
+                  "oneofs": {
+                    "_lastError": {
+                      "oneof": [
+                        "lastError"
+                      ]
+                    },
+                    "_lastAttemptBlockNum": {
+                      "oneof": [
+                        "lastAttemptBlockNum"
+                      ]
+                    }
+                  },
+                  "fields": {
+                    "status": {
+                      "type": "NetworkNoteStatus",
+                      "id": 1
+                    },
+                    "lastError": {
+                      "type": "string",
+                      "id": 2,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    },
+                    "attemptCount": {
+                      "type": "uint32",
+                      "id": 3
+                    },
+                    "lastAttemptBlockNum": {
+                      "type": "fixed32",
+                      "id": 4,
+                      "options": {
+                        "proto3_optional": true
+                      }
+                    }
+                  }
+                },
+                "GetLimitsRequest": {
+                  "fields": {}
+                },
+                "GetLimitsResponse": {
+                  "fields": {
+                    "endpoints": {
+                      "keyType": "string",
+                      "type": "EndpointLimits",
+                      "id": 1
+                    }
+                  }
+                },
+                "EndpointLimits": {
+                  "fields": {
+                    "parameters": {
+                      "keyType": "string",
+                      "type": "uint32",
+                      "id": 1
+                    }
+                  }
+                },
+                "GetTransactionEncryptionKeyRequest": {
+                  "fields": {}
+                },
+                "GetTransactionEncryptionKeyResponse": {
+                  "fields": {
+                    "key": {
+                      "type": "submission.TransactionEncryptionKey",
+                      "id": 1
+                    }
+                  }
+                },
+                "SubmitProvenTxRequest": {
+                  "fields": {
+                    "submission": {
+                      "type": "submission.ProvenTransactionSubmission",
+                      "id": 1
+                    }
+                  }
+                },
+                "SubmitProvenTxResponse": {
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    }
+                  }
+                },
+                "SubmitProvenTxBatchRequest": {
+                  "fields": {
+                    "submission": {
+                      "type": "submission.TransactionBatch",
+                      "id": 1
+                    }
+                  }
+                },
+                "SubmitProvenTxBatchResponse": {
+                  "fields": {
+                    "blockNum": {
+                      "type": "fixed32",
+                      "id": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "account": {
+      "nested": {
+        "AccountId": {
+          "oneofs": {
+            "version": {
+              "oneof": [
+                "v1"
+              ]
+            }
+          },
+          "fields": {
+            "v1": {
+              "type": "AccountIdV1",
+              "id": 1
+            }
+          }
+        },
+        "AccountIdV1": {
+          "fields": {
+            "suffix": {
+              "type": "primitives.Felt",
+              "id": 1
+            },
+            "prefix": {
+              "type": "primitives.Felt",
+              "id": 2
+            }
+          }
+        },
+        "AccountStorageHeader": {
+          "fields": {
+            "slots": {
+              "rule": "repeated",
+              "type": "StorageSlot",
+              "id": 1
+            }
+          },
+          "nested": {
+            "StorageSlot": {
+              "oneofs": {
+                "content": {
+                  "oneof": [
+                    "value",
+                    "mapRoot"
+                  ]
+                }
+              },
+              "fields": {
+                "slotName": {
+                  "type": "string",
+                  "id": 1
+                },
+                "value": {
+                  "type": "primitives.Word",
+                  "id": 2
+                },
+                "mapRoot": {
+                  "type": "primitives.Word",
+                  "id": 3
+                }
+              }
+            }
+          }
+        },
+        "AccountVersion": {
+          "values": {
+            "ACCOUNT_VERSION_UNSPECIFIED": 0,
+            "ACCOUNT_VERSION_V1": 1
+          }
+        },
+        "AccountHeader": {
+          "fields": {
+            "version": {
+              "type": "AccountVersion",
+              "id": 1
+            },
+            "accountId": {
+              "type": "AccountId",
+              "id": 2
+            },
+            "vaultRoot": {
+              "type": "primitives.Word",
+              "id": 3
+            },
+            "storageCommitment": {
+              "type": "primitives.Word",
+              "id": 4
+            },
+            "codeCommitment": {
+              "type": "primitives.Word",
+              "id": 5
+            },
+            "nonce": {
+              "type": "uint64",
+              "id": 6
+            }
+          }
+        },
+        "AccountWitness": {
+          "fields": {
+            "witnessId": {
+              "type": "AccountId",
+              "id": 1
+            },
+            "commitment": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "path": {
+              "type": "primitives.SparseMerklePath",
+              "id": 3
+            }
+          }
+        },
+        "AccountCode": {
+          "fields": {
+            "mast": {
+              "type": "primitives.MastForest",
+              "id": 1
+            },
+            "procedureRoots": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "AccountCodeUpgrade": {
+          "fields": {
+            "code": {
+              "type": "AccountCode",
+              "id": 1
+            }
+          }
+        },
+        "StorageSlotId": {
+          "fields": {
+            "suffix": {
+              "type": "primitives.Felt",
+              "id": 1
+            },
+            "prefix": {
+              "type": "primitives.Felt",
+              "id": 2
+            }
+          }
+        },
+        "PartialAccount": {
+          "oneofs": {
+            "_seed": {
+              "oneof": [
+                "seed"
+              ]
+            }
+          },
+          "fields": {
+            "version": {
+              "type": "AccountVersion",
+              "id": 1
+            },
+            "accountId": {
+              "type": "AccountId",
+              "id": 2
+            },
+            "nonce": {
+              "type": "primitives.Felt",
+              "id": 3
+            },
+            "code": {
+              "type": "AccountCode",
+              "id": 4
+            },
+            "storage": {
+              "type": "PartialStorage",
+              "id": 5
+            },
+            "vault": {
+              "type": "PartialVault",
+              "id": 6
+            },
+            "seed": {
+              "type": "primitives.Word",
+              "id": 7,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        },
+        "PartialStorage": {
+          "fields": {
+            "header": {
+              "type": "AccountStorageHeader",
+              "id": 1
+            },
+            "maps": {
+              "rule": "repeated",
+              "type": "PartialStorageMap",
+              "id": 2
+            }
+          }
+        },
+        "PartialStorageMap": {
+          "fields": {
+            "smt": {
+              "type": "primitives.PartialSmt",
+              "id": 1
+            },
+            "keys": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "PartialVault": {
+          "fields": {
+            "smt": {
+              "type": "primitives.PartialSmt",
+              "id": 1
+            },
+            "assetIds": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "StorageValuePatch": {
+          "oneofs": {
+            "operation": {
+              "oneof": [
+                "create",
+                "update",
+                "remove"
+              ]
+            }
+          },
+          "fields": {
+            "create": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "update": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "remove": {
+              "type": "google.protobuf.Empty",
+              "id": 3
+            }
+          }
+        },
+        "StorageMapEntry": {
+          "fields": {
+            "key": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "value": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "StorageMapPatchEntries": {
+          "fields": {
+            "entries": {
+              "rule": "repeated",
+              "type": "StorageMapEntry",
+              "id": 1
+            }
+          }
+        },
+        "StorageMapPatch": {
+          "oneofs": {
+            "operation": {
+              "oneof": [
+                "create",
+                "update",
+                "remove"
+              ]
+            }
+          },
+          "fields": {
+            "create": {
+              "type": "StorageMapPatchEntries",
+              "id": 1
+            },
+            "update": {
+              "type": "StorageMapPatchEntries",
+              "id": 2
+            },
+            "remove": {
+              "type": "google.protobuf.Empty",
+              "id": 3
+            }
+          }
+        },
+        "StorageSlotPatch": {
+          "oneofs": {
+            "patch": {
+              "oneof": [
+                "value",
+                "map"
+              ]
+            }
+          },
+          "fields": {
+            "slotName": {
+              "type": "string",
+              "id": 1
+            },
+            "value": {
+              "type": "StorageValuePatch",
+              "id": 2
+            },
+            "map": {
+              "type": "StorageMapPatch",
+              "id": 3
+            }
+          }
+        },
+        "AccountStoragePatch": {
+          "fields": {
+            "slots": {
+              "rule": "repeated",
+              "type": "StorageSlotPatch",
+              "id": 1
+            }
+          }
+        },
+        "AccountVaultPatchEntry": {
+          "fields": {
+            "assetId": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "value": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "AccountVaultPatch": {
+          "fields": {
+            "entries": {
+              "rule": "repeated",
+              "type": "AccountVaultPatchEntry",
+              "id": 1
+            }
+          }
+        },
+        "AccountCodePatch": {
+          "oneofs": {
+            "_code": {
+              "oneof": [
+                "code"
+              ]
+            }
+          },
+          "fields": {
+            "code": {
+              "type": "AccountCode",
+              "id": 1,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        },
+        "AccountPatchVersion": {
+          "values": {
+            "ACCOUNT_PATCH_VERSION_UNSPECIFIED": 0,
+            "ACCOUNT_PATCH_VERSION_V1": 1
+          }
+        },
+        "AccountPatch": {
+          "oneofs": {
+            "_finalNonce": {
+              "oneof": [
+                "finalNonce"
+              ]
+            }
+          },
+          "fields": {
+            "version": {
+              "type": "AccountPatchVersion",
+              "id": 1
+            },
+            "accountId": {
+              "type": "AccountId",
+              "id": 2
+            },
+            "storage": {
+              "type": "AccountStoragePatch",
+              "id": 3
+            },
+            "vault": {
+              "type": "AccountVaultPatch",
+              "id": 4
+            },
+            "code": {
+              "type": "AccountCodePatch",
+              "id": 5
+            },
+            "finalNonce": {
+              "type": "primitives.Felt",
+              "id": 6,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        },
+        "PrivateAccountUpdate": {
+          "fields": {}
+        },
+        "AccountUpdateDetails": {
+          "oneofs": {
+            "update": {
+              "oneof": [
+                "private",
+                "public"
+              ]
+            }
+          },
+          "fields": {
+            "private": {
+              "type": "PrivateAccountUpdate",
+              "id": 1
+            },
+            "public": {
+              "type": "AccountPatch",
+              "id": 2
+            }
+          }
+        }
+      }
+    },
+    "primitives": {
+      "nested": {
+        "Felt": {
+          "fields": {
+            "value": {
+              "type": "fixed64",
+              "id": 1
+            }
+          }
+        },
+        "Word": {
+          "fields": {
+            "encoded": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "ExecutionProof": {
+          "fields": {
+            "encoded": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "MastForest": {
+          "fields": {
+            "encoded": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "PublicKey": {
+          "oneofs": {
+            "key": {
+              "oneof": [
+                "ecdsaK256Keccak"
+              ]
+            }
+          },
+          "fields": {
+            "ecdsaK256Keccak": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "Signature": {
+          "oneofs": {
+            "signature": {
+              "oneof": [
+                "ecdsaK256Keccak"
+              ]
+            }
+          },
+          "fields": {
+            "ecdsaK256Keccak": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "MerklePath": {
+          "fields": {
+            "siblings": {
+              "rule": "repeated",
+              "type": "Word",
+              "id": 1
+            }
+          }
+        },
+        "SparseMerklePath": {
+          "fields": {
+            "emptyNodesMask": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "siblings": {
+              "rule": "repeated",
+              "type": "Word",
+              "id": 2
+            }
+          }
+        },
+        "PartialMmr": {
+          "fields": {
+            "forest": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "peaks": {
+              "rule": "repeated",
+              "type": "Word",
+              "id": 2
+            },
+            "trackedLeaves": {
+              "rule": "repeated",
+              "type": "TrackedMmrLeaf",
+              "id": 3
+            }
+          }
+        },
+        "TrackedMmrLeaf": {
+          "fields": {
+            "position": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "leaf": {
+              "type": "Word",
+              "id": 2
+            },
+            "path": {
+              "rule": "repeated",
+              "type": "Word",
+              "id": 3
+            }
+          }
+        },
+        "MmrDelta": {
+          "fields": {
+            "forest": {
+              "type": "uint64",
+              "id": 1
+            },
+            "updateData": {
+              "rule": "repeated",
+              "type": "Word",
+              "id": 2
+            }
+          }
+        },
+        "SmtLeafEntry": {
+          "fields": {
+            "key": {
+              "type": "Word",
+              "id": 1
+            },
+            "value": {
+              "type": "Word",
+              "id": 2
+            }
+          }
+        },
+        "SmtLeafEntryList": {
+          "fields": {
+            "entries": {
+              "rule": "repeated",
+              "type": "SmtLeafEntry",
+              "id": 1
+            }
+          }
+        },
+        "SmtLeaf": {
+          "oneofs": {
+            "leaf": {
+              "oneof": [
+                "emptyLeafIndex",
+                "single",
+                "multiple"
+              ]
+            }
+          },
+          "fields": {
+            "emptyLeafIndex": {
+              "type": "uint64",
+              "id": 1
+            },
+            "single": {
+              "type": "SmtLeafEntry",
+              "id": 2
+            },
+            "multiple": {
+              "type": "SmtLeafEntryList",
+              "id": 3
+            }
+          }
+        },
+        "SmtOpening": {
+          "fields": {
+            "path": {
+              "type": "SparseMerklePath",
+              "id": 1
+            },
+            "leaf": {
+              "type": "SmtLeaf",
+              "id": 2
+            }
+          }
+        },
+        "PartialSmt": {
+          "fields": {
+            "root": {
+              "type": "Word",
+              "id": 1
+            },
+            "nodeLevels": {
+              "rule": "repeated",
+              "type": "PartialSmtNodeLevel",
+              "id": 2
+            },
+            "leaves": {
+              "rule": "repeated",
+              "type": "IndexedSmtLeaf",
+              "id": 3
+            },
+            "valueOnlyLeaves": {
+              "rule": "repeated",
+              "type": "IndexedDigest",
+              "id": 4
+            }
+          }
+        },
+        "PartialSmtNodeLevel": {
+          "fields": {
+            "depth": {
+              "type": "uint32",
+              "id": 1
+            },
+            "nodes": {
+              "rule": "repeated",
+              "type": "PartialSmtNode",
+              "id": 2
+            }
+          }
+        },
+        "PartialSmtNode": {
+          "fields": {
+            "index": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "digest": {
+              "type": "Word",
+              "id": 2
+            }
+          }
+        },
+        "IndexedSmtLeaf": {
+          "fields": {
+            "index": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "leaf": {
+              "type": "SmtLeaf",
+              "id": 2
+            }
+          }
+        },
+        "IndexedDigest": {
+          "fields": {
+            "index": {
+              "type": "fixed64",
+              "id": 1
+            },
+            "value": {
+              "type": "Word",
+              "id": 2
+            }
+          }
+        },
+        "AdviceStack": {
+          "fields": {
+            "values": {
+              "rule": "repeated",
+              "type": "Felt",
+              "id": 1
+            }
+          }
+        },
+        "AdviceMapEntry": {
+          "fields": {
+            "key": {
+              "type": "Word",
+              "id": 1
+            },
+            "values": {
+              "rule": "repeated",
+              "type": "Felt",
+              "id": 2
+            }
+          }
+        },
+        "AdviceMap": {
+          "fields": {
+            "entries": {
+              "rule": "repeated",
+              "type": "AdviceMapEntry",
+              "id": 1
+            }
+          }
+        },
+        "MerkleStoreNode": {
+          "fields": {
+            "value": {
+              "type": "Word",
+              "id": 1
+            },
+            "left": {
+              "type": "Word",
+              "id": 2
+            },
+            "right": {
+              "type": "Word",
+              "id": 3
+            }
+          }
+        },
+        "MerkleStore": {
+          "fields": {
+            "nodes": {
+              "rule": "repeated",
+              "type": "MerkleStoreNode",
+              "id": 1
+            }
+          }
+        },
+        "AdviceInputs": {
+          "fields": {
+            "adviceStack": {
+              "type": "AdviceStack",
+              "id": 1
+            },
+            "adviceMap": {
+              "type": "AdviceMap",
+              "id": 2
+            },
+            "merkleStore": {
+              "type": "MerkleStore",
+              "id": 3
+            }
+          }
+        }
+      }
+    },
+    "google": {
+      "nested": {
+        "protobuf": {
+          "nested": {
+            "Empty": {
+              "fields": {}
+            }
+          }
+        }
+      }
+    },
+    "asset": {
+      "nested": {
+        "AssetVersion": {
+          "values": {
+            "ASSET_VERSION_UNSPECIFIED": 0,
+            "ASSET_VERSION_V1": 1
+          }
+        },
+        "AssetClass": {
+          "fields": {
+            "suffix": {
+              "type": "primitives.Felt",
+              "id": 1
+            },
+            "prefix": {
+              "type": "primitives.Felt",
+              "id": 2
+            }
+          }
+        },
+        "AssetId": {
+          "oneofs": {
+            "composition": {
+              "oneof": [
+                "fungible",
+                "nonFungible",
+                "custom"
+              ]
+            }
+          },
+          "fields": {
+            "version": {
+              "type": "AssetVersion",
+              "id": 1
+            },
+            "faucetId": {
+              "type": "account.AccountId",
+              "id": 2
+            },
+            "fungible": {
+              "type": "google.protobuf.Empty",
+              "id": 3
+            },
+            "nonFungible": {
+              "type": "AssetClass",
+              "id": 4
+            },
+            "custom": {
+              "type": "AssetClass",
+              "id": 5
+            }
+          }
+        },
+        "Asset": {
+          "fields": {
+            "assetId": {
+              "type": "AssetId",
+              "id": 1
+            },
+            "value": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "AssetVault": {
+          "fields": {
+            "assets": {
+              "rule": "repeated",
+              "type": "Asset",
+              "id": 1
+            }
+          }
+        }
+      }
+    },
+    "transaction": {
+      "nested": {
+        "ProposedBatch": {
+          "fields": {
+            "transactions": {
+              "rule": "repeated",
+              "type": "ProvenTransaction",
+              "id": 1
+            },
+            "referenceBlockHeader": {
+              "type": "blockchain.BlockHeader",
+              "id": 2
+            },
+            "partialBlockchain": {
+              "type": "blockchain.PartialBlockchain",
+              "id": 3
+            },
+            "unauthenticatedNoteProofs": {
+              "rule": "repeated",
+              "type": "note.NoteInclusionProof",
+              "id": 4
+            }
+          }
+        },
+        "BatchAccountUpdate": {
+          "fields": {
+            "accountId": {
+              "type": "account.AccountId",
+              "id": 1
+            },
+            "initialStateCommitment": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "finalStateCommitment": {
+              "type": "primitives.Word",
+              "id": 3
+            },
+            "details": {
+              "type": "account.AccountUpdateDetails",
+              "id": 4
+            }
+          }
+        },
+        "ProvenBatch": {
+          "fields": {
+            "referenceBlockCommitment": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "referenceBlockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 2
+            },
+            "accountUpdates": {
+              "rule": "repeated",
+              "type": "BatchAccountUpdate",
+              "id": 3
+            },
+            "inputNotes": {
+              "rule": "repeated",
+              "type": "InputNoteCommitment",
+              "id": 4
+            },
+            "outputNotes": {
+              "rule": "repeated",
+              "type": "OutputNote",
+              "id": 5
+            },
+            "expirationBlockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 6
+            },
+            "transactions": {
+              "rule": "repeated",
+              "type": "TransactionHeader",
+              "id": 7
+            },
+            "proof": {
+              "type": "primitives.ExecutionProof",
+              "id": 8
+            }
+          }
+        },
+        "TransactionId": {
+          "fields": {
+            "id": {
+              "type": "primitives.Word",
+              "id": 1
+            }
+          }
+        },
+        "InputNoteCommitment": {
+          "oneofs": {
+            "_header": {
+              "oneof": [
+                "header"
+              ]
+            }
+          },
+          "fields": {
+            "nullifier": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "header": {
+              "type": "note.NoteHeader",
+              "id": 2,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        },
+        "TransactionHeader": {
+          "fields": {
+            "transactionId": {
+              "type": "TransactionId",
+              "id": 1
+            },
+            "accountId": {
+              "type": "account.AccountId",
+              "id": 2
+            },
+            "initialStateCommitment": {
+              "type": "primitives.Word",
+              "id": 3
+            },
+            "finalStateCommitment": {
+              "type": "primitives.Word",
+              "id": 4
+            },
+            "inputNotes": {
+              "rule": "repeated",
+              "type": "InputNoteCommitment",
+              "id": 5
+            },
+            "outputNotes": {
+              "rule": "repeated",
+              "type": "note.NoteHeader",
+              "id": 6
+            }
+          }
+        },
+        "PublicOutputNote": {
+          "fields": {
+            "note": {
+              "type": "note.Note",
+              "id": 1
+            }
+          }
+        },
+        "PrivateOutputNote": {
+          "fields": {
+            "header": {
+              "type": "note.NoteHeader",
+              "id": 1
+            },
+            "attachments": {
+              "type": "note.NoteAttachments",
+              "id": 2
+            }
+          }
+        },
+        "OutputNote": {
+          "oneofs": {
+            "note": {
+              "oneof": [
+                "public",
+                "private"
+              ]
+            }
+          },
+          "fields": {
+            "public": {
+              "type": "PublicOutputNote",
+              "id": 1
+            },
+            "private": {
+              "type": "PrivateOutputNote",
+              "id": 2
+            }
+          }
+        },
+        "RawOutputNote": {
+          "oneofs": {
+            "note": {
+              "oneof": [
+                "full",
+                "partial"
+              ]
+            }
+          },
+          "fields": {
+            "full": {
+              "type": "note.Note",
+              "id": 1
+            },
+            "partial": {
+              "type": "note.PartialNote",
+              "id": 2
+            }
+          }
+        },
+        "RawOutputNotes": {
+          "fields": {
+            "notes": {
+              "rule": "repeated",
+              "type": "RawOutputNote",
+              "id": 1
+            }
+          }
+        },
+        "TxAccountUpdate": {
+          "fields": {
+            "accountId": {
+              "type": "account.AccountId",
+              "id": 1
+            },
+            "initialStateCommitment": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "finalStateCommitment": {
+              "type": "primitives.Word",
+              "id": 3
+            },
+            "accountPatchCommitment": {
+              "type": "primitives.Word",
+              "id": 4
+            },
+            "details": {
+              "type": "account.AccountUpdateDetails",
+              "id": 5
+            }
+          }
+        },
+        "ProvenTransaction": {
+          "fields": {
+            "accountUpdate": {
+              "type": "TxAccountUpdate",
+              "id": 1
+            },
+            "inputNotes": {
+              "rule": "repeated",
+              "type": "InputNoteCommitment",
+              "id": 2
+            },
+            "outputNotes": {
+              "rule": "repeated",
+              "type": "OutputNote",
+              "id": 3
+            },
+            "referenceBlockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 4
+            },
+            "referenceBlockCommitment": {
+              "type": "primitives.Word",
+              "id": 5
+            },
+            "expirationBlockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 6
+            },
+            "proof": {
+              "type": "primitives.ExecutionProof",
+              "id": 7
+            }
+          }
+        },
+        "TransactionScript": {
+          "fields": {
+            "entrypoint": {
+              "type": "uint32",
+              "id": 1
+            },
+            "mast": {
+              "type": "primitives.MastForest",
+              "id": 2
+            }
+          }
+        },
+        "NoteArgument": {
+          "fields": {
+            "noteId": {
+              "type": "note.NoteId",
+              "id": 1
+            },
+            "args": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "TransactionArgs": {
+          "oneofs": {
+            "_txScript": {
+              "oneof": [
+                "txScript"
+              ]
+            },
+            "_accountCodeUpgrade": {
+              "oneof": [
+                "accountCodeUpgrade"
+              ]
+            }
+          },
+          "fields": {
+            "txScript": {
+              "type": "TransactionScript",
+              "id": 1,
+              "options": {
+                "proto3_optional": true
+              }
+            },
+            "txScriptArgs": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "noteArgs": {
+              "rule": "repeated",
+              "type": "NoteArgument",
+              "id": 3
+            },
+            "adviceInputs": {
+              "type": "primitives.AdviceInputs",
+              "id": 4
+            },
+            "authArgs": {
+              "type": "primitives.Word",
+              "id": 5
+            },
+            "accountCodeUpgrade": {
+              "type": "account.AccountCodeUpgrade",
+              "id": 6,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "blockchain": {
+      "nested": {
+        "FeeParameters": {
+          "fields": {
+            "verificationBaseFee": {
+              "type": "fixed32",
+              "id": 1
+            }
+          }
+        },
+        "ValidatorConfig": {
+          "fields": {
+            "keys": {
+              "rule": "repeated",
+              "type": "primitives.PublicKey",
+              "id": 1
+            },
+            "quorum": {
+              "type": "uint32",
+              "id": 2
+            }
+          }
+        },
+        "NextProtocolConfig": {
+          "fields": {
+            "effectiveFrom": {
+              "type": "blockchain.BlockNumber",
+              "id": 1
+            },
+            "protocolConfig": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "BlockVersion": {
+          "values": {
+            "BLOCK_VERSION_UNSPECIFIED": 0,
+            "BLOCK_VERSION_V1": 1
+          }
+        },
+        "BlockHeader": {
+          "oneofs": {
+            "_nextProtocolConfig": {
+              "oneof": [
+                "nextProtocolConfig"
+              ]
+            }
+          },
+          "fields": {
+            "version": {
+              "type": "BlockVersion",
+              "id": 1
+            },
+            "timestamp": {
+              "type": "fixed32",
+              "id": 2
+            },
+            "blockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 3
+            },
+            "prevBlockCommitment": {
+              "type": "primitives.Word",
+              "id": 4
+            },
+            "chainCommitment": {
+              "type": "primitives.Word",
+              "id": 5
+            },
+            "accountRoot": {
+              "type": "primitives.Word",
+              "id": 6
+            },
+            "nullifierRoot": {
+              "type": "primitives.Word",
+              "id": 7
+            },
+            "noteRoot": {
+              "type": "primitives.Word",
+              "id": 8
+            },
+            "txCommitment": {
+              "type": "primitives.Word",
+              "id": 9
+            },
+            "validatorConfig": {
+              "type": "ValidatorConfig",
+              "id": 10
+            },
+            "feeParameters": {
+              "type": "FeeParameters",
+              "id": 11
+            },
+            "protocolConfigCommitment": {
+              "type": "primitives.Word",
+              "id": 12
+            },
+            "nextProtocolConfig": {
+              "type": "NextProtocolConfig",
+              "id": 13,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        },
+        "BlockAccountUpdate": {
+          "fields": {
+            "accountId": {
+              "type": "account.AccountId",
+              "id": 1
+            },
+            "finalStateCommitment": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "details": {
+              "type": "account.AccountUpdateDetails",
+              "id": 3
+            }
+          }
+        },
+        "IndexedOutputNote": {
+          "fields": {
+            "noteIndexInBatch": {
+              "type": "uint32",
+              "id": 1
+            },
+            "note": {
+              "type": "transaction.OutputNote",
+              "id": 2
+            }
+          }
+        },
+        "OutputNoteBatch": {
+          "fields": {
+            "notes": {
+              "rule": "repeated",
+              "type": "IndexedOutputNote",
+              "id": 1
+            }
+          }
+        },
+        "BlockBody": {
+          "fields": {
+            "updatedAccounts": {
+              "rule": "repeated",
+              "type": "BlockAccountUpdate",
+              "id": 1
+            },
+            "outputNoteBatches": {
+              "rule": "repeated",
+              "type": "OutputNoteBatch",
+              "id": 2
+            },
+            "createdNullifiers": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 3
+            },
+            "transactions": {
+              "rule": "repeated",
+              "type": "transaction.TransactionHeader",
+              "id": 4
+            }
+          }
+        },
+        "SignedBlock": {
+          "fields": {
+            "header": {
+              "type": "BlockHeader",
+              "id": 1
+            },
+            "body": {
+              "type": "BlockBody",
+              "id": 2
+            },
+            "signatures": {
+              "rule": "repeated",
+              "type": "primitives.Signature",
+              "id": 3
+            }
+          }
+        },
+        "BlockNumber": {
+          "fields": {
+            "blockNum": {
+              "type": "fixed32",
+              "id": 1
+            }
+          }
+        },
+        "PartialBlockchain": {
+          "fields": {
+            "mmr": {
+              "type": "primitives.PartialMmr",
+              "id": 1
+            },
+            "blockHeaders": {
+              "rule": "repeated",
+              "type": "BlockHeader",
+              "id": 2
+            }
+          }
+        }
+      }
+    },
+    "note": {
+      "nested": {
+        "NoteType": {
+          "values": {
+            "NOTE_TYPE_UNSPECIFIED": 0,
+            "NOTE_TYPE_PRIVATE": 1,
+            "NOTE_TYPE_PUBLIC": 2
+          }
+        },
+        "NoteVersion": {
+          "values": {
+            "NOTE_VERSION_UNSPECIFIED": 0,
+            "NOTE_VERSION_V1": 1
+          }
+        },
+        "NoteId": {
+          "fields": {
+            "id": {
+              "type": "primitives.Word",
+              "id": 1
+            }
+          }
+        },
+        "NoteMetadata": {
+          "fields": {
+            "version": {
+              "type": "NoteVersion",
+              "id": 1
+            },
+            "sender": {
+              "type": "account.AccountId",
+              "id": 2
+            },
+            "noteType": {
+              "type": "NoteType",
+              "id": 3
+            },
+            "tag": {
+              "type": "fixed32",
+              "id": 4
+            },
+            "attachmentSchemes": {
+              "rule": "repeated",
+              "type": "fixed32",
+              "id": 5
+            },
+            "attachmentsCommitment": {
+              "type": "primitives.Word",
+              "id": 6
+            }
+          }
+        },
+        "PartialNoteMetadata": {
+          "fields": {
+            "version": {
+              "type": "NoteVersion",
+              "id": 1
+            },
+            "sender": {
+              "type": "account.AccountId",
+              "id": 2
+            },
+            "noteType": {
+              "type": "NoteType",
+              "id": 3
+            },
+            "tag": {
+              "type": "fixed32",
+              "id": 4
+            }
+          }
+        },
+        "NoteAttachment": {
+          "fields": {
+            "scheme": {
+              "type": "uint32",
+              "id": 1
+            },
+            "words": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "NoteAttachments": {
+          "fields": {
+            "attachments": {
+              "rule": "repeated",
+              "type": "NoteAttachment",
+              "id": 1
+            }
+          }
+        },
+        "NoteStorage": {
+          "fields": {
+            "items": {
+              "rule": "repeated",
+              "type": "primitives.Felt",
+              "id": 1
+            }
+          }
+        },
+        "NoteRecipient": {
+          "fields": {
+            "serialNum": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "script": {
+              "type": "NoteScript",
+              "id": 2
+            },
+            "storage": {
+              "type": "NoteStorage",
+              "id": 3
+            }
+          }
+        },
+        "NoteDetails": {
+          "fields": {
+            "assets": {
+              "rule": "repeated",
+              "type": "asset.Asset",
+              "id": 1
+            },
+            "recipient": {
+              "type": "NoteRecipient",
+              "id": 2
+            }
+          }
+        },
+        "Note": {
+          "fields": {
+            "metadata": {
+              "type": "PartialNoteMetadata",
+              "id": 1
+            },
+            "noteDetails": {
+              "type": "NoteDetails",
+              "id": 2
+            },
+            "noteAttachments": {
+              "type": "NoteAttachments",
+              "id": 3
+            }
+          }
+        },
+        "PartialNote": {
+          "fields": {
+            "metadata": {
+              "type": "PartialNoteMetadata",
+              "id": 1
+            },
+            "recipientDigest": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "assets": {
+              "rule": "repeated",
+              "type": "asset.Asset",
+              "id": 3
+            },
+            "attachments": {
+              "type": "NoteAttachments",
+              "id": 4
+            }
+          }
+        },
+        "NoteInclusionProof": {
+          "fields": {
+            "noteId": {
+              "type": "NoteId",
+              "id": 1
+            },
+            "blockNum": {
+              "type": "blockchain.BlockNumber",
+              "id": 2
+            },
+            "noteIndexInBlock": {
+              "type": "uint32",
+              "id": 3
+            },
+            "inclusionPath": {
+              "type": "primitives.SparseMerklePath",
+              "id": 4
+            }
+          }
+        },
+        "NoteHeader": {
+          "fields": {
+            "metadata": {
+              "type": "NoteMetadata",
+              "id": 1
+            },
+            "detailsCommitment": {
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "NoteScript": {
+          "fields": {
+            "entrypoint": {
+              "type": "uint32",
+              "id": 1
+            },
+            "mast": {
+              "type": "primitives.MastForest",
+              "id": 2
+            }
+          }
+        }
+      }
+    },
+    "protocol_config": {
+      "nested": {
+        "KernelConfig": {
+          "fields": {
+            "mainProc": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "kernelProcs": {
+              "rule": "repeated",
+              "type": "primitives.Word",
+              "id": 2
+            }
+          }
+        },
+        "ProofSecurityPolicy": {
+          "fields": {
+            "securityEstimatorRoot": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "minimumBits": {
+              "type": "uint32",
+              "id": 2
+            }
+          }
+        },
+        "ProofVerificationConfig": {
+          "fields": {
+            "vmVerifierRoot": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "precompileVerifierRoot": {
+              "type": "primitives.Word",
+              "id": 2
+            },
+            "securityPolicy": {
+              "type": "ProofSecurityPolicy",
+              "id": 3
+            }
+          }
+        },
+        "ProtocolConfig": {
+          "fields": {
+            "feeAssetId": {
+              "type": "primitives.Word",
+              "id": 1
+            },
+            "txKernel": {
+              "type": "KernelConfig",
+              "id": 2
+            },
+            "batchKernel": {
+              "type": "KernelConfig",
+              "id": 3
+            },
+            "blockKernel": {
+              "type": "KernelConfig",
+              "id": 4
+            },
+            "proofVerification": {
+              "type": "ProofVerificationConfig",
+              "id": 5
+            }
+          }
+        }
+      }
+    },
+    "submission": {
+      "nested": {
+        "ProvenTransactionSubmission": {
+          "fields": {
+            "transaction": {
+              "type": "transaction.ProvenTransaction",
+              "id": 1
+            },
+            "sealedTransactionInputs": {
+              "type": "SealedTransactionInputs",
+              "id": 2
+            }
+          }
+        },
+        "SealedTransactionInputs": {
+          "fields": {
+            "keyId": {
+              "type": "bytes",
+              "id": 1
+            },
+            "ciphertext": {
+              "type": "bytes",
+              "id": 2
+            }
+          }
+        },
+        "TransactionBatch": {
+          "fields": {
+            "batch": {
+              "type": "transaction.ProvenBatch",
+              "id": 1
+            },
+            "proposedBatch": {
+              "type": "transaction.ProposedBatch",
+              "id": 2
+            },
+            "sealedTransactionInputs": {
+              "rule": "repeated",
+              "type": "SealedTransactionInputs",
+              "id": 3
+            }
+          }
+        },
+        "IesScheme": {
+          "values": {
+            "IES_SCHEME_UNSPECIFIED": 0,
+            "IES_SCHEME_X25519_XCHACHA20_POLY1305": 1
+          }
+        },
+        "ValidatorKeyAttestation": {
+          "fields": {
+            "validatorPublicKey": {
+              "type": "primitives.PublicKey",
+              "id": 1
+            },
+            "signature": {
+              "type": "primitives.Signature",
+              "id": 2
+            }
+          }
+        },
+        "NextTransactionEncryptionKey": {
+          "fields": {
+            "scheme": {
+              "type": "IesScheme",
+              "id": 1
+            },
+            "keyId": {
+              "type": "bytes",
+              "id": 2
+            },
+            "publicKey": {
+              "type": "bytes",
+              "id": 3
+            },
+            "rotationBlockNum": {
+              "type": "fixed32",
+              "id": 4
+            }
+          }
+        },
+        "TransactionEncryptionKey": {
+          "oneofs": {
+            "_nextKey": {
+              "oneof": [
+                "nextKey"
+              ]
+            }
+          },
+          "fields": {
+            "scheme": {
+              "type": "IesScheme",
+              "id": 1
+            },
+            "keyId": {
+              "type": "bytes",
+              "id": 2
+            },
+            "publicKey": {
+              "type": "bytes",
+              "id": 3
+            },
+            "attestations": {
+              "rule": "repeated",
+              "type": "ValidatorKeyAttestation",
+              "id": 4
+            },
+            "nextKey": {
+              "type": "NextTransactionEncryptionKey",
+              "id": 5,
+              "options": {
+                "proto3_optional": true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -207,6 +207,20 @@ pub fn enabled_attesters(faucet: &Account) -> Vec<Word> {
         .collect()
 }
 
+/// The note-script roots of every admin note kind this crate builds, labelled. Kinds that share
+/// a note script (RBAC grant/revoke, pause/unpause) share a root, so one label covers both.
+pub fn admin_note_kinds() -> Vec<(&'static str, NoteScriptRoot)> {
+    vec![
+        ("Set max supply", FaucetMetadataConfigNote::script_root()),
+        ("Set note fee", ConstantFeePolicyConfigNote::script_root()),
+        ("Grant or revoke role", RbacConfigNote::script_root()),
+        ("Pause or unpause", PauseConfigNote::script_root()),
+        ("Block or unblock account", BlocklistConfigNote::script_root()),
+        ("Set min burn", XReserveMinBurnAmountNote::script_root()),
+        ("Set attester", XReserveSetAttesterNote::script_root()),
+    ]
+}
+
 fn amount(value: u64) -> Result<AssetAmount, AdminNoteError> {
     AssetAmount::try_from(value).map_err(|e| AdminNoteError::Amount(e.to_string()))
 }

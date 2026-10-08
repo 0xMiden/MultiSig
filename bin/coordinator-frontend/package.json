@@ -38,6 +38,7 @@
     "framer-motion": "^12.23.12",
     "medina-agent": "file:vendor/medina-agent-0.1.0.tgz",
     "next": "15.5.26",
+    "protobufjs": "^7.6.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0",

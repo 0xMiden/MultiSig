@@ -15,6 +15,7 @@ const adminSidebarPages: SidebarPage[] = [
   { pageName: "Admin", path: "/dashboard/admin", pageIcon: media.actionIcon },
   { pageName: "Roles", path: "/dashboard/admin/roles", pageIcon: media.peopleIcon },
   { pageName: "Transactions", path: "/dashboard/transactions", pageIcon: media.transactionsIcon },
+  { pageName: "History", path: "/dashboard/history", pageIcon: media.transactionsIcon },
   { pageName: "Settings", path: "/dashboard/settings", pageIcon: media.settingsIcon },
 ];
 
@@ -22,6 +23,7 @@ const walletSidebarPages: SidebarPage[] = [
   { pageName: "Home", path: "/dashboard/home", pageIcon: media.HomeIcon },
   { pageName: "Assets", path: "/dashboard/assets", pageIcon: media.assetsIcon },
   { pageName: "Transactions", path: "/dashboard/transactions", pageIcon: media.transactionsIcon },
+  { pageName: "History", path: "/dashboard/history", pageIcon: media.transactionsIcon },
   { pageName: "Settings", path: "/dashboard/settings", pageIcon: media.settingsIcon },
 ];
 
