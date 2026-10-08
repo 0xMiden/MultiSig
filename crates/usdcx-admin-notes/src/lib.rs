@@ -29,6 +29,7 @@ use miden_standards::note::config::{
     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
     FaucetMetadataConfigNote, PauseConfig, PauseConfigNote, RbacConfig, RbacConfigNote,
 };
+use miden_usdcx::account::XReserveFaucetExtension;
 use miden_usdcx::note::xreserve_admin::{XReserveMinBurnAmountNote, XReserveSetAttesterNote};
 
 #[cfg(feature = "wasm")]
@@ -183,6 +184,27 @@ pub fn note_fee(faucet: &Account, note_script_root: &NoteScriptRoot) -> Option<u
         Ok(value) if value[3] == Felt::ONE => Some(felt_to_u64(value[0])),
         _ => None,
     }
+}
+
+/// The attester commitments currently enabled on the faucet, read from the xreserve attester
+/// allowlist map (`commitment -> [1, 0, 0, 0]` for an enabled attester; `set_attester` with
+/// `enabled = false` leaves the key with a zero marker, which the attestation check and this reader
+/// both treat as disabled). Scans the map's entries, like [`rbac_role_members`].
+///
+/// Returns an empty `Vec` if the allowlist slot is absent or is not a storage map (fail-safe, as
+/// [`rbac_role_members`] does), so a malformed account reads as "no attesters" rather than panicking.
+pub fn enabled_attesters(faucet: &Account) -> Vec<Word> {
+    let Some(slot) = faucet.storage().get(XReserveFaucetExtension::xreserve_attesters_slot()) else {
+        return Vec::new();
+    };
+    let StorageSlotContent::Map(map) = slot.content() else {
+        return Vec::new();
+    };
+
+    map.entries()
+        .filter(|(_, value)| value[0] == Felt::ONE)
+        .map(|(key, _)| Word::from(*key))
+        .collect()
 }
 
 fn amount(value: u64) -> Result<AssetAmount, AdminNoteError> {

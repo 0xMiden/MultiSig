@@ -66,6 +66,12 @@ export function current_min_burn(faucet_account: Uint8Array): bigint;
 export function current_token_supply(faucet_account: Uint8Array): bigint;
 
 /**
+ * The hex commitments of every attester currently enabled on the faucet, from its serialized
+ * `Account` bytes. Shown as the current value next to the `set_attester` form.
+ */
+export function enabled_attesters(faucet_account: Uint8Array): string[];
+
+/**
  * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
  * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
  */
@@ -95,6 +101,7 @@ export interface InitOutput {
   readonly current_max_supply: (a: number, b: number) => [bigint, number, number];
   readonly current_min_burn: (a: number, b: number) => [bigint, number, number];
   readonly current_token_supply: (a: number, b: number) => [bigint, number, number];
+  readonly enabled_attesters: (a: number, b: number) => [number, number, number, number];
   readonly note_fee: (a: number, b: number, c: number, d: number) => [number, bigint, number, number];
   readonly rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly __wbindgen_externrefs: WebAssembly.Table;

@@ -92,6 +92,14 @@ pub fn note_fee(faucet_account: &[u8], note_script_root: &[u8]) -> Result<Option
     Ok(builders::note_fee(&faucet, &root))
 }
 
+/// The hex commitments of every attester currently enabled on the faucet, from its serialized
+/// `Account` bytes. Shown as the current value next to the `set_attester` form.
+#[wasm_bindgen]
+pub fn enabled_attesters(faucet_account: &[u8]) -> Result<Vec<String>, JsError> {
+    let faucet = Account::read_from_bytes(faucet_account).map_err(js)?;
+    Ok(builders::enabled_attesters(&faucet).iter().map(|w| w.to_hex()).collect())
+}
+
 // --- stock admin notes -----------------------------------------------------
 
 /// Build a `set_max_supply` note. Returns serialized `Note` bytes.

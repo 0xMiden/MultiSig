@@ -14,6 +14,7 @@ use miden_protocol::block::FeeParameters;
 use miden_protocol::{Felt, Word};
 use miden_standards::account::access::RoleBasedAccessControl;
 use miden_testing::MockChain;
+use miden_usdcx::account::XReserveFaucetExtension;
 use miden_usdcx::account::xreserve::XReserveStablecoinBuilder;
 use miden_usdcx::build_faucet_account;
 use miden_usdcx::xreserve::encoding::CircleDomain;
@@ -114,6 +115,37 @@ pub fn faucet_with_two_admins() -> (Account, AccountId, AccountId) {
         .expect("granting ADMIN to a second holder directly in the RBAC role-membership map");
 
     (faucet, admin_a, admin_b)
+}
+
+/// Builds a USDCx faucet `Account` (same production builder as [`faucet_with_admin`]) with two
+/// entries written directly into the xreserve attester allowlist map, the way the faucet's own
+/// `set_attester` path leaves them: `enabled` under the enabled marker `[1, 0, 0, 0]`, and
+/// `disabled` under a zero marker (an attester that was enabled, then disabled).
+///
+/// Exercises [`crate::enabled_attesters`], which must list the first and skip the second.
+///
+/// Returns `(faucet, enabled, disabled)`.
+pub fn faucet_with_attesters() -> (Account, Word, Word) {
+    let (mut faucet, _holder, _other) = faucet_with_admin();
+
+    let enabled = Word::from([11u32, 12, 13, 14]);
+    let disabled = Word::from([21u32, 22, 23, 24]);
+    let slot = XReserveFaucetExtension::xreserve_attesters_slot();
+
+    faucet
+        .storage_mut()
+        .set_map_item(
+            slot,
+            StorageMapKey::new(enabled),
+            Word::from([Felt::ONE, Felt::ZERO, Felt::ZERO, Felt::ZERO]),
+        )
+        .expect("enabling an attester directly in the allowlist map");
+    faucet
+        .storage_mut()
+        .set_map_item(slot, StorageMapKey::new(disabled), Word::default())
+        .expect("disabling an attester directly in the allowlist map");
+
+    (faucet, enabled, disabled)
 }
 
 /// A deterministic `(faucet, sender)` pair of `AccountId`s for exercising the stock

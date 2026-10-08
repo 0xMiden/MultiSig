@@ -401,6 +401,24 @@ export function current_token_supply(faucet_account) {
 }
 
 /**
+ * The hex commitments of every attester currently enabled on the faucet, from its serialized
+ * `Account` bytes. Shown as the current value next to the `set_attester` form.
+ * @param {Uint8Array} faucet_account
+ * @returns {string[]}
+ */
+export function enabled_attesters(faucet_account) {
+    const ptr0 = passArray8ToWasm0(faucet_account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.enabled_attesters(ptr0, len0);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+    return v2;
+}
+
+/**
  * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
  * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
  * @param {Uint8Array} faucet_account

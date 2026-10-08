@@ -131,6 +131,14 @@ export function readCurrentTokenSupply(faucetBytes: Uint8Array): bigint {
 }
 
 /**
+ * Reads the hex commitments of every attester currently enabled on the faucet (the xreserve
+ * attester allowlist map) from its serialized account bytes. `initAdminWasm()` must have run first.
+ */
+export function readEnabledAttesters(faucetBytes: Uint8Array): string[] {
+  return wasm.enabled_attesters(faucetBytes);
+}
+
+/**
  * Reads the current fee (base units) scheduled for `noteScriptRootHex` in the faucet's constant
  * fee policy, or `null` when no explicit fee is set for that script. `initAdminWasm()` must have
  * run first; `noteScriptRootHex` must be a valid 64-hex-char word.

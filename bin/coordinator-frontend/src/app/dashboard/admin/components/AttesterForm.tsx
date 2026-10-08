@@ -8,6 +8,7 @@ import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { ACTION_INFO } from '@/lib/admin/roles';
+import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -20,6 +21,7 @@ interface GroupProps {
 export function SetAttesterForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [commitment, setCommitment] = useState('');
   const [enabled, setEnabled] = useState(true);
+  const current = useFaucetConfig(faucetBytesState);
 
   return (
     <AdminActionCard
@@ -45,6 +47,22 @@ export function SetAttesterForm({ faucetBytesState, inflightRecipes, sender }: G
         />
       </Field>
       <ToggleField label="Enabled" value={enabled} onChange={setEnabled} />
+      {current && (
+        <div className="text-[12px] text-[rgba(0,0,0,0.5)]">
+          <div className="font-[500]">
+            Currently enabled: {current.attesters.length === 0 ? 'none' : `${current.attesters.length} attester${current.attesters.length === 1 ? '' : 's'}`}
+          </div>
+          {current.attesters.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-0.5">
+              {current.attesters.map((c) => (
+                <li key={c} className="font-mono break-all">
+                  {c}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </AdminActionCard>
   );
 }

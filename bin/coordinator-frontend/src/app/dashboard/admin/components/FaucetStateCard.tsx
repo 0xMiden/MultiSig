@@ -21,6 +21,7 @@ export function FaucetStateCard({ faucetBytesState }: { faucetBytesState: Faucet
     { label: 'Token supply', value: groupDigits(config.tokenSupply) },
     { label: 'Max supply', value: groupDigits(config.maxSupply) },
     { label: 'Min burn', value: groupDigits(config.minBurn) },
+    { label: 'Enabled attesters', value: String(config.attesters.length) },
   ];
 
   return (
