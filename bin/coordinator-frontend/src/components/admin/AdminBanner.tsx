@@ -20,6 +20,10 @@ export function AdminBanner() {
   const cfg = getAdminConfig();
 
   const breadConnected = walletSource === 'miden-wallet' && midenWalletSession.connected;
+  // Bread's roles are only evaluated (and its direct actions only sent) while Bread is the active
+  // wallet source; a Bread session kept alive behind another source would otherwise just vanish
+  // from this banner, which reads as "Bread holds no roles".
+  const breadInactive = walletSource !== 'miden-wallet' && midenWalletSession.connected;
   const ready = rolesState.status === 'ready' ? rolesState : null;
   const heldRoles = useMemo(() => (ready?.roles ? ROLES.filter((role) => ready.roles?.[role]) : []), [ready]);
   const breadHeldRoles = useMemo(() => (ready?.breadRoles ? ROLES.filter((role) => ready.breadRoles?.[role]) : []), [ready]);
@@ -94,6 +98,12 @@ export function AdminBanner() {
                 hint={breadHeldRoles.length > 0 ? 'Its actions are signed and sent by Bread directly, without a proposal.' : undefined}
               />
             )}
+          </div>
+        )}
+        {breadInactive && (
+          <div className="text-[12px] text-[rgba(0,0,0,0.5)] mt-1.5">
+            Bread is connected but not the active wallet source, so its roles are not evaluated. Select Bread as the
+            wallet source (top right) to act with the roles its account holds.
           </div>
         )}
       </div>

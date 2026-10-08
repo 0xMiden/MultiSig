@@ -88,7 +88,10 @@ export default function AdminPage() {
       {!anyone && (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
           No multisig is loaded yet. Connect your wallet (top right) to load it and unlock the actions its roles allow.
-          An account connected through Bread that holds a role itself can also act directly.
+          An account connected through Bread that holds a role itself can also act directly
+          {midenWalletSession.connected
+            ? ' -- Bread is connected but not the active wallet source; select Bread as the wallet source to use its roles.'
+            : '.'}
         </div>
       )}
 

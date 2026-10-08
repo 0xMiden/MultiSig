@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { AccountId, AccountInterface, NetworkId, Note, TransactionRequest } from '@miden-sdk/miden-sdk';
+import { AccountId, AccountInterface, Address, NetworkId, Note, TransactionRequest } from '@miden-sdk/miden-sdk';
 import { initSync } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 import { __setInitializedForTests, buildAdminNoteBytes } from '@/lib/admin/noteBuilders';
 import {
@@ -36,6 +36,20 @@ const pauseRecipe: AdminRecipe = {
   boundBlockNum: 0,
 };
 
+// The three DOM_PAUSER holders on the testnet USDCx faucet (private accounts, i.e. Bread-shaped),
+// read from the faucet's `rbac::role_membership` map on 2026-10-08. Real ids, so a format drift
+// between Bread's address and the admin wasm's `AccountId::from_hex` shows up on the ids that matter.
+const TESTNET_PAUSERS = [
+  '0x1722789b598ca9c1588afc20ad1ee0',
+  '0x379c171a672f79c10565a4b07838f8',
+  '0x67c2dca469057f817b68a6299a621e',
+];
+
+/** The identifier Bread stores for an account and hands to dApps: `Address.fromAccountId(id, 'BasicWallet').toBech32(net)`. */
+function breadAddressOf(hex: string): string {
+  return Address.fromAccountId(AccountId.fromHex(hex), 'BasicWallet').toBech32(NetworkId.testnet());
+}
+
 describe('accountIdHexFromBech32', () => {
   it('round-trips an account id through its bech32 address', () => {
     const bech32 = AccountId.fromHex(SENDER).toBech32(NetworkId.testnet(), AccountInterface.BasicWallet);
@@ -45,6 +59,38 @@ describe('accountIdHexFromBech32', () => {
 
   it('rejects something that is not a bech32 address', () => {
     expect(() => accountIdHexFromBech32('not-an-address')).toThrow();
+    expect(() => accountIdHexFromBech32('0x1722789b598ca9c1588afc20ad1ee0')).toThrow();
+  });
+
+  it('yields the exact hex form the admin wasm parses, for every testnet pauser, from the address Bread hands out', () => {
+    // `buildAdminNoteBytes` needs a salt; only the sender id is under test here.
+    const pinned = { ...pauseRecipe, saltHex: '0x' + '2'.repeat(64) };
+    for (const hex of TESTNET_PAUSERS) {
+      const bread = breadAddressOf(hex);
+      // Bread's stored identifier carries its routing parameters after a `_`.
+      expect(bread).toMatch(/^mtst1[a-z0-9]+_[a-z0-9]+$/);
+      const parsed = accountIdHexFromBech32(bread);
+      expect(parsed).toBe(hex);
+      expect(parsed).toBe(AccountId.fromHex(hex).toString());
+      expect(parsed).toMatch(/^0x[0-9a-f]{30}$/);
+      // The wasm's `AccountId::from_hex` (same parser `account_has_role` applies to the Bread id)
+      // accepts this string as a sender id...
+      expect(() => buildAdminNoteBytes({ ...pinned, senderAccountId: parsed })).not.toThrow();
+    }
+    // ...and only this form: the frontend must not hand it any other spelling.
+    expect(() => buildAdminNoteBytes({ ...pinned, senderAccountId: TESTNET_PAUSERS[0].toUpperCase() })).toThrow(/parse hex/);
+    expect(() => buildAdminNoteBytes({ ...pinned, senderAccountId: TESTNET_PAUSERS[0].slice(2) })).toThrow(/parse hex/);
+  });
+
+  it('ignores whatever routing parameters Bread appended to the address', () => {
+    const hex = TESTNET_PAUSERS[0];
+    const bare = breadAddressOf(hex).split('_')[0];
+    expect(accountIdHexFromBech32(bare)).toBe(hex);
+    // Bread documents `_qruqqypuyph` as a suffix its accounts can carry that the SDK refuses to
+    // parse ("invalid note tag length"); the id is in the address part regardless.
+    expect(() => Address.fromBech32(`${bare}_qruqqypuyph`)).toThrow(/note tag length/);
+    expect(accountIdHexFromBech32(`${bare}_qruqqypuyph`)).toBe(hex);
+    expect(accountIdHexFromBech32(`${bare}_zzz`)).toBe(hex);
   });
 });
 

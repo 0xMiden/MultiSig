@@ -30,9 +30,20 @@ import { ACTION_ROLE, type Role } from './roles';
 /** Which account an admin action is sent from, given who holds its gating role. */
 export type ActionSender = 'multisig' | 'bread';
 
-/** The account id (hex) embedded in a Bread bech32 address. Throws on a malformed address. */
+/**
+ * The account id (hex, `0x` + 30 lowercase hex digits -- the form `AccountId::from_hex` in the
+ * admin wasm and the SDK accept) embedded in a Bread bech32 address. Throws on a malformed address.
+ *
+ * Bread hands dApps its stored account identifier, which is `<address>_<routing params>` (the
+ * `_qr7qqq9wr6w` suffix on a BasicWallet account). The SDK parses *some* of those suffixes but
+ * throws on others ("invalid note tag length" for `_qruqqypuyph`), so the routing parameters are
+ * cut off first -- the account id lives entirely in the address part, and an address without
+ * routing parameters decodes to the same id. Bread canonicalizes its own ids the same way.
+ */
 export function accountIdHexFromBech32(address: string): string {
-  return Address.fromBech32(address).accountId().toString();
+  const sep = address.indexOf('_');
+  const idPart = sep === -1 ? address : address.slice(0, sep);
+  return Address.fromBech32(idPart).accountId().toString();
 }
 
 /**
