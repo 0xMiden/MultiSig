@@ -1,9 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll } from 'vitest';
-import protobuf from 'protobufjs/light';
 import { initSync, note_id_from_header, account_target_tag } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 import { __setInitializedForTests } from '@/lib/admin/noteBuilders';
-import descriptor from '@/lib/history/proto/miden_node.json';
 import {
   accountIdHexFromParts,
   accountIdPartsFromHex,
@@ -17,7 +15,8 @@ import {
   sortNewestFirst,
   type KnownProposal,
 } from '@/lib/history/annotate';
-import { parseGrpcWebFrames } from '@/lib/history/nodeRpc';
+import { codec, parseGrpcWebFrames } from '@/lib/history/nodeRpc';
+import { miden } from '@/lib/history/proto/miden_node';
 
 // A real `SyncTransactions` response for the testnet admin multisig, captured with the node's
 // own encoding (protobufjs `toObject` with longs as strings), so the decoder is exercised on
@@ -33,13 +32,10 @@ beforeAll(() => {
     module: readFileSync(new URL('../../src/lib/usdcxAdminWasm/usdcx_admin_notes_bg.wasm', import.meta.url)),
   });
   __setInitializedForTests();
-  const root = protobuf.Root.fromJSON(descriptor as protobuf.INamespace);
-  const Res = root.lookupType('miden.node.v1.SyncTransactionsResponse');
   // Round-trip through the real encoder so the test sees exactly what the browser decodes.
-  const decoded = Res.decode(Res.encode(Res.fromObject(fixture)).finish()) as unknown as {
-    transactions: WireTransactionRecord[];
-  };
-  records = decoded.transactions;
+  const Res = miden.node.v1.SyncTransactionsResponse;
+  const decoded = codec.decodeSyncTransactionsResponse(Res.encode(Res.fromObject(fixture)).finish());
+  records = decoded.transactions as WireTransactionRecord[];
 });
 
 describe('account id <-> wire parts', () => {

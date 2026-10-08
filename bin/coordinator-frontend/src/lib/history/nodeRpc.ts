@@ -1,6 +1,7 @@
-import protobuf from 'protobufjs/light';
+import * as $protobuf from 'protobufjs/minimal';
+import Long from 'long';
 import { MIDEN_RPC_URL } from '@/config/psm';
-import descriptor from './proto/miden_node.json';
+import { miden } from './proto/miden_node';
 import { accountIdPartsFromHex, type WireTransactionRecord } from './decode';
 
 /**
@@ -9,23 +10,33 @@ import { accountIdPartsFromHex, type WireTransactionRecord } from './decode';
  *
  * The node speaks binary gRPC-web (`application/grpc-web+proto`) with the gRPC status in the
  * body's trailer frame, and gates clients on the `accept` header's version label (a stable node
- * accepts the stable 0.17 line the SDK pins). Messages are encoded with protobufjs's reflection
- * runtime from `./proto/miden_node.json`, generated from the node's `rpc.proto` -- see
- * `./proto/README.md` for how to regenerate it after a node bump.
+ * accepts the stable 0.17 line the SDK pins). Messages are encoded with the static protobufjs
+ * code in `./proto/miden_node.js`, generated from the node's `rpc.proto` -- see
+ * `./proto/README.md` for how to regenerate it after a node bump. It must stay static code:
+ * protobufjs's reflection runtime (`Root.fromJSON`) compiles codecs with `new Function`, which
+ * the production CSP (no 'unsafe-eval', see `@/lib/securityHeaders`) rejects.
  */
+
+// protobufjs finds `long` through an `eval("require")` probe that no browser bundle can satisfy;
+// without it the u64 account id parts (above 2^53) would round through a double.
+$protobuf.util.Long = Long;
+$protobuf.configure();
 
 const SERVICE = 'miden.node.v1.NodeService';
 /** Must stay on the node's major.minor line (and pre-release label, if any). */
 const ACCEPT = 'application/vnd.miden; version=0.17.0';
 
-let rootCache: protobuf.Root | undefined;
-function root(): protobuf.Root {
-  if (!rootCache) rootCache = protobuf.Root.fromJSON(descriptor as protobuf.INamespace);
-  return rootCache;
-}
-function type(name: string): protobuf.Type {
-  return root().lookupType(name);
-}
+const { StatusRequest, StatusResponse, SyncTransactionsRequest, SyncTransactionsResponse } = miden.node.v1;
+
+/** The wire codec for the two calls, kept separate from the transport so it can be unit-tested. */
+export const codec = {
+  encodeStatusRequest: (): Uint8Array => StatusRequest.encode(StatusRequest.create()).finish(),
+  decodeStatusResponse: (bytes: Uint8Array): miden.node.v1.IStatusResponse => StatusResponse.decode(bytes),
+  encodeSyncTransactionsRequest: (request: miden.node.v1.ISyncTransactionsRequest): Uint8Array =>
+    SyncTransactionsRequest.encode(SyncTransactionsRequest.fromObject(request)).finish(),
+  decodeSyncTransactionsResponse: (bytes: Uint8Array): miden.node.v1.ISyncTransactionsResponse =>
+    SyncTransactionsResponse.decode(bytes),
+};
 
 /** Splits a gRPC-web body into its message frames, throwing on a non-OK trailer status. */
 export function parseGrpcWebFrames(body: Uint8Array): Uint8Array[] {
@@ -71,11 +82,7 @@ async function unary(method: string, requestBytes: Uint8Array): Promise<Uint8Arr
 
 /** The node's current chain tip (block number). */
 export async function fetchChainTip(): Promise<number> {
-  const Req = type('miden.node.v1.StatusRequest');
-  const Res = type('miden.node.v1.StatusResponse');
-  const res = Res.decode(await unary('Status', Req.encode(Req.create({})).finish())) as unknown as {
-    chainTip?: number;
-  };
+  const res = codec.decodeStatusResponse(await unary('Status', codec.encodeStatusRequest()));
   return Number(res.chainTip ?? 0);
 }
 
@@ -90,21 +97,19 @@ export interface AccountTransactionsPage {
  * it). The node rejects a `block_to` beyond its tip, so the tip is read first and reused.
  */
 export async function fetchAccountTransactions(accountIdHex: string, fromBlock = 0): Promise<AccountTransactionsPage> {
-  const Req = type('miden.node.v1.SyncTransactionsRequest');
-  const Res = type('miden.node.v1.SyncTransactionsResponse');
   const { prefix, suffix } = accountIdPartsFromHex(accountIdHex);
 
   let chainTip = await fetchChainTip();
   const records: WireTransactionRecord[] = [];
   let from = fromBlock;
   for (let guard = 0; guard < 64; guard++) {
-    const message = Req.fromObject({
+    const request = codec.encodeSyncTransactionsRequest({
       blockRange: { blockFrom: from, blockTo: chainTip },
-      accountIds: [{ v1: { prefix: { value: prefix }, suffix: { value: suffix } } }],
+      accountIds: [{ v1: { prefix: { value: Long.fromString(prefix, true) }, suffix: { value: Long.fromString(suffix, true) } } }],
     });
-    const page = Res.decode(await unary('SyncTransactions', Req.encode(message).finish())) as unknown as {
-      paginationInfo?: { chainTip?: number; blockNum?: number };
-      transactions?: WireTransactionRecord[];
+    const page = codec.decodeSyncTransactionsResponse(await unary('SyncTransactions', request)) as {
+      paginationInfo?: { chainTip?: number; blockNum?: number } | null;
+      transactions?: WireTransactionRecord[] | null;
     };
     records.push(...(page.transactions ?? []));
     const reached = Number(page.paginationInfo?.blockNum ?? chainTip);
