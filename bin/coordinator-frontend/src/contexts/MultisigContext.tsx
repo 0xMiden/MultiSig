@@ -1917,6 +1917,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       paraSession.publicKey,
       midenWalletSession.connected,
       midenWalletSession.commitment,
+      midenWalletSession.address,
       creating,
       registeringOnGuardian,
       guardianRegistrationRequired,
