@@ -1828,6 +1828,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       midenWalletSession: {
         connected: midenWalletSession.connected,
         commitment: midenWalletSession.commitment,
+        // The connected account's address: what identifies the Bread account for role detection
+        // and direct admin actions. Dropping it here left the admin page blind to Bread's roles.
+        address: midenWalletSession.address ?? null,
       },
 
       creating,
