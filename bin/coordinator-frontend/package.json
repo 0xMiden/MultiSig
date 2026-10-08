@@ -14,7 +14,8 @@
     "test:ledger": "vitest run --config vitest.ledger.config.ts",
     "test:ledger:ui": "playwright test --config playwright.ledger.config.ts",
     "test:ledger:services": "LEDGER_SERVICE_TEST=1 playwright test --config playwright.ledger.config.ts",
-    "test:ledger:app": "playwright test --config playwright.ledger-app.config.ts"
+    "test:ledger:app": "playwright test --config playwright.ledger-app.config.ts",
+    "audit:gate": "node scripts/audit-gate.mjs"
   },
   "dependencies": {
     "@getpara/react-sdk-lite": "3.20.0",
@@ -22,14 +23,14 @@
     "@ledgerhq/device-management-kit": "1.10.0",
     "@ledgerhq/device-signer-kit-ethereum": "1.18.1",
     "@ledgerhq/device-transport-kit-web-hid": "1.2.4",
-    "@miden-sdk/miden-sdk": "0.17.0-rc.4",
-    "@miden-sdk/miden-wallet-adapter-base": "0.17.0-rc.4",
-    "@miden-sdk/miden-wallet-adapter-miden": "0.17.0-rc.4",
-    "@miden-sdk/para": "0.17.0-rc.4",
-    "@miden-sdk/para-react": "0.17.0-rc.4",
-    "@miden-sdk/react": "0.17.0-rc.4",
-    "@openzeppelin/guardian-client": "0.18.0-rc.2",
-    "@openzeppelin/miden-multisig-client": "0.18.0-rc.2",
+    "@miden-sdk/miden-sdk": "0.17.1",
+    "@miden-sdk/miden-wallet-adapter-base": "0.17.0",
+    "@miden-sdk/miden-wallet-adapter-miden": "0.17.0",
+    "@miden-sdk/para": "0.17.0",
+    "@miden-sdk/para-react": "0.17.0",
+    "@miden-sdk/react": "0.17.0",
+    "@openzeppelin/guardian-client": "0.18.0",
+    "@openzeppelin/miden-multisig-client": "0.18.0",
     "@reduxjs/toolkit": "^2.8.2",
     "@tanstack/react-query": "^5.0.0",
     "framer-motion": "^12.23.12",
@@ -60,6 +61,9 @@
   },
   "overrides": {
     "postcss": "$postcss",
-    "ws": "8.22.0"
+    "ws": "8.22.0",
+    "@farcaster/miniapp-sdk": "0.3.0",
+    "source-map-js": "1.2.2",
+    "@miden-sdk/miden-sdk": "$@miden-sdk/miden-sdk"
   }
 }

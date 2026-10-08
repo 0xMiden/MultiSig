@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard, truncateHex } from "@/lib/helpers";
 import { toast } from "sonner";
+import { MIDEN_NETWORK } from "@/config/psm";
 
 const General = () => {
   const { detectedConfig, multisig, syncingState } = useMultisig();
@@ -154,7 +155,7 @@ const General = () => {
               Current Network
             </span>
             <span className="text-[14px] font-[500] text-[#000000]">
-              Miden Devnet
+              Miden {MIDEN_NETWORK.charAt(0).toUpperCase() + MIDEN_NETWORK.slice(1)}
             </span>
           </div>
         </div>
