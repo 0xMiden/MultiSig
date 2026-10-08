@@ -104,8 +104,10 @@ Profiles:
   actions; label prefix `usdcx_v1_`; labels as today.
 - `agglayer`: roles ADMIN (label BRIDGE_ADMIN), PAUSER, FAUCET_MNGR, GER_INJECTOR, GER_REMOVER,
   FEE_MNGR; actions `rbac_grant`, `rbac_revoke`, `rbac_set_admin`, `rbac_renounce`, `pause`,
-  `unpause`; `actionRole`: grant/revoke/set_admin/unpause -> ADMIN, pause -> PAUSER, renounce ->
-  (any role holder; see guardrails); label prefix `agg_v1_`; contract noun "AggLayer bridge".
+  `unpause`; `actionRole`: grant/revoke/set_admin/unpause -> ADMIN, pause -> PAUSER. Renounce
+  has no single required role: it is offered when the sender holds any bridge role, and its role
+  select lists only the roles that sender holds (the sender resolver treats `actionRole` value
+  `'*'` as "any role held"). Label prefix `agg_v1_`; contract noun "AggLayer bridge".
   The roles page shows a note that FAUCET_ADMIN lives on each wrapped faucet.
 
 Config (`adminConfig.ts`): adds `NEXT_PUBLIC_AGGLAYER_BRIDGE_ID` (empty = AggLayer disabled).
