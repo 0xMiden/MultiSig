@@ -8,4 +8,6 @@ export interface ExternalWalletState {
   publicKey: string | null;
   commitment: string | null;
   scheme: SignatureScheme | null;
+  /** The wallet's connected bech32 address, when the wallet exposes one (Bread does). */
+  address?: string | null;
 }

@@ -31,6 +31,7 @@ import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 import { normalizeCommitment } from "@/lib/helpers";
 import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/admin/adminRequest";
 import { executeCustomProposal } from "@/lib/admin/adminExecute";
+import { buildDirectAdminTransactionRequest, submitDirectAdminAction } from "@/lib/admin/directAction";
 import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
 import type { AdminRecipe } from "@/lib/admin/recipe";
 import {
@@ -172,7 +173,7 @@ export interface MultisigContextValue {
     commitment: string | null;
     publicKey: string | null;
   };
-  midenWalletSession: { connected: boolean; commitment: string | null };
+  midenWalletSession: { connected: boolean; commitment: string | null; address?: string | null };
 
   // Loading flags
   creating: boolean;
@@ -224,6 +225,13 @@ export interface MultisigContextValue {
     recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
       Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
   ) => Promise<void>;
+  /**
+   * Runs an admin action directly from the account connected through Bread (which must itself
+   * hold the action's role): no proposal, Bread signs and submits. Resolves to the transaction id.
+   */
+  handleDirectAdminAction: (
+    recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex">,
+  ) => Promise<string>;
   handleSendPrivateNote: (
     recipientId: string,
     faucetId: string,
@@ -1283,6 +1291,17 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation, midenClient],
   );
 
+  const handleDirectAdminAction = useCallback(
+    async (recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex">): Promise<string> => {
+      if (walletSource !== "miden-wallet" || !midenWalletSession.connected || !midenWalletSession.address) {
+        throw new Error("Connect Bread first");
+      }
+      const built = await buildDirectAdminTransactionRequest({ ...recipe, saltHex: "", boundBlockNum: 0 });
+      return submitDirectAdminAction(midenWalletAdapter, midenWalletSession.address, built);
+    },
+    [walletSource, midenWalletSession, midenWalletAdapter],
+  );
+
   // Creates the private send proposal only. The note is relayed to the
   // recipient right before execution (see handleExecuteProposal), by whichever
   // signer executes, so a proposal that is never executed relays nothing and
@@ -1817,6 +1836,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,
+      handleDirectAdminAction,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -1898,6 +1918,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       unlockAccount,
       handleCreateP2idProposal,
       handleCreateAdminProposal,
+      handleDirectAdminAction,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,

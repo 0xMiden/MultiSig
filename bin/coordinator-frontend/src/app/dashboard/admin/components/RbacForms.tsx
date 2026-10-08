@@ -7,12 +7,15 @@ import { normalizeAccountId, ValidationError } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
 import { ROLES } from '@/lib/admin/roles';
 import type { AdminRecipe } from '@/lib/admin/recipe';
+import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
   inflightRecipes: AdminRecipe[];
+  /** Who sends the action: the acting multisig (a proposal) or the connected Bread account. */
+  sender?: ActionSender;
 }
 
 function RoleSelect({ value, onChange }: { value: string; onChange: (next: string) => void }) {
@@ -29,7 +32,7 @@ function RoleSelect({ value, onChange }: { value: string; onChange: (next: strin
 }
 
 /** ADMIN-gated: grant an RBAC role to an account. */
-export function RbacGrantForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function RbacGrantForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [role, setRole] = useState('');
   const [accountId, setAccountId] = useState('');
   const cfg = getAdminConfig();
@@ -41,6 +44,7 @@ export function RbacGrantForm({ faucetBytesState, inflightRecipes }: GroupProps)
       description={ACTION_INFO.rbac_grant.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => {
         if (!role) throw new ValidationError('Select a role');
         return { action: 'rbac_grant', role, accountId: normalizeAccountId(accountId, cfg.networkId) };
@@ -59,7 +63,7 @@ export function RbacGrantForm({ faucetBytesState, inflightRecipes }: GroupProps)
 }
 
 /** ADMIN-gated: revoke an RBAC role from an account. */
-export function RbacRevokeForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function RbacRevokeForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [role, setRole] = useState('');
   const [accountId, setAccountId] = useState('');
   const cfg = getAdminConfig();
@@ -71,6 +75,7 @@ export function RbacRevokeForm({ faucetBytesState, inflightRecipes }: GroupProps
       description={ACTION_INFO.rbac_revoke.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => {
         if (!role) throw new ValidationError('Select a role');
         return { action: 'rbac_revoke', role, accountId: normalizeAccountId(accountId, cfg.networkId) };

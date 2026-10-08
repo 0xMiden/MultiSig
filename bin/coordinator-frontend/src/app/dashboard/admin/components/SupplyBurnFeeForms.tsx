@@ -7,6 +7,7 @@ import { parseU64, parseMinBurn, parseNoteScriptRoot, ValidationError } from '@/
 import { getAdminConfig } from '@/config/adminConfig';
 import { shortFaucetId, groupDigits } from '@/lib/tokenAmounts';
 import type { AdminRecipe } from '@/lib/admin/recipe';
+import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 import { initAdminWasm, readNoteFee } from '@/lib/admin/noteBuilders';
@@ -15,10 +16,12 @@ import { ACTION_INFO } from '@/lib/admin/roles';
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
   inflightRecipes: AdminRecipe[];
+  /** Who sends the action: the acting multisig (a proposal) or the connected Bread account. */
+  sender?: ActionSender;
 }
 
 /** ADMIN-gated: set the faucet's max issuable supply, in base units. */
-export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [maxSupply, setMaxSupply] = useState('');
   const current = useFaucetConfig(faucetBytesState);
 
@@ -29,6 +32,7 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
       description={ACTION_INFO.set_max_supply.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => {
         const value = parseU64(maxSupply);
         // The faucet rejects a new max supply below what it has already issued
@@ -64,7 +68,7 @@ export function SetMaxSupplyForm({ faucetBytesState, inflightRecipes }: GroupPro
 }
 
 /** ADMIN-gated: set the faucet's minimum burn amount, in base units. */
-export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function SetMinBurnForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [minBurn, setMinBurn] = useState('');
   const current = useFaucetConfig(faucetBytesState);
 
@@ -75,6 +79,7 @@ export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps
       description={ACTION_INFO.set_min_burn.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => ({ action: 'set_min_burn', minBurn: parseMinBurn(minBurn).toString() })}
       onSubmitted={() => setMinBurn('')}
     >
@@ -96,7 +101,7 @@ export function SetMinBurnForm({ faucetBytesState, inflightRecipes }: GroupProps
 
 /** ADMIN-gated: set the note script root and fee that must be paid for a note type. The fee
  * faucet is always the chain's native fee faucet -- never editable. */
-export function SetNoteFeeForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function SetNoteFeeForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [noteScriptRoot, setNoteScriptRoot] = useState('');
   const [feeAmount, setFeeAmount] = useState('');
   const [currentFee, setCurrentFee] = useState<string | null>(null);
@@ -131,6 +136,7 @@ export function SetNoteFeeForm({ faucetBytesState, inflightRecipes }: GroupProps
       description={ACTION_INFO.set_note_fee.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => ({
         action: 'set_note_fee',
         noteScriptRoot: parseNoteScriptRoot(noteScriptRoot),

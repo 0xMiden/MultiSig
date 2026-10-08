@@ -28,7 +28,7 @@ const FIELD_P = 0xffffffff00000001n;
  * Each of the four limbs is reduced mod the field modulus before being handed to `Word`'s
  * constructor, so construction can never fail no matter what `crypto.getRandomValues` returns.
  */
-function freshSaltWord(): Word {
+export function freshSaltWord(): Word {
   const limbs = new BigUint64Array(4);
   crypto.getRandomValues(limbs);
   for (let i = 0; i < limbs.length; i++) {

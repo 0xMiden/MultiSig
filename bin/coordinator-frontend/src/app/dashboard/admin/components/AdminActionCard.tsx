@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { getAdminConfig } from '@/config/adminConfig';
@@ -9,6 +9,8 @@ import { describeAdminRecipe } from '@/lib/admin/describe';
 import { runGuardrails, type GuardrailResult } from '@/lib/admin/guardrails';
 import { ValidationError } from '@/lib/admin/validation';
 import { describeExecutionError } from '@/lib/errors';
+import { accountIdHexFromBech32, type ActionSender } from '@/lib/admin/directAction';
+import { shortFaucetId } from '@/lib/tokenAmounts';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 
 type Step = 'form' | 'warn' | 'review';
@@ -21,6 +23,12 @@ export interface AdminActionCardProps {
   faucetBytesState: FaucetBytesState;
   /** Other not-yet-finalized admin proposals, for the revoke-in-flight guardrail. */
   inflightRecipes: AdminRecipe[];
+  /**
+   * Who sends the action. `multisig` (the default) creates a proposal the multisig's signers
+   * co-sign and execute. `bread` sends it straight from the account connected through Bread,
+   * which then holds the action's role itself: Bread signs and submits, there is no proposal.
+   */
+  sender?: ActionSender;
   /** Validates the current field state and builds this action's args, or throws `ValidationError`. */
   buildArgs: () => AdminActionArgs;
   /** Called after a successful `handleCreateAdminProposal`, so the caller can clear its fields. */
@@ -47,8 +55,19 @@ export function AdminActionCard({
   onSubmitted,
   submitLabel,
   children,
+  sender = 'multisig',
 }: AdminActionCardProps) {
-  const { multisig, handleCreateAdminProposal } = useMultisig();
+  const { multisig, midenWalletSession, handleCreateAdminProposal, handleDirectAdminAction } = useMultisig();
+  const direct = sender === 'bread';
+  const breadAddress = midenWalletSession.connected ? (midenWalletSession.address ?? null) : null;
+  // The Bread account's id (hex); `null` when Bread is not connected or its address does not parse.
+  const breadAccountId = useMemo(() => {
+    try {
+      return breadAddress ? accountIdHexFromBech32(breadAddress) : null;
+    } catch {
+      return null;
+    }
+  }, [breadAddress]);
   const [step, setStep] = useState<Step>('form');
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [guardrail, setGuardrail] = useState<GuardrailResult | null>(null);
@@ -68,9 +87,19 @@ export function AdminActionCard({
   const handleContinue = async () => {
     setFieldError(null);
     setGuardrail(null);
-    if (!multisig) {
-      setFieldError('Load an account first');
-      return;
+    let senderAccountId: string;
+    if (direct) {
+      if (!breadAccountId) {
+        setFieldError('Connect Bread first');
+        return;
+      }
+      senderAccountId = breadAccountId;
+    } else {
+      if (!multisig) {
+        setFieldError('Load an account first');
+        return;
+      }
+      senderAccountId = multisig.accountId;
     }
 
     let actionArgs: AdminActionArgs;
@@ -86,7 +115,7 @@ export function AdminActionCard({
       recipeVersion: 1,
       action,
       actionArgs,
-      senderAccountId: multisig.accountId,
+      senderAccountId,
       faucetId: cfg.faucetId,
       feeFaucetId: cfg.feeFaucetId,
       networkId: cfg.networkId,
@@ -123,11 +152,21 @@ export function AdminActionCard({
     if (!recipe) return;
     setSubmitting(true);
     try {
-      await handleCreateAdminProposal(recipe);
+      if (direct) {
+        const txId = await handleDirectAdminAction(recipe);
+        toast.success(`${title}: submitted by Bread (tx ${shortFaucetId(txId)}). The faucet applies it in a few blocks.`);
+      } else {
+        await handleCreateAdminProposal(recipe);
+      }
       reset();
       onSubmitted?.();
     } catch (err) {
-      toast.error(describeExecutionError(err, `Failed to create the ${title.toLowerCase()} proposal`));
+      toast.error(
+        describeExecutionError(
+          err,
+          direct ? `Failed to ${title.toLowerCase()} via Bread` : `Failed to create the ${title.toLowerCase()} proposal`,
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -139,7 +178,17 @@ export function AdminActionCard({
   return (
     <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white flex flex-col gap-3">
       <div>
-        <div className="text-[14px] font-[600] text-[#111]">{title}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[14px] font-[600] text-[#111]">{title}</div>
+          {direct && (
+            <span
+              className="text-[11px] font-[500] px-2 py-0.5 rounded-full bg-[#FF5500]/10 text-[#C24400] whitespace-nowrap"
+              title={breadAddress ?? ''}
+            >
+              Direct via Bread{breadAccountId ? ` · ${shortFaucetId(breadAccountId)}` : ''}
+            </span>
+          )}
+        </div>
         {description && <div className="text-[12px] text-[rgba(0,0,0,0.5)] mt-0.5">{description}</div>}
       </div>
 
@@ -210,7 +259,9 @@ export function AdminActionCard({
             ))}
           </div>
           <div className="text-[11px] text-[rgba(0,0,0,0.45)]">
-            This is the same summary co-signers will see before approving.
+            {direct
+              ? 'Bread will ask you to confirm this transaction. Your Bread account signs and submits it directly; there is no proposal to co-sign.'
+              : 'This is the same summary co-signers will see before approving.'}
           </div>
           <div className="flex gap-2">
             <button
@@ -227,7 +278,7 @@ export function AdminActionCard({
               disabled={submitting}
               className="flex-[2] h-10 rounded-[8px] bg-[#28A857] hover:bg-[#239E4C] text-white text-[13px] font-[500] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? 'Creating…' : 'Create Proposal'}
+              {direct ? (submitting ? 'Waiting for Bread…' : 'Sign with Bread') : submitting ? 'Creating…' : 'Create Proposal'}
             </button>
           </div>
         </div>

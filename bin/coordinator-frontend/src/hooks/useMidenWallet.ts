@@ -28,6 +28,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     publicKey: null,
     commitment: null,
     scheme: null,
+    address: null,
   });
   const [connectError, setConnectError] = useState<string | null>(null);
   const connectingRef = useRef(false);
@@ -36,7 +37,6 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     if (!adapter) return;
 
     const handleConnect = (address: string) => {
-      void address;
       const pk = adapter.publicKey;
       if (!pk) {
         setConnectError('Bread connected but did not provide a public key');
@@ -64,6 +64,8 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
         publicKey: isValidEcdsaPointLength ? publicKeyHex : null,
         commitment,
         scheme,
+        // Bread's current account, as a bech32 address. Direct admin actions are sent from it.
+        address: adapter.address ?? address ?? null,
       });
     };
 
@@ -75,6 +77,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
         publicKey: null,
         commitment: null,
         scheme: null,
+        address: null,
       }));
     };
 

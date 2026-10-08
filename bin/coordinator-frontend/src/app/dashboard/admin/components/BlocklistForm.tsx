@@ -6,16 +6,19 @@ import { AccountIdField, ToggleField } from './fields';
 import { normalizeAccountId } from '@/lib/admin/validation';
 import { getAdminConfig } from '@/config/adminConfig';
 import type { AdminRecipe } from '@/lib/admin/recipe';
+import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
   inflightRecipes: AdminRecipe[];
+  /** Who sends the action: the acting multisig (a proposal) or the connected Bread account. */
+  sender?: ActionSender;
 }
 
 /** BLK_MANAGER-gated: add or remove an account from the faucet's blocklist. */
-export function BlocklistForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function BlocklistForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   const [accountId, setAccountId] = useState('');
   const [blocked, setBlocked] = useState(true);
   const cfg = getAdminConfig();
@@ -27,6 +30,7 @@ export function BlocklistForm({ faucetBytesState, inflightRecipes }: GroupProps)
       description={ACTION_INFO.blocklist.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => ({ action: 'blocklist', accountId: normalizeAccountId(accountId, cfg.networkId), blocked })}
       onSubmitted={() => {
         setAccountId('');

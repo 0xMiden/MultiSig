@@ -2,16 +2,19 @@
 
 import { AdminActionCard } from './AdminActionCard';
 import type { AdminRecipe } from '@/lib/admin/recipe';
+import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
   inflightRecipes: AdminRecipe[];
+  /** Who sends the action: the acting multisig (a proposal) or the connected Bread account. */
+  sender?: ActionSender;
 }
 
 /** DOM_PAUSER-gated: pause the faucet domain. Confirm-only -- no fields. */
-export function PauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function PauseForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   return (
     <AdminActionCard
       action="pause"
@@ -19,6 +22,7 @@ export function PauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
       description={ACTION_INFO.pause.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => ({ action: 'pause' })}
       submitLabel="Pause"
     >
@@ -30,7 +34,7 @@ export function PauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
 }
 
 /** DOM_UNPAUSER-gated: unpause the faucet domain. Confirm-only -- no fields. */
-export function UnpauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
+export function UnpauseForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
   return (
     <AdminActionCard
       action="unpause"
@@ -38,6 +42,7 @@ export function UnpauseForm({ faucetBytesState, inflightRecipes }: GroupProps) {
       description={ACTION_INFO.unpause.description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
+      sender={sender}
       buildArgs={() => ({ action: 'unpause' })}
       submitLabel="Unpause"
     >

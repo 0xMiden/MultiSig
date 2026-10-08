@@ -5,6 +5,7 @@ import { useFaucetRoles } from '@/hooks/useFaucetRoles';
 import { getAdminConfig } from '@/config/adminConfig';
 import { shortFaucetId } from '@/lib/tokenAmounts';
 import { ROLES } from '@/lib/admin/roles';
+import { useMemo } from 'react';
 
 /**
  * Persistent, prominent banner for the admin mask: network, the USDCx faucet being administered,
@@ -14,12 +15,16 @@ import { ROLES } from '@/lib/admin/roles';
  * `useFaucetRoles`).
  */
 export function AdminBanner() {
-  const { multisig } = useMultisig();
+  const { multisig, walletSource, midenWalletSession } = useMultisig();
   const rolesState = useFaucetRoles();
   const cfg = getAdminConfig();
 
-  const heldRoles = rolesState.status === 'ready' ? ROLES.filter((role) => rolesState.roles[role]) : [];
+  const breadConnected = walletSource === 'miden-wallet' && midenWalletSession.connected;
+  const ready = rolesState.status === 'ready' ? rolesState : null;
+  const heldRoles = useMemo(() => (ready?.roles ? ROLES.filter((role) => ready.roles?.[role]) : []), [ready]);
+  const breadHeldRoles = useMemo(() => (ready?.breadRoles ? ROLES.filter((role) => ready.breadRoles?.[role]) : []), [ready]);
   const isError = rolesState.status === 'error';
+  const nobody = !multisig && !breadConnected;
 
   return (
     <div
@@ -62,10 +67,10 @@ export function AdminBanner() {
 
       <div>
         <div className="text-[11px] font-[500] text-[rgba(0,0,0,0.45)] mb-1.5">Detected roles</div>
-        {rolesState.status === 'loading' && !multisig && (
-          <div className="text-[12px] text-[rgba(0,0,0,0.5)]">Load a multisig to detect its roles.</div>
+        {rolesState.status === 'loading' && nobody && (
+          <div className="text-[12px] text-[rgba(0,0,0,0.5)]">Load a multisig or connect Bread to detect roles.</div>
         )}
-        {rolesState.status === 'loading' && multisig && (
+        {rolesState.status === 'loading' && !nobody && (
           <div className="flex items-center gap-2 text-[12px] text-[rgba(0,0,0,0.5)]">
             <div className="w-3.5 h-3.5 shrink-0 border-2 border-[#FF5500] border-t-transparent rounded-full animate-spin" />
             Detecting roles…
@@ -76,25 +81,41 @@ export function AdminBanner() {
             {rolesState.message}
           </div>
         )}
-        {rolesState.status === 'ready' && (
-          heldRoles.length === 0 ? (
-            <div className="text-[12px] text-[rgba(0,0,0,0.5)]">
-              No admin roles are held on this faucet by the acting multisig.
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {heldRoles.map((role) => (
-                <span
-                  key={role}
-                  className="text-[11px] font-[500] px-2 py-1 rounded-full bg-[#28A857]/10 text-[#1F7A3F]"
-                >
-                  {role}
-                </span>
-              ))}
-            </div>
-          )
+        {ready && (
+          <div className="flex flex-col gap-1.5">
+            {ready.roles && (
+              <RoleRow label="Acting multisig" roles={heldRoles} none="No admin roles are held on this faucet by the acting multisig." />
+            )}
+            {ready.breadRoles && (
+              <RoleRow
+                label={`Bread account ${ready.breadAccountId ? shortFaucetId(ready.breadAccountId) : ''}`}
+                roles={breadHeldRoles}
+                none="The connected Bread account holds no roles on this faucet."
+                hint={breadHeldRoles.length > 0 ? 'Its actions are signed and sent by Bread directly, without a proposal.' : undefined}
+              />
+            )}
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** One party's held roles: a label, its chips, or the `none` sentence when it holds nothing. */
+function RoleRow({ label, roles, none, hint }: { label: string; roles: readonly string[]; none: string; hint?: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] font-[500] text-[rgba(0,0,0,0.55)] mr-0.5">{label}:</span>
+      {roles.length === 0 ? (
+        <span className="text-[12px] text-[rgba(0,0,0,0.5)]">{none}</span>
+      ) : (
+        roles.map((role) => (
+          <span key={role} className="text-[11px] font-[500] px-2 py-1 rounded-full bg-[#28A857]/10 text-[#1F7A3F]">
+            {role}
+          </span>
+        ))
+      )}
+      {hint && <span className="text-[11px] text-[rgba(0,0,0,0.45)] basis-full">{hint}</span>}
     </div>
   );
 }
