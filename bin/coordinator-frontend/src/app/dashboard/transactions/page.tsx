@@ -5,20 +5,19 @@ import media from "../../../../public/media";
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { useActivity } from "@/hooks/useActivity";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
 
 const Transactions: React.FC = () => {
-  const { proposalStats, detectedConfig } = useMultisig();
-
+  const { detectedConfig } = useMultisig();
   const threshold = detectedConfig?.threshold ?? 0;
 
-  // Counts come from the durable per-account history, not the live `proposals`
-  // list: Guardian prunes executed/custom proposals from `proposals`, so the
-  // live list would report only what is still pending (e.g. "1 total" after 8
-  // executions). See `@/lib/proposalHistory`.
-  const stats = proposalStats;
+  // Chain-first: a transaction is on chain (counted from the node's record of the
+  // account), a proposal is anything not committed yet (Guardian's live list).
+  // Per-browser history is not a source of counts. See `@/lib/history/summary`.
+  const { stats } = useActivity();
 
   return (
     <div className="flex flex-col p-4 w-full">
@@ -28,7 +27,7 @@ const Transactions: React.FC = () => {
           Transaction History
         </div>
         <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
-          Complete record of your wallet history
+          Proposals awaiting signatures, and every transaction the node recorded for this account
         </div>
       </div>
 
@@ -41,14 +40,14 @@ const Transactions: React.FC = () => {
               <Image src={media.totalTransactionsIcon} alt="total" quality={100} width={16} height={16} />
             </div>
             <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
-              Total Proposals
+              Transactions
             </div>
           </div>
           <div className="mt-auto">
             <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
-              {stats.total}
+              {stats.transactions}
             </div>
-            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">All time</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">On chain, all time</div>
           </div>
         </div>
 
@@ -59,14 +58,14 @@ const Transactions: React.FC = () => {
               <Image src={media.thisMonthIcon} alt="pending" quality={100} width={16} height={16} />
             </div>
             <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">
-              Pending
+              Proposals
             </div>
           </div>
           <div className="mt-auto">
             <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
-              {stats.pending}
+              {stats.proposals}
             </div>
-            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">Awaiting signatures</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">Not on chain yet</div>
           </div>
         </div>
 
@@ -82,9 +81,9 @@ const Transactions: React.FC = () => {
           </div>
           <div className="mt-auto">
             <div className="text-[28px] md:text-[32px] font-[600] text-[#111]">
-              {stats.successRate}%
+              {stats.executionRate}%
             </div>
-            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">{stats.executed}/{stats.total} executed</div>
+            <div className="text-[12px] font-[400] text-[rgba(0,0,0,0.45)]">{stats.transactions} of {stats.transactions + stats.proposals} executed</div>
           </div>
         </div>
       </div>

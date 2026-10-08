@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { NOTE_ROLE_LABEL } from '@/lib/history/annotate';
+import { txTitle } from '@/lib/history/summary';
 import type { HistoryNote, HistoryTx } from '@/hooks/useOnChainHistory';
 
 export const dynamic = 'force-dynamic';
@@ -89,11 +90,7 @@ function NoteRow({ note }: { note: HistoryNote }) {
 
 function TxCard({ tx }: { tx: HistoryTx }) {
   const [open, setOpen] = useState(false);
-  const title =
-    tx.proposals.length > 0
-      ? tx.proposals.map((p) => p.description).join(' · ')
-      : tx.notes.find((n) => n.kind)?.kind ??
-        (tx.notes.some((n) => n.role === 'admin') ? 'Admin action (not created from this browser)' : tx.inputNotes.length > 0 ? 'Consumed notes' : 'Transaction');
+  const title = txTitle(tx);
 
   return (
     <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white p-4 md:p-5 flex flex-col gap-3">
