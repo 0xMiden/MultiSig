@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { getAdminConfig } from '@/config/adminConfig';
+import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import type { AdminAction, AdminActionArgs, AdminRecipe } from '@/lib/admin/recipe';
 import { describeAdminRecipe } from '@/lib/admin/describe';
 import { runGuardrails, type GuardrailResult } from '@/lib/admin/guardrails';
@@ -58,6 +58,7 @@ export function AdminActionCard({
   sender = 'multisig',
 }: AdminActionCardProps) {
   const { multisig, midenWalletSession, handleCreateAdminProposal, handleDirectAdminAction } = useMultisig();
+  const { active } = useAdminTarget();
   const direct = sender === 'bread';
   const breadAddress = midenWalletSession.connected ? (midenWalletSession.address ?? null) : null;
   // The Bread account's id (hex); `null` when Bread is not connected or its address does not parse.
@@ -110,15 +111,20 @@ export function AdminActionCard({
       return;
     }
 
-    const cfg = getAdminConfig();
+    if (!active) {
+      setFieldError('No admin target is active');
+      return;
+    }
+    const target = active.target;
     const draft: AdminRecipe = {
       recipeVersion: 1,
+      target: target.kind,
       action,
       actionArgs,
       senderAccountId,
-      faucetId: cfg.faucetId,
-      feeFaucetId: cfg.feeFaucetId,
-      networkId: cfg.networkId,
+      faucetId: target.contractId,
+      feeFaucetId: target.feeFaucetId,
+      networkId: target.networkId,
       saltHex: '',
       boundBlockNum: 0,
     };
@@ -137,7 +143,7 @@ export function AdminActionCard({
 
     setCheckingGuardrails(true);
     try {
-      const result = await runGuardrails(faucetBytesState.bytes, draft, inflightRecipes);
+      const result = await runGuardrails(faucetBytesState.bytes, target, draft, inflightRecipes);
       setGuardrail(result);
       if (result.level === 'block') return;
       setStep(result.level === 'warn' ? 'warn' : 'review');
@@ -154,7 +160,7 @@ export function AdminActionCard({
     try {
       if (direct) {
         const txId = await handleDirectAdminAction(recipe);
-        toast.success(`${title}: submitted by Bread (tx ${shortFaucetId(txId)}). The faucet applies it in a few blocks.`);
+        toast.success(`${title}: submitted by Bread (tx ${shortFaucetId(txId)}). The ${active?.target.labels.contractNoun ?? 'contract'} applies it in a few blocks.`);
       } else {
         await handleCreateAdminProposal(recipe);
       }

@@ -1,15 +1,22 @@
 'use client';
 
 import type { AdminAction } from '@/lib/admin/recipe';
-import { ACTION_INFO, ACTION_ROLE } from '@/lib/admin/roles';
+import { actionInfo } from '@/lib/admin/roles';
+import { ANY_HELD_ROLE, actionRoleOf, roleLabel, type AdminTargetProfile } from '@/lib/admin/target';
 
 /**
  * An admin action the acting multisig cannot use, shown so the full set of actions is visible
  * up front. It has no inputs and no submit: it names the action and the role that unlocks it.
  */
-export function LockedActionCard({ action }: { action: AdminAction }) {
-  const info = ACTION_INFO[action];
-  const role = ACTION_ROLE[action];
+export function LockedActionCard({ action, target }: { action: AdminAction; target: AdminTargetProfile }) {
+  const info = actionInfo(target, action);
+  const gate = actionRoleOf(target, action);
+  const requirement =
+    gate === ANY_HELD_ROLE
+      ? 'any role on this contract'
+      : gate
+        ? `the ${roleLabel(target, gate)} role`
+        : 'a role this target does not grant';
 
   return (
     <div
@@ -29,7 +36,7 @@ export function LockedActionCard({ action }: { action: AdminAction }) {
             d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"
           />
         </svg>
-        Requires the <span className="font-mono">{role}</span> role
+        Requires <span className="font-mono">{requirement}</span>
       </div>
     </div>
   );

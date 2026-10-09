@@ -7,7 +7,8 @@ import { parseWordHex } from '@/lib/admin/validation';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useAdminTargets';
-import { ACTION_INFO } from '@/lib/admin/roles';
+import { actionInfo } from '@/lib/admin/roles';
+import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 
 interface GroupProps {
@@ -19,6 +20,8 @@ interface GroupProps {
 
 /** ATTEST_ADMIN-gated: enable or disable an attester commitment. */
 export function SetAttesterForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
+  const { active } = useAdminTarget();
+  const target = active!.target;
   const [commitment, setCommitment] = useState('');
   const [enabled, setEnabled] = useState(true);
   const current = useFaucetConfig(faucetBytesState);
@@ -26,8 +29,8 @@ export function SetAttesterForm({ faucetBytesState, inflightRecipes, sender }: G
   return (
     <AdminActionCard
       action="set_attester"
-      title={ACTION_INFO.set_attester.title}
-      description={ACTION_INFO.set_attester.description}
+      title={actionInfo(target, 'set_attester').title}
+      description={actionInfo(target, 'set_attester').description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       sender={sender}

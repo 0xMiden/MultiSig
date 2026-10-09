@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { AdminActionCard } from './AdminActionCard';
 import { Field, AccountIdField, selectClass } from './fields';
 import { normalizeAccountId, ValidationError } from '@/lib/admin/validation';
-import { getAdminConfig } from '@/config/adminConfig';
-import { ROLES } from '@/lib/admin/roles';
+import { useAdminTarget } from '@/contexts/AdminTargetContext';
+import { actionInfo } from '@/lib/admin/roles';
+import type { RoleSpec } from '@/lib/admin/target';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
 import type { FaucetBytesState } from '@/hooks/useAdminTargets';
-import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {
   faucetBytesState: FaucetBytesState;
@@ -18,13 +18,13 @@ interface GroupProps {
   sender?: ActionSender;
 }
 
-function RoleSelect({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+function RoleSelect({ roles, value, onChange }: { roles: readonly RoleSpec[]; value: string; onChange: (next: string) => void }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
       <option value="">Select role…</option>
-      {ROLES.map((role) => (
-        <option key={role} value={role}>
-          {role}
+      {roles.map((r) => (
+        <option key={r.symbol} value={r.symbol}>
+          {r.label}
         </option>
       ))}
     </select>
@@ -33,21 +33,22 @@ function RoleSelect({ value, onChange }: { value: string; onChange: (next: strin
 
 /** ADMIN-gated: grant an RBAC role to an account. */
 export function RbacGrantForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
+  const { active } = useAdminTarget();
+  const target = active!.target;
   const [role, setRole] = useState('');
   const [accountId, setAccountId] = useState('');
-  const cfg = getAdminConfig();
 
   return (
     <AdminActionCard
       action="rbac_grant"
-      title={ACTION_INFO.rbac_grant.title}
-      description={ACTION_INFO.rbac_grant.description}
+      title={actionInfo(target, 'rbac_grant').title}
+      description={actionInfo(target, 'rbac_grant').description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       sender={sender}
       buildArgs={() => {
         if (!role) throw new ValidationError('Select a role');
-        return { action: 'rbac_grant', role, accountId: normalizeAccountId(accountId, cfg.networkId) };
+        return { action: 'rbac_grant', role, accountId: normalizeAccountId(accountId, target.networkId) };
       }}
       onSubmitted={() => {
         setRole('');
@@ -55,30 +56,31 @@ export function RbacGrantForm({ faucetBytesState, inflightRecipes, sender }: Gro
       }}
     >
       <Field label="Role">
-        <RoleSelect value={role} onChange={setRole} />
+        <RoleSelect roles={target.roles} value={role} onChange={setRole} />
       </Field>
-      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={cfg.networkId} />
+      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={target.networkId} />
     </AdminActionCard>
   );
 }
 
 /** ADMIN-gated: revoke an RBAC role from an account. */
 export function RbacRevokeForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
+  const { active } = useAdminTarget();
+  const target = active!.target;
   const [role, setRole] = useState('');
   const [accountId, setAccountId] = useState('');
-  const cfg = getAdminConfig();
 
   return (
     <AdminActionCard
       action="rbac_revoke"
-      title={ACTION_INFO.rbac_revoke.title}
-      description={ACTION_INFO.rbac_revoke.description}
+      title={actionInfo(target, 'rbac_revoke').title}
+      description={actionInfo(target, 'rbac_revoke').description}
       faucetBytesState={faucetBytesState}
       inflightRecipes={inflightRecipes}
       sender={sender}
       buildArgs={() => {
         if (!role) throw new ValidationError('Select a role');
-        return { action: 'rbac_revoke', role, accountId: normalizeAccountId(accountId, cfg.networkId) };
+        return { action: 'rbac_revoke', role, accountId: normalizeAccountId(accountId, target.networkId) };
       }}
       onSubmitted={() => {
         setRole('');
@@ -86,9 +88,75 @@ export function RbacRevokeForm({ faucetBytesState, inflightRecipes, sender }: Gr
       }}
     >
       <Field label="Role">
-        <RoleSelect value={role} onChange={setRole} />
+        <RoleSelect roles={target.roles} value={role} onChange={setRole} />
       </Field>
-      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={cfg.networkId} />
+      <AccountIdField label="Target account ID" value={accountId} onChange={setAccountId} networkId={target.networkId} />
+    </AdminActionCard>
+  );
+}
+
+/** ADMIN-gated: change which role administers `role`. */
+export function RbacSetAdminForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
+  const { active } = useAdminTarget();
+  const target = active!.target;
+  const [role, setRole] = useState('');
+  const [adminRole, setAdminRole] = useState('');
+  const info = actionInfo(target, 'rbac_set_admin');
+
+  return (
+    <AdminActionCard
+      action="rbac_set_admin"
+      title={info.title}
+      description={info.description}
+      faucetBytesState={faucetBytesState}
+      inflightRecipes={inflightRecipes}
+      sender={sender}
+      buildArgs={() => {
+        if (!role) throw new ValidationError('Select a role');
+        return { action: 'rbac_set_admin', role, adminRole: adminRole || null };
+      }}
+      onSubmitted={() => {
+        setRole('');
+        setAdminRole('');
+      }}
+    >
+      <Field label="Role">
+        <RoleSelect roles={target.roles} value={role} onChange={setRole} />
+      </Field>
+      <Field label="Admin role (empty = default root admin)">
+        <RoleSelect roles={target.roles} value={adminRole} onChange={setAdminRole} />
+      </Field>
+    </AdminActionCard>
+  );
+}
+
+/** Open to any role holder: give up a role the sender holds. The select lists only those. */
+export function RbacRenounceForm({ faucetBytesState, inflightRecipes, sender }: GroupProps) {
+  const { active } = useAdminTarget();
+  const target = active!.target;
+  const flags = sender === 'bread' ? active!.breadRoles : active!.roles;
+  const held = target.roles.filter((r) => flags?.[r.symbol]);
+  const [role, setRole] = useState('');
+  const info = actionInfo(target, 'rbac_renounce');
+
+  return (
+    <AdminActionCard
+      action="rbac_renounce"
+      title={info.title}
+      description={info.description}
+      faucetBytesState={faucetBytesState}
+      inflightRecipes={inflightRecipes}
+      sender={sender}
+      buildArgs={() => {
+        if (!role) throw new ValidationError('Select a role you hold');
+        return { action: 'rbac_renounce', role };
+      }}
+      onSubmitted={() => setRole('')}
+      submitLabel="Renounce"
+    >
+      <Field label="Role to renounce">
+        <RoleSelect roles={held} value={role} onChange={setRole} />
+      </Field>
     </AdminActionCard>
   );
 }
