@@ -3,7 +3,7 @@ import { MidenClient, NoteType, AccountId, NoteTag } from '@miden-sdk/miden-sdk'
 import { AccountInspector, Eip712Signer, MultisigClient, type Multisig, type Proposal } from '@openzeppelin/miden-multisig-client';
 import { privateKeyToAccount } from 'viem/accounts';
 import { DirectLedgerAdapter, ledgerPath, type LedgerDevice } from '../../../src/lib/ledger/adapter';
-import { registerAccountOnNode, getOutputNotesFromTxSummary, relayPrivateNote } from '../../../src/lib/multisigApi';
+import { registerAccountOnNode, privateNoteIdsToDeliver, relayProposalNotes } from '../../../src/lib/multisigApi';
 import loadWasm from '../../../node_modules/@miden-sdk/miden-sdk/dist/st/wasm.js';
 
 export interface ServiceOptions { rpcUrl: string; guardianUrl: string; transportUrl: string; invitationCode: string; sendAmount: string; }
@@ -57,10 +57,10 @@ async function run(options: ServiceOptions) {
       await ms.executeProposal(proposal.id);
       // verifyStateCommitment throws until the local and on-chain commitments match.
       const executed=await eventually(async()=>{await miden.sync();return ms.verifyStateCommitment();},()=>true,'on-chain state commitment');
-      // syncState resolves even while Guardian is behind: wait until Guardian's
+      // Guardian can still be behind right after an execute: wait until Guardian's
       // own state is the executed one.
       const same=(a:string,b:string)=>a.replace(/^0x/i,'').toLowerCase()===b.replace(/^0x/i,'').toLowerCase();
-      await eventually(()=>ms.syncState(),state=>same(state.commitment,executed.onChainCommitment),'Guardian canonical state');
+      await eventually(()=>ms.fetchState(),state=>same(state.commitment,executed.onChainCommitment),'Guardian canonical state');
     }
     async function receive() {
       const notes=await eventually(async()=>{await miden.sync();await miden.notes.fetchPrivate();return account.getConsumableNotes();},notes=>notes.length>0,'funding/receive notes');
@@ -75,14 +75,12 @@ async function run(options: ServiceOptions) {
       .find(item=>item.faucetId.toLowerCase()===faucetId.toLowerCase())?.amount ?? 0n;
     assert(BigInt(balance)>amount*2n,'Funding must cover transfers and transaction fees');
     for (const [label,noteType] of [['public',NoteType.Public],['private',NoteType.Private]] as const) {
-      const height=await miden.getSyncHeight();
       const proposal=await account.createP2idProposal(account.accountId,faucetId,amount,{noteType});
-      if (noteType===NoteType.Private) {
-        const notes=getOutputNotesFromTxSummary(proposal.txSummary);
-        assert(notes.length>0,'Private transfer produced no relayable note');
-        for(const note of notes) await relayPrivateNote(miden,note,account.accountId,height);
-      }
-      await execute(proposal);mark(`send ${label} note`);
+      // A private note is relayed after execution: the transport needs its inclusion proof.
+      const privateNoteIds=noteType===NoteType.Private?privateNoteIdsToDeliver(proposal.txSummary):[];
+      await execute(proposal);
+      if (privateNoteIds.length>0) await relayProposalNotes(miden,privateNoteIds,account.accountId);
+      mark(`send ${label} note`);
       await receive();mark(`consume ${label} note`);
     }
     await execute(await account.createAddSignerProposal(second.commitment));
