@@ -24,7 +24,8 @@ export type AdminTargetsState =
  * Reads every configured contract from the node and evaluates the roles of the acting multisig
  * and, when Bread is the active wallet source, of the Bread account. One target failing (private,
  * missing, RPC error) is reported on that target only; it never degrades to "no roles".
- * `idle` while there is nobody to evaluate.
+ * The contracts are read whenever a Miden client exists, connected or not (the state card and the
+ * roles page need no account); a party that is absent has `null` roles. `idle` only without a client.
  */
 export function useAdminTargets(): { state: AdminTargetsState; refresh: () => void } {
   const { midenClient, multisig, walletSource, midenWalletSession } = useMultisig();
@@ -36,7 +37,7 @@ export function useAdminTargets(): { state: AdminTargetsState; refresh: () => vo
     walletSource === 'miden-wallet' && midenWalletSession.connected ? (midenWalletSession.address ?? null) : null;
 
   useEffect(() => {
-    if (!midenClient || (!multisig && !breadAddress)) {
+    if (!midenClient) {
       setState({ status: 'idle' });
       return;
     }

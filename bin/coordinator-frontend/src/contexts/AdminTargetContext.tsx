@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useMultisig } from '@/contexts/MultisigContext';
 import { getAdminTargets } from '@/config/adminConfig';
 import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
-import { selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
+import { firstConfiguredKind, selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
 import { useAdminTargets, type AdminTargetsState } from '@/hooks/useAdminTargets';
 
 export interface AdminTargetContextValue {
@@ -14,6 +14,16 @@ export interface AdminTargetContextValue {
   active: TargetEvaluation | null;
   switchable: AdminTargetKind[];
   setActiveKind: (kind: AdminTargetKind) => void;
+  /** The contract picked on the roles page; inspection only, never changes the active console. */
+  inspectKind: AdminTargetKind | null;
+  setInspectKind: (kind: AdminTargetKind) => void;
+  /**
+   * The contract the admin page shows: the active one, else the inspected one, else the first
+   * configured. Without an active console its actions are all locked.
+   */
+  shownTarget: AdminTarget | null;
+  /** `shownTarget`'s evaluation; `null` until the contracts were read. */
+  shownEvaluation: TargetEvaluation | null;
   refresh: () => void;
 }
 
@@ -38,12 +48,17 @@ export function AdminTargetProvider({ children }: { children: ReactNode }) {
   const { state, refresh } = useAdminTargets();
   const accountId = multisig?.accountId ?? null;
   const [remembered, setRemembered] = useState<AdminTargetKind | null>(null);
+  const [inspectKind, setInspectKind] = useState<AdminTargetKind | null>(null);
+  const configured = useMemo(() => getAdminTargets(), []);
   useEffect(() => setRemembered(readRemembered(accountId)), [accountId]);
 
   const evaluations = state.status === 'ready' ? state.evaluations : NO_EVALUATIONS;
   const activeKind = useMemo(() => selectActiveTarget(evaluations, remembered), [evaluations, remembered]);
   const switchable = useMemo(() => targetsWithRoles(evaluations), [evaluations]);
   const active = useMemo(() => evaluations.find((e) => e.target.kind === activeKind) ?? null, [evaluations, activeKind]);
+  const shownKind = firstConfiguredKind(configured, activeKind, inspectKind);
+  const shownTarget = useMemo(() => configured.find((t) => t.kind === shownKind) ?? null, [configured, shownKind]);
+  const shownEvaluation = useMemo(() => evaluations.find((e) => e.target.kind === shownKind) ?? null, [evaluations, shownKind]);
 
   const setActiveKind = useCallback(
     (kind: AdminTargetKind) => {
@@ -58,8 +73,20 @@ export function AdminTargetProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AdminTargetContextValue>(
-    () => ({ state, configured: getAdminTargets(), activeKind, active, switchable, setActiveKind, refresh }),
-    [state, activeKind, active, switchable, setActiveKind, refresh],
+    () => ({
+      state,
+      configured,
+      activeKind,
+      active,
+      switchable,
+      setActiveKind,
+      inspectKind,
+      setInspectKind,
+      shownTarget,
+      shownEvaluation,
+      refresh,
+    }),
+    [state, configured, activeKind, active, switchable, setActiveKind, inspectKind, shownTarget, shownEvaluation, refresh],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

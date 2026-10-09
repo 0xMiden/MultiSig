@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { allReadable, failedEvaluations, selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
+import {
+  allReadable, failedEvaluations, firstConfiguredKind, noRolesSentence, selectActiveTarget, showsActionCards, targetsWithRoles,
+  type TargetEvaluation,
+} from '@/lib/admin/targetSelection';
 import { AGGLAYER_PROFILE, USDCX_PROFILE, type AdminTarget } from '@/lib/admin/target';
 
 const usdcx: AdminTarget = { ...USDCX_PROFILE, contractId: '0xa', feeFaucetId: '0xfee', networkId: 'testnet' };
@@ -40,5 +43,42 @@ describe('failedEvaluations / allReadable', () => {
     expect(allReadable(evals)).toBe(false);
     expect(allReadable([ready(usdcx, { ADMIN: false })])).toBe(true);
     expect(allReadable([])).toBe(true);
+  });
+});
+
+describe('firstConfiguredKind', () => {
+  it('takes the first preferred kind that is configured, else the first configured', () => {
+    expect(firstConfiguredKind([usdcx, bridge], 'agglayer', 'usdcx')).toBe('agglayer');
+    expect(firstConfiguredKind([usdcx, bridge], null, 'agglayer')).toBe('agglayer');
+    expect(firstConfiguredKind([usdcx, bridge], null, null)).toBe('usdcx');
+  });
+  it('ignores a preferred kind that is not configured (bridge id unset)', () => {
+    expect(firstConfiguredKind([usdcx], 'agglayer', null)).toBe('usdcx');
+    expect(firstConfiguredKind([], 'usdcx')).toBeNull();
+  });
+});
+
+describe('showsActionCards', () => {
+  it('lists every action, locked, when nobody is connected (as the USDCx console always did)', () => {
+    expect(showsActionCards(false, null)).toBe(true);
+    expect(showsActionCards(false, failed(usdcx))).toBe(true);
+  });
+  it('with someone connected, only once the shown contract was read', () => {
+    expect(showsActionCards(true, ready(usdcx, { ADMIN: false }))).toBe(true);
+    expect(showsActionCards(true, null)).toBe(false);
+    expect(showsActionCards(true, failed(usdcx))).toBe(false);
+  });
+});
+
+describe('noRolesSentence', () => {
+  it('names only the parties actually connected', () => {
+    expect(noRolesSentence({ multisig: true, bread: false }, [usdcx])).toBe(
+      'The acting multisig holds no role on the USDCx faucet (0xa), so every action below is locked. The Roles page shows who holds each role.',
+    );
+    expect(noRolesSentence({ multisig: false, bread: true }, [usdcx])).toMatch(/^The connected Bread account holds no role on the USDCx faucet \(0xa\)/);
+    expect(noRolesSentence({ multisig: true, bread: true }, [usdcx, bridge])).toMatch(
+      /^Neither the acting multisig nor the connected Bread account holds a role on the USDCx faucet \(0xa\) or the AggLayer bridge \(0xb\),/,
+    );
+    expect(noRolesSentence({ multisig: true, bread: false }, [usdcx])).not.toMatch(/Bread/);
   });
 });

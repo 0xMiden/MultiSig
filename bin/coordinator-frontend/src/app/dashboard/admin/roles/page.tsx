@@ -9,6 +9,7 @@ import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { copyToClipboard } from '@/lib/helpers';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
 import { actionLabel, actionsOfRole, listRoleHolders } from '@/lib/admin/roles';
+import { firstConfiguredKind } from '@/lib/admin/targetSelection';
 import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
 
 export const dynamic = 'force-dynamic';
@@ -124,15 +125,14 @@ function RoleHolders({ target, bytesState }: { target: AdminTarget; bytesState: 
 
 export default function AdminRolesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const { state, configured, activeKind, refresh } = useAdminTarget();
-  const [inspect, setInspect] = useState<AdminTargetKind | null>(null);
-  const kind = inspect ?? activeKind ?? configured[0]?.kind ?? null;
+  const { state, configured, activeKind, inspectKind, setInspectKind, refresh } = useAdminTarget();
+  const kind = firstConfiguredKind(configured, inspectKind, activeKind);
   const target = configured.find((t) => t.kind === kind) ?? null;
   const evaluation = state.status === 'ready' ? (state.evaluations.find((e) => e.target.kind === kind) ?? null) : null;
   const bytesState = useMemo(() => bytesStateOf(evaluation, state), [evaluation, state]);
 
   // Inspection only: the banner switcher is the one control that changes the active console.
-  const select = (next: AdminTargetKind) => setInspect(next);
+  const select = (next: AdminTargetKind) => setInspectKind(next);
   const onRefresh = () => {
     refresh();
     setRefreshKey((key) => key + 1);
@@ -198,7 +198,7 @@ export default function AdminRolesPage() {
 
       {target && state.status === 'idle' ? (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
-          Connect a multisig or Bread to read this contract&apos;s roles.
+          Waiting for the Miden client to read this contract&apos;s roles.
         </div>
       ) : target ? (
         <RoleHolders key={`${refreshKey}:${target.kind}`} target={target} bytesState={bytesState} />

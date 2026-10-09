@@ -17,7 +17,7 @@ import type { RoleFlags } from '@/lib/admin/roles';
  */
 export function AdminBanner() {
   const { multisig, walletSource, midenWalletSession } = useMultisig();
-  const { state, configured, active, activeKind } = useAdminTarget();
+  const { state, active, activeKind, shownTarget } = useAdminTarget();
   const target = active?.target ?? null;
   const ready = active?.status === 'ready' ? active : null;
 
@@ -31,9 +31,10 @@ export function AdminBanner() {
   const failed = failedEvaluations(state.status === 'ready' ? state.evaluations : []);
   const isError = failed.length > 0;
   const loading = state.status === 'loading';
-  const nowhere = state.status === 'ready' && !activeKind && failed.length === 0;
-  const shown = target ?? configured[0] ?? null;
   const nobody = !multisig && !breadConnected;
+  const nowhere = !nobody && state.status === 'ready' && !activeKind && failed.length === 0;
+  // The active console, else the contract the page shows (inspected or first configured).
+  const shown = target ?? shownTarget;
 
   return (
     <div
@@ -53,7 +54,7 @@ export function AdminBanner() {
               />
             </svg>
           </div>
-          <div className="text-[14px] font-[600] text-[#111]">{active?.target.labels.consoleTitle ?? 'Admin Console'}</div>
+          <div className="text-[14px] font-[600] text-[#111]">{shown?.labels.consoleTitle ?? 'Admin Console'}</div>
         </div>
         <AdminTargetSwitcher />
       </div>

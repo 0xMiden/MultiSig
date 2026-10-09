@@ -45,3 +45,43 @@ export function failedEvaluations(evaluations: readonly TargetEvaluation[]): Tar
 export function allReadable(evaluations: readonly TargetEvaluation[]): boolean {
   return failedEvaluations(evaluations).length === 0;
 }
+
+/**
+ * The first of `preferred` that is configured, else the first configured target. The admin page
+ * passes (active, inspected): with no active console it still shows the inspected (or first)
+ * contract's state and locked actions. The roles page passes (inspected, active).
+ */
+export function firstConfiguredKind(
+  configured: readonly Pick<AdminTarget, 'kind'>[],
+  ...preferred: (AdminTargetKind | null)[]
+): AdminTargetKind | null {
+  for (const kind of preferred) {
+    if (kind && configured.some((t) => t.kind === kind)) return kind;
+  }
+  return configured[0]?.kind ?? null;
+}
+
+/**
+ * Whether the admin page lists the shown target's actions (usable ones as forms, the rest locked).
+ * With nobody connected every action is locked, as a fact. With someone connected, only once the
+ * shown contract was read: while detecting, or after a failed read, "locked" would be a guess.
+ */
+export function showsActionCards(anyone: boolean, shown: Pick<TargetEvaluation, 'status'> | null): boolean {
+  if (!anyone) return true;
+  return shown?.status === 'ready';
+}
+
+/** Who is connected, for the sentence that explains why every action is locked. */
+export function noRolesSentence(
+  parties: { multisig: boolean; bread: boolean },
+  configured: readonly Pick<AdminTarget, 'contractId' | 'labels'>[],
+): string {
+  const on = configured.map((t) => `the ${t.labels.contractNoun} (${t.contractId})`).join(' or ');
+  const subject =
+    parties.multisig && parties.bread
+      ? `Neither the acting multisig nor the connected Bread account holds a role on ${on}`
+      : parties.multisig
+        ? `The acting multisig holds no role on ${on}`
+        : `The connected Bread account holds no role on ${on}`;
+  return `${subject}, so every action below is locked. The Roles page shows who holds each role.`;
+}

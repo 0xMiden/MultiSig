@@ -7,7 +7,7 @@ import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { AdminBanner } from '@/components/admin/AdminBanner';
 import { resolveActionSender, type ActionSender } from '@/lib/admin/directAction';
-import { allReadable, failedEvaluations } from '@/lib/admin/targetSelection';
+import { allReadable, failedEvaluations, noRolesSentence, showsActionCards } from '@/lib/admin/targetSelection';
 import { actionFormKey, type AdminTarget } from '@/lib/admin/target';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
 import { AdminFundingCard } from './components/AdminFundingCard';
@@ -42,8 +42,8 @@ const FORM_OF: Record<AdminAction, ComponentType<ActionFormProps>> = {
 
 export default function AdminPage() {
   const { proposals, multisig, walletSource, midenWalletSession } = useMultisig();
-  const { state, configured, active, activeKind } = useAdminTarget();
-  const faucetBytesState = useMemo(() => bytesStateOf(active, state), [active, state]);
+  const { state, configured, active, activeKind, shownTarget, shownEvaluation } = useAdminTarget();
+  const faucetBytesState = useMemo(() => bytesStateOf(shownEvaluation, state), [shownEvaluation, state]);
 
   // Other not-yet-finalized admin proposals, for the revoke-in-flight guardrail. Memoized so a
   // guardrail check doesn't get a new array identity on every render for no reason.
@@ -71,7 +71,9 @@ export default function AdminPage() {
   const breadConnected = walletSource === 'miden-wallet' && midenWalletSession.connected;
   const anyone = multisig !== null || breadConnected;
   const rolesKnown = anyone && state.status === 'ready';
-  const target: AdminTarget | null = active?.target ?? null;
+  // The shown contract: the active console, else the inspected or first configured one, whose
+  // actions are then all locked (with the bridge id unset this is the USDCx console as before).
+  const target: AdminTarget | null = shownTarget;
   const senderFor = (action: AdminAction): ActionSender | null =>
     active && active.status === 'ready' ? resolveActionSender(action, active.target, active.roles, active.breadRoles) : null;
   const canAct = (action: AdminAction): boolean => senderFor(action) !== null;
@@ -81,10 +83,10 @@ export default function AdminPage() {
   const evaluations = state.status === 'ready' ? state.evaluations : [];
   const failed = failedEvaluations(evaluations);
 
-  // Actions are listed only once the roles are known and a target holds some: usable ones as
-  // forms, the rest locked. While roles are still being detected, or could not be determined,
-  // nothing is listed -- "locked" would then be a guess presented as a fact.
-  const showActions = rolesKnown && target !== null;
+  // See `showsActionCards`: with nobody connected every action is listed as locked; otherwise only
+  // once the shown contract was read -- while detecting, or after a failed read, "locked" would be
+  // a guess presented as a fact.
+  const showActions = target !== null && showsActionCards(anyone, shownEvaluation);
 
   return (
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
@@ -126,7 +128,7 @@ export default function AdminPage() {
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
           {configured.length === 0
             ? 'No contract is configured for this console (NEXT_PUBLIC_USDCX_FAUCET_ID / NEXT_PUBLIC_AGGLAYER_BRIDGE_ID).'
-            : `Neither the acting multisig nor the connected Bread account holds a role on ${configured.map((t) => `the ${t.labels.contractNoun} (${t.contractId})`).join(' or ')}. The Roles page shows who does.`}
+            : noRolesSentence({ multisig: multisig !== null, bread: breadConnected }, configured)}
         </div>
       )}
 
