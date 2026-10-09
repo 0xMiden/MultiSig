@@ -10,6 +10,9 @@ import {
 } from '@/lib/history/decode';
 import {
   classifyNote,
+  noteContract,
+  noteRoleLabel,
+  NOTE_ROLE_LABEL,
   matchProposals,
   pendingProposalsExecutedOnChain,
   sortNewestFirst,
@@ -106,6 +109,21 @@ describe('classifyNote (bridge)', () => {
     // Pretend the faucet were the bridge: the same tag under `bridgeTag` classifies identically.
     expect(classifyNote(admin, { faucetTag: null, bridgeTag: account_target_tag(FAUCET), feeFaucetTag: null })).toBe('admin');
     expect(classifyNote(admin, { faucetTag: null, bridgeTag: null, feeFaucetTag: null })).toBe('other');
+  });
+
+  it('labels the admin note with the contract it is addressed to', () => {
+    const last = decodeTransactionRecord(records[records.length - 1], note_id_from_header);
+    const tag = account_target_tag(FAUCET);
+    const admin = last.outputNotes.find((n) => classifyNote(n, { faucetTag: tag, bridgeTag: null, feeFaucetTag: null }) === 'admin')!;
+    const asFaucet = noteContract(admin, { faucetTag: tag, bridgeTag: null, feeFaucetTag: null });
+    const asBridge = noteContract(admin, { faucetTag: null, bridgeTag: tag, feeFaucetTag: null });
+    expect(asFaucet).toBe('usdcx');
+    expect(asBridge).toBe('agglayer');
+    expect(noteContract(admin, { faucetTag: null, bridgeTag: null, feeFaucetTag: null })).toBeNull();
+    expect(noteRoleLabel('admin', asFaucet)).toBe('Admin note to the USDCx faucet');
+    expect(noteRoleLabel('admin', asBridge)).toBe('Admin note to the AggLayer bridge');
+    expect(NOTE_ROLE_LABEL.admin).toBe('Admin note to the USDCx faucet');
+    expect(noteRoleLabel('fee_payment', null)).toBe('Fee payment');
   });
 });
 

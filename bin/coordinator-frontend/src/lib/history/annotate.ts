@@ -34,12 +34,27 @@ export function classifyNote(note: OnChainNote, tags: TargetTags): NoteRole {
   return 'other';
 }
 
+/** Which administered contract a note is addressed to, by its target tag; null for neither. */
+export type NoteContract = 'usdcx' | 'agglayer';
+
+export function noteContract(note: OnChainNote, tags: TargetTags): NoteContract | null {
+  if (tags.faucetTag !== null && note.tag === tags.faucetTag) return 'usdcx';
+  if (tags.bridgeTag !== null && note.tag === tags.bridgeTag) return 'agglayer';
+  return null;
+}
+
 export const NOTE_ROLE_LABEL: Record<NoteRole, string> = {
-  admin: 'Admin note to the administered contract',
+  admin: 'Admin note to the USDCx faucet',
   fee_sponsorship: 'Fee sponsorship for the admin note',
   fee_payment: 'Fee payment',
   other: 'Note',
 };
+
+/** `NOTE_ROLE_LABEL`, naming the AggLayer bridge for an admin note addressed to it. */
+export function noteRoleLabel(role: NoteRole, contract: NoteContract | null): string {
+  if (role === 'admin' && contract === 'agglayer') return 'Admin note to the AggLayer bridge';
+  return NOTE_ROLE_LABEL[role];
+}
 
 /** A locally-known proposal, keyed by the id of the admin note it creates. */
 export interface KnownProposal {

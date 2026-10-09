@@ -218,12 +218,12 @@ pub fn is_paused(account: &Account) -> bool {
 }
 
 /// The note-script roots of every admin note kind this crate builds, labelled. Kinds that share
-/// a note script (RBAC grant/revoke, pause/unpause) share a root, so one label covers both.
+/// a note script (RBAC grant/revoke/set-admin/renounce, pause/unpause) share a root, so one label covers both.
 pub fn admin_note_kinds() -> Vec<(&'static str, NoteScriptRoot)> {
     vec![
         ("Set max supply", FaucetMetadataConfigNote::script_root()),
         ("Set note fee", ConstantFeePolicyConfigNote::script_root()),
-        ("Grant or revoke role", RbacConfigNote::script_root()),
+        ("Role change (RBAC)", RbacConfigNote::script_root()),
         ("Pause or unpause", PauseConfigNote::script_root()),
         ("Block or unblock account", BlocklistConfigNote::script_root()),
         ("Set min burn", XReserveMinBurnAmountNote::script_root()),

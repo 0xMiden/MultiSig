@@ -13,10 +13,12 @@ import { decodeTransactionRecord, type OnChainNote, type OnChainTx } from '@/lib
 import {
   classifyNote,
   matchProposals,
+  noteContract,
   pendingProposalsExecutedOnChain,
   sortNewestFirst,
   type KnownProposal,
   type KnownProposalIndex,
+  type NoteContract,
   type NoteRole,
   type ProposalMatch,
   type TargetTags,
@@ -25,6 +27,8 @@ import { fetchAccountTransactions } from '@/lib/history/nodeRpc';
 
 export interface HistoryNote extends OnChainNote {
   role: NoteRole;
+  /** The administered contract the note is addressed to, if any. */
+  contract: NoteContract | null;
   /** The admin action named by the note's script root, for committed public admin notes. */
   kind?: string;
   /** The faucet's (ntx-builder's) verdict on an admin note, when the node has one. */
@@ -151,7 +155,7 @@ export function useOnChainHistory(
         const matches = matchProposals(decoded, known);
         const txs: HistoryTx[] = decoded.map((tx) => ({
           ...tx,
-          notes: tx.outputNotes.map((n) => ({ ...n, role: classifyNote(n, tags) })),
+          notes: tx.outputNotes.map((n) => ({ ...n, role: classifyNote(n, tags), contract: noteContract(n, tags) })),
           proposals: matches.get(tx.txIdHex) ?? [],
         }));
         setState({ status: 'ready', txs, chainTip, fetchedAt: Date.now() });

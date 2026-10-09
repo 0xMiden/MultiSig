@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { NOTE_ROLE_LABEL } from '@/lib/history/annotate';
+import { noteRoleLabel } from '@/lib/history/annotate';
 import { txTitle } from '@/lib/history/summary';
 import type { HistoryNote, HistoryTx } from '@/hooks/useOnChainHistory';
 
@@ -42,18 +42,19 @@ function Copy({ value }: { value: string }) {
 function consumptionLabel(note: HistoryNote): { text: string; tone: 'green' | 'amber' | 'red' | 'gray' } {
   if (!note.committed) return { text: 'consumed in the same batch', tone: 'green' };
   if (note.role !== 'admin') return { text: 'committed', tone: 'gray' };
+  const by = note.contract === 'agglayer' ? 'bridge' : 'faucet';
   switch (note.consumption?.state) {
     case 'applied':
-      return { text: 'applied by the faucet', tone: 'green' };
+      return { text: `applied by the ${by}`, tone: 'green' };
     case 'failed':
-      return { text: `rejected by the faucet: ${note.consumption.detail ?? ''}`, tone: 'red' };
+      return { text: `rejected by the ${by}: ${note.consumption.detail ?? ''}`, tone: 'red' };
     case 'awaiting_consumption':
       return {
         text: note.consumption.detail ? `awaiting consumption (last error: ${note.consumption.detail})` : 'awaiting consumption',
         tone: 'amber',
       };
     default:
-      return { text: 'committed; faucet verdict unknown', tone: 'gray' };
+      return { text: `committed; ${by} verdict unknown`, tone: 'gray' };
   }
 }
 
@@ -70,8 +71,8 @@ function NoteRow({ note }: { note: HistoryNote }) {
     <li className="rounded-[8px] border border-[rgba(0,0,0,0.06)] bg-[#f9f9f9] px-3 py-2 flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[12px] font-[600] text-[#111]">
-          {note.kind ?? NOTE_ROLE_LABEL[note.role]}
-          {note.kind ? ` · ${NOTE_ROLE_LABEL[note.role]}` : ''}
+          {note.kind ?? noteRoleLabel(note.role, note.contract)}
+          {note.kind ? ` · ${noteRoleLabel(note.role, note.contract)}` : ''}
         </span>
         <span className={`text-[11px] font-[500] px-2 py-0.5 rounded-full ${TONE[c.tone]}`}>{c.text}</span>
         <span className="text-[11px] text-[rgba(0,0,0,0.45)]">
