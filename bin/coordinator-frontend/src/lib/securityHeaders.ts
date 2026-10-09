@@ -5,20 +5,17 @@
 export interface CspConfig {
   nonce: string;
   dev: boolean;
-  guardianEndpoint: string;
+  /** The default Guardian and every other one a user may switch to (NEXT_PUBLIC_GUARDIAN_ENDPOINTS). */
+  guardianEndpoints: readonly string[];
   midenRpcUrl: string;
   noteTransportUrl: string;
   proverUrl: string;
   chatEndpoint: string;
-  paraProduction: boolean;
+  /** Para served from *.getpara.com (sandbox, beta, production) rather than its local dev stack. */
+  paraHosted: boolean;
   /** Extra connect-src origins, space- or comma-separated (NEXT_PUBLIC_CSP_CONNECT_SRC). */
   extraConnectSrc: string;
 }
-
-// Miden SDK shorthands (`devnet`, `testnet`) resolve to *.miden.io services.
-const MIDEN_SERVICES = 'https://*.miden.io';
-// Guardian deployments run by OpenZeppelin; the Guardian URL can be changed at runtime.
-export const OPENZEPPELIN_GUARDIANS = 'https://*.openzeppelin.com';
 
 /** Origin of an absolute http(s) URL, or null for shorthands and invalid input. */
 export function originOf(value: string | undefined): string | null {
@@ -39,15 +36,14 @@ export function extraOrigins(value: string): string[] {
 }
 
 export function buildContentSecurityPolicy(config: CspConfig): string {
-  const para = config.paraProduction
+  const para = config.paraHosted
     ? ['https://*.getpara.com', 'wss://*.getpara.com', 'https://*.usecapsule.com']
     // Para's development environment talks to locally running Para services.
     : ['http://localhost:8080', 'http://localhost:3003', 'ws://localhost:3000'];
   const connectSrc = new Set<string>([
     "'self'",
-    MIDEN_SERVICES,
-    OPENZEPPELIN_GUARDIANS,
-    ...[config.guardianEndpoint, config.midenRpcUrl, config.noteTransportUrl, config.proverUrl, config.chatEndpoint]
+    // Only the configured services: no wildcard for Miden or Guardian hosts.
+    ...[...config.guardianEndpoints, config.midenRpcUrl, config.noteTransportUrl, config.proverUrl, config.chatEndpoint]
       .map(originOf)
       .filter((origin): origin is string => origin !== null),
     ...para,
@@ -55,7 +51,7 @@ export function buildContentSecurityPolicy(config: CspConfig): string {
   ]);
   if (config.dev) connectSrc.add('ws://localhost:*');
 
-  const paraFrames = config.paraProduction
+  const paraFrames = config.paraHosted
     ? ['https://*.getpara.com', 'https://*.usecapsule.com']
     : ['http://localhost:3003'];
 

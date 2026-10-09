@@ -78,6 +78,15 @@ const nextConfig = {
         /^@getpara\/(?:aa-alchemy|aa-biconomy|aa-cdp|aa-gelato|aa-pimlico|aa-porto|aa-rhinestone|aa-zerodev)$/,
         emptyStub
       ),
+      // Para's telemetry (enabled per API key, server-side) loads this OpenTelemetry
+      // context manager, which installs zone.js. zone.js replaces the global
+      // Promise, and IndexedDB transactions in the Miden SDK's store (Dexie) then
+      // commit before their reads finish: PrematureCommitError on every
+      // transaction. Para catches the failed import and runs telemetry without it.
+      new webpack.NormalModuleReplacementPlugin(
+        /^(?:@opentelemetry\/context-zone(?:-peer-dep)?|zone\.js)$/,
+        emptyStub
+      ),
     )
 
     return config

@@ -1,22 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { guardianUrlProblem } from '../../src/lib/guardianUrl';
 
-const policy = { configured: 'https://guardian.example.org/api', extra: 'https://g2.example.net, http://localhost:3001', self: 'http://localhost:3000' };
+const policy = {
+  guardians: ['https://guardian.example.org/api', 'https://guardian-devnet.example.org'],
+  extra: 'http://localhost:3001',
+  self: 'http://localhost:3000',
+};
 
 describe('guardianUrlProblem', () => {
-  it('admits exactly what connect-src admits', () => {
+  it('admits exactly what connect-src admits: the listed Guardians', () => {
     expect(guardianUrlProblem('https://guardian.example.org', policy)).toBeNull();
-    expect(guardianUrlProblem('https://guardian-devnet.openzeppelin.com', policy)).toBeNull();
-    expect(guardianUrlProblem('https://g2.example.net/x', policy)).toBeNull();
+    expect(guardianUrlProblem('https://guardian-devnet.example.org/x', policy)).toBeNull();
     expect(guardianUrlProblem('http://localhost:3001', policy)).toBeNull();
   });
 
-  it('explains a URL the CSP would block', () => {
-    expect(guardianUrlProblem('https://evil.example.com', policy)).toMatch(/NEXT_PUBLIC_CSP_CONNECT_SRC/);
-    // The wildcard is https on the default port only.
-    expect(guardianUrlProblem('http://guardian.openzeppelin.com', policy)).not.toBeNull();
-    expect(guardianUrlProblem('https://guardian.openzeppelin.com:8443', policy)).not.toBeNull();
-    expect(guardianUrlProblem('https://openzeppelin.com.evil.io', policy)).not.toBeNull();
+  it('refuses any other Guardian, OpenZeppelin ones included, and says where to add it', () => {
+    const problem = guardianUrlProblem('https://guardian-testnet.openzeppelin.com', policy);
+    expect(problem).toMatch(/NEXT_PUBLIC_GUARDIAN_ENDPOINTS/);
+    expect(problem).toMatch(/https:\/\/guardian\.example\.org, https:\/\/guardian-devnet\.example\.org/);
+    expect(guardianUrlProblem('http://guardian.example.org', policy)).not.toBeNull();
+    expect(guardianUrlProblem('https://guardian.example.org:8443', policy)).not.toBeNull();
   });
 
   it('rejects empty and malformed input', () => {

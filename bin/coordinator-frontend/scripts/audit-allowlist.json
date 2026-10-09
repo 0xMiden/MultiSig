@@ -1,0 +1,7 @@
+{
+  "GHSA-86w9-cpqp-85rv": {
+    "package": "node-forge",
+    "reason": "RSA PKCS#1 v1.5 signature verification flaw. node-forge only reaches the app through Para (@getpara/core-sdk), which uses it for RSA/AES encryption, key generation and randomness, never to verify RSA signatures; the app itself does not use it. No fixed node-forge release exists yet.",
+    "reviewBy": "2026-11-08"
+  }
+}

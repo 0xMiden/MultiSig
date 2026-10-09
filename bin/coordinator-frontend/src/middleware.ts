@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import {
-  GUARDIAN_ENDPOINT,
+  GUARDIAN_ENDPOINTS,
   MIDEN_NOTE_TRANSPORT_URL,
   MIDEN_PROVER_URL,
   MIDEN_RPC_URL,
   PARA_ENVIRONMENT,
 } from '@/config/psm';
 import { buildContentSecurityPolicy } from '@/lib/securityHeaders';
+import { paraIsHosted } from '@/lib/paraEnvironment';
 
 // Pages get a per-request nonce so Next.js can mark its own inline scripts as
 // trusted; everything else inline is refused.
@@ -16,12 +17,12 @@ function withContentSecurityPolicy(request: NextRequest): NextResponse {
   const policy = buildContentSecurityPolicy({
     nonce,
     dev: process.env.NODE_ENV === 'development',
-    guardianEndpoint: GUARDIAN_ENDPOINT,
+    guardianEndpoints: GUARDIAN_ENDPOINTS,
     midenRpcUrl: MIDEN_RPC_URL,
     noteTransportUrl: MIDEN_NOTE_TRANSPORT_URL,
     proverUrl: MIDEN_PROVER_URL,
     chatEndpoint: process.env.NEXT_PUBLIC_CHAT_ENDPOINT ?? '',
-    paraProduction: PARA_ENVIRONMENT === 'production',
+    paraHosted: paraIsHosted(PARA_ENVIRONMENT),
     extraConnectSrc: process.env.NEXT_PUBLIC_CSP_CONNECT_SRC ?? '',
   });
   const requestHeaders = new Headers(request.headers);
