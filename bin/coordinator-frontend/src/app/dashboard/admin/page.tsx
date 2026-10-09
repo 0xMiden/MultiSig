@@ -8,7 +8,7 @@ import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { AdminBanner } from '@/components/admin/AdminBanner';
 import { resolveActionSender, type ActionSender } from '@/lib/admin/directAction';
 import { allReadable, failedEvaluations } from '@/lib/admin/targetSelection';
-import type { AdminTarget } from '@/lib/admin/target';
+import { actionFormKey, type AdminTarget } from '@/lib/admin/target';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
 import { AdminFundingCard } from './components/AdminFundingCard';
 import { FaucetStateCard } from './components/FaucetStateCard';
@@ -131,14 +131,14 @@ export default function AdminPage() {
       )}
 
       {showActions && target && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+        <div key={target.kind} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
           {actions.map((action) => {
             const Form = FORM_OF[action];
             const sender = senderFor(action);
             return sender ? (
-              <Form key={action} faucetBytesState={faucetBytesState} inflightRecipes={inflightRecipes} sender={sender} />
+              <Form key={actionFormKey(target.kind, action)} faucetBytesState={faucetBytesState} inflightRecipes={inflightRecipes} sender={sender} />
             ) : (
-              <LockedActionCard key={action} action={action} target={target} />
+              <LockedActionCard key={actionFormKey(target.kind, action)} action={action} target={target} />
             );
           })}
         </div>

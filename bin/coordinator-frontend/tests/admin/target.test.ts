@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  AGGLAYER_PROFILE, ANY_HELD_ROLE, USDCX_PROFILE, actionRoleOf, profileOf, roleLabel, roleSymbols,
+  AGGLAYER_PROFILE, ANY_HELD_ROLE, USDCX_PROFILE, actionFormKey, actionRoleOf, profileOf, roleLabel, roleSymbols,
 } from '@/lib/admin/target';
 import { getAdminTargets, targetOfKind } from '@/config/adminConfig';
 
@@ -26,6 +26,17 @@ describe('profiles', () => {
     expect(actionRoleOf(AGGLAYER_PROFILE, 'set_max_supply')).toBeNull();
     expect(AGGLAYER_PROFILE.labelPrefix).toBe('agg_v1_');
     expect(profileOf('agglayer')).toBe(AGGLAYER_PROFILE);
+  });
+});
+
+describe('actionFormKey', () => {
+  it('differs between targets for an action both offer, so a console switch remounts the form', () => {
+    const shared = USDCX_PROFILE.actions.filter((a) => AGGLAYER_PROFILE.actions.includes(a));
+    expect(shared).toEqual(['rbac_grant', 'rbac_revoke', 'pause', 'unpause']);
+    for (const action of shared) {
+      expect(actionFormKey('usdcx', action)).not.toBe(actionFormKey('agglayer', action));
+    }
+    expect(actionFormKey('agglayer', 'pause')).toBe('agglayer:pause');
   });
 });
 

@@ -121,3 +121,13 @@ export function roleLabel(target: AdminTargetProfile, symbol: string): string {
 export function actionRoleOf(target: AdminTargetProfile, action: AdminAction): string | null {
   return target.actions.includes(action) ? (target.actionRole[action] ?? null) : null;
 }
+
+/**
+ * The React key of an action's form. It carries the target kind: forms with the same action exist
+ * on both targets (grant, revoke, pause, unpause), and keyed by action alone React would keep a
+ * reviewed recipe, typed CONFIRM and selected role across a console switch and send them to the
+ * other contract. Keyed by kind, a switch remounts every form.
+ */
+export function actionFormKey(kind: AdminTargetKind, action: AdminAction): string {
+  return `${kind}:${action}`;
+}

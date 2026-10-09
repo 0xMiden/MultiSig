@@ -124,17 +124,15 @@ function RoleHolders({ target, bytesState }: { target: AdminTarget; bytesState: 
 
 export default function AdminRolesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const { state, configured, activeKind, switchable, setActiveKind, refresh } = useAdminTarget();
+  const { state, configured, activeKind, refresh } = useAdminTarget();
   const [inspect, setInspect] = useState<AdminTargetKind | null>(null);
   const kind = inspect ?? activeKind ?? configured[0]?.kind ?? null;
   const target = configured.find((t) => t.kind === kind) ?? null;
   const evaluation = state.status === 'ready' ? (state.evaluations.find((e) => e.target.kind === kind) ?? null) : null;
   const bytesState = useMemo(() => bytesStateOf(evaluation, state), [evaluation, state]);
 
-  const select = (next: AdminTargetKind) => {
-    setInspect(next);
-    if (switchable.includes(next)) setActiveKind(next);
-  };
+  // Inspection only: the banner switcher is the one control that changes the active console.
+  const select = (next: AdminTargetKind) => setInspect(next);
   const onRefresh = () => {
     refresh();
     setRefreshKey((key) => key + 1);
