@@ -3,6 +3,7 @@
 import { useMultisig } from '@/contexts/MultisigContext';
 import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import { AdminTargetSwitcher } from '@/components/admin/AdminTargetSwitcher';
+import { failedEvaluations } from '@/lib/admin/targetSelection';
 import { shortFaucetId } from '@/lib/tokenAmounts';
 import { roleLabel, type AdminTargetProfile } from '@/lib/admin/target';
 import type { RoleFlags } from '@/lib/admin/roles';
@@ -27,9 +28,10 @@ export function AdminBanner() {
   const breadInactive = walletSource !== 'miden-wallet' && midenWalletSession.connected;
   const heldRoles = heldOf(target, ready?.roles ?? null);
   const breadHeldRoles = heldOf(target, ready?.breadRoles ?? null);
-  const isError = active?.status === 'error';
+  const failed = failedEvaluations(state.status === 'ready' ? state.evaluations : []);
+  const isError = failed.length > 0;
   const loading = state.status === 'loading';
-  const nowhere = state.status === 'ready' && !activeKind;
+  const nowhere = state.status === 'ready' && !activeKind && failed.length === 0;
   const shown = target ?? configured[0] ?? null;
   const nobody = !multisig && !breadConnected;
 
@@ -77,7 +79,7 @@ export function AdminBanner() {
 
       <div>
         <div className="text-[11px] font-[500] text-[rgba(0,0,0,0.45)] mb-1.5">Detected roles</div>
-        {loading && nobody && (
+        {nobody && (
           <div className="text-[12px] text-[rgba(0,0,0,0.5)]">Load a multisig or connect Bread to detect roles.</div>
         )}
         {loading && !nobody && (
@@ -86,11 +88,11 @@ export function AdminBanner() {
             Detecting roles…
           </div>
         )}
-        {active?.status === 'error' && (
-          <div role="alert" className="text-[12px] font-[500] text-red-700">
-            {active.message}
+        {failed.map((e) => (
+          <div key={e.target.kind} role="alert" className="text-[12px] font-[500] text-red-700">
+            {e.message}
           </div>
-        )}
+        ))}
         {nowhere && <div className="text-[12px] text-[rgba(0,0,0,0.5)]">No admin roles are held on any configured contract.</div>}
         {ready && (
           <div className="flex flex-col gap-1.5">

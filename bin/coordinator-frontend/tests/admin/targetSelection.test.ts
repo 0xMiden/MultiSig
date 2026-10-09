@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
+import { allReadable, failedEvaluations, selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
 import { AGGLAYER_PROFILE, USDCX_PROFILE, type AdminTarget } from '@/lib/admin/target';
 
 const usdcx: AdminTarget = { ...USDCX_PROFILE, contractId: '0xa', feeFaucetId: '0xfee', networkId: 'testnet' };
@@ -30,5 +30,15 @@ describe('selectActiveTarget', () => {
   });
   it('with one configured target and no roles, still returns null (the page explains)', () => {
     expect(selectActiveTarget([ready(usdcx, { ADMIN: false })], null)).toBeNull();
+  });
+});
+
+describe('failedEvaluations / allReadable', () => {
+  it('lists unreadable contracts and only allows "no roles" when all were read', () => {
+    const evals = [ready(usdcx, { ADMIN: false }), failed(bridge)];
+    expect(failedEvaluations(evals).map((e) => e.target.kind)).toEqual(['agglayer']);
+    expect(allReadable(evals)).toBe(false);
+    expect(allReadable([ready(usdcx, { ADMIN: false })])).toBe(true);
+    expect(allReadable([])).toBe(true);
   });
 });

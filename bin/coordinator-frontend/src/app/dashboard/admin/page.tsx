@@ -7,6 +7,7 @@ import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { AdminBanner } from '@/components/admin/AdminBanner';
 import { resolveActionSender, type ActionSender } from '@/lib/admin/directAction';
+import { allReadable, failedEvaluations } from '@/lib/admin/targetSelection';
 import type { AdminTarget } from '@/lib/admin/target';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
 import { AdminFundingCard } from './components/AdminFundingCard';
@@ -42,7 +43,7 @@ const FORM_OF: Record<AdminAction, ComponentType<ActionFormProps>> = {
 export default function AdminPage() {
   const { proposals, multisig, walletSource, midenWalletSession } = useMultisig();
   const { state, configured, active, activeKind } = useAdminTarget();
-  const faucetBytesState = bytesStateOf(active, state);
+  const faucetBytesState = useMemo(() => bytesStateOf(active, state), [active, state]);
 
   // Other not-yet-finalized admin proposals, for the revoke-in-flight guardrail. Memoized so a
   // guardrail check doesn't get a new array identity on every render for no reason.
@@ -77,7 +78,8 @@ export default function AdminPage() {
 
   // Usable actions first, each group in its listed order (Array.prototype.sort is stable).
   const actions = target ? [...target.actions].sort((a, b) => Number(canAct(b)) - Number(canAct(a))) : [];
-  const failed = state.status === 'ready' ? state.evaluations.filter((e) => e.status === 'error') : [];
+  const evaluations = state.status === 'ready' ? state.evaluations : [];
+  const failed = failedEvaluations(evaluations);
 
   // Actions are listed only once the roles are known and a target holds some: usable ones as
   // forms, the rest locked. While roles are still being detected, or could not be determined,
@@ -120,7 +122,7 @@ export default function AdminPage() {
           </div>
         ))}
 
-      {rolesKnown && !activeKind && (
+      {rolesKnown && !activeKind && allReadable(evaluations) && (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
           {configured.length === 0
             ? 'No contract is configured for this console (NEXT_PUBLIC_USDCX_FAUCET_ID / NEXT_PUBLIC_AGGLAYER_BRIDGE_ID).'

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { isAdminMode } from '@/config/appMode';
 import { useMultisig } from '@/contexts/MultisigContext';
@@ -129,7 +129,7 @@ export default function AdminRolesPage() {
   const kind = inspect ?? activeKind ?? configured[0]?.kind ?? null;
   const target = configured.find((t) => t.kind === kind) ?? null;
   const evaluation = state.status === 'ready' ? (state.evaluations.find((e) => e.target.kind === kind) ?? null) : null;
-  const bytesState = bytesStateOf(evaluation, state);
+  const bytesState = useMemo(() => bytesStateOf(evaluation, state), [evaluation, state]);
 
   const select = (next: AdminTargetKind) => {
     setInspect(next);
@@ -198,7 +198,11 @@ export default function AdminRolesPage() {
         </div>
       </div>
 
-      {target ? (
+      {target && state.status === 'idle' ? (
+        <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
+          Connect a multisig or Bread to read this contract&apos;s roles.
+        </div>
+      ) : target ? (
         <RoleHolders key={`${refreshKey}:${target.kind}`} target={target} bytesState={bytesState} />
       ) : (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">

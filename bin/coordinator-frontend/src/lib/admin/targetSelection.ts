@@ -35,3 +35,13 @@ export function selectActiveTarget(evaluations: readonly TargetEvaluation[], rem
   if (remembered && candidates.includes(remembered)) return remembered;
   return candidates[0];
 }
+
+/** The targets whose contract could not be read. Their roles are unknown, never "none". */
+export function failedEvaluations(evaluations: readonly TargetEvaluation[]): TargetEvaluation[] {
+  return evaluations.filter((e) => e.status === 'error');
+}
+
+/** Whether "nobody holds a role" may be stated: only when every configured contract was read. */
+export function allReadable(evaluations: readonly TargetEvaluation[]): boolean {
+  return failedEvaluations(evaluations).length === 0;
+}
