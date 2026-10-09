@@ -32,8 +32,9 @@ admin console:
 | Variable | Value | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_APP_MODE` | `admin` | Switches the build to the admin console (`src/config/appMode.ts`). Without this the app builds and serves the wallet instead. |
-| `NEXT_PUBLIC_USDCX_FAUCET_ID` | the USDCx faucet account ID this console administers | Required at runtime by `assertAdminConfig()` (`src/config/adminConfig.ts`); the build itself does not validate the value but every admin action will throw without it. |
+| `NEXT_PUBLIC_USDCX_FAUCET_ID` | the USDCx faucet account ID this console administers | Each configured contract is read from the node at runtime; a missing id simply omits that contract. |
 | `NEXT_PUBLIC_USDCX_FEE_FAUCET_ID` | the chain's native fee faucet account ID | Read-only reference used by `set_note_fee`. |
+| `NEXT_PUBLIC_AGGLAYER_BRIDGE_ID` | the AggLayer bridge account id | Optional. When set, the console also administers the bridge; the console shown is the one where the connected account holds roles (a switcher appears when it holds roles on both). |
 | `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | `https://guardian-devnet.openzeppelin.com` | Guardian instance (v0.18.0-rc.2) the console talks to. |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | `devnet` (or a concrete RPC URL) | Miden SDK endpoint shorthand; must be the same network as Guardian. |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | `devnet` | Note transport endpoint; same network as the RPC. |

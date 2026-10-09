@@ -73,4 +73,5 @@ jobs:
           NEXT_PUBLIC_APP_MODE: admin
           NEXT_PUBLIC_USDCX_FAUCET_ID: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
           NEXT_PUBLIC_USDCX_FEE_FAUCET_ID: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          NEXT_PUBLIC_AGGLAYER_BRIDGE_ID: "0xcccccccccccccccccccccccccccccccc"
         run: npm run build
