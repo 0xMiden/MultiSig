@@ -3,29 +3,30 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { isAdminMode } from '@/config/appMode';
-import { getAdminConfig } from '@/config/adminConfig';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { useFaucetAccountBytes } from '@/hooks/useAdminTargets';
+import { useAdminTarget } from '@/contexts/AdminTargetContext';
+import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { copyToClipboard } from '@/lib/helpers';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
-import { ACTION_LABEL, ROLES, actionsOfRole, listRoleHolders, type Role } from '@/lib/admin/roles';
+import { actionLabel, actionsOfRole, listRoleHolders } from '@/lib/admin/roles';
+import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
 
 export const dynamic = 'force-dynamic';
 
 type HoldersState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; holders: Record<Role, string[]> };
+  | { status: 'ready'; holders: Record<string, string[]> };
 
 const sameAccount = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /**
- * Reads the faucet once per mount and lists who holds each role. Remounted (via `key`) to
- * refresh, so a refresh always re-fetches the faucet instead of re-deriving from stale bytes.
+ * Lists who holds each of the target's roles, from its account bytes. Remounted (via `key`) on
+ * refresh so the holders are always re-derived from the bytes just re-fetched.
  */
-function RoleHolders() {
+function RoleHolders({ target, bytesState }: { target: AdminTarget; bytesState: FaucetBytesState }) {
   const { multisig } = useMultisig();
-  const faucetBytes = useFaucetAccountBytes();
+  const faucetBytes = bytesState;
   const [state, setState] = useState<HoldersState>({ status: 'loading' });
 
   useEffect(() => {
@@ -41,26 +42,26 @@ function RoleHolders() {
     (async () => {
       try {
         await initAdminWasm();
-        const holders = listRoleHolders(faucetBytes.bytes);
+        const holders = listRoleHolders(faucetBytes.bytes, target);
         if (!cancelled) setState({ status: 'ready', holders });
       } catch (err) {
         if (!cancelled) {
           const message = err instanceof Error ? err.message : String(err);
-          setState({ status: 'error', message: `Could not read the faucet's role holders: ${message}` });
+          setState({ status: 'error', message: `Could not read the ${target.labels.contractNoun}'s role holders: ${message}` });
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [faucetBytes]);
+  }, [faucetBytes, target]);
 
   if (state.status === 'loading') {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-[3px] border-[#FF5500] border-t-transparent rounded-full animate-spin" />
-          <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">Reading the faucet…</div>
+          <div className="text-[13px] font-[500] text-[rgba(0,0,0,0.5)]">Reading the {target.labels.contractNoun}…</div>
         </div>
       </div>
     );
@@ -76,19 +77,19 @@ function RoleHolders() {
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 md:gap-4">
-      {ROLES.map((role) => {
-        const holders = state.holders[role];
+      {target.roles.map((role) => {
+        const holders = state.holders[role.symbol] ?? [];
         return (
-          <div key={role} className="rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white p-4 md:p-5 flex flex-col gap-3">
+          <div key={role.symbol} className="rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white p-4 md:p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[14px] font-[600] font-mono text-[#111]">{role}</div>
+              <div className="text-[14px] font-[600] font-mono text-[#111]">{role.label}</div>
               <div className="text-[11px] font-[500] text-[rgba(0,0,0,0.45)] shrink-0">
                 {holders.length === 1 ? '1 holder' : `${holders.length} holders`}
               </div>
             </div>
 
             <div className="text-[12px] text-[rgba(0,0,0,0.55)]">
-              Can: {actionsOfRole(role).map((action) => ACTION_LABEL[action].toLowerCase()).join(', ')}.
+              Can: {actionsOfRole(target, role.symbol).map((action) => actionLabel(target, action).toLowerCase()).join(', ')}.
             </div>
 
             {holders.length === 0 ? (
@@ -123,7 +124,21 @@ function RoleHolders() {
 
 export default function AdminRolesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const cfg = getAdminConfig();
+  const { state, configured, activeKind, switchable, setActiveKind, refresh } = useAdminTarget();
+  const [inspect, setInspect] = useState<AdminTargetKind | null>(null);
+  const kind = inspect ?? activeKind ?? configured[0]?.kind ?? null;
+  const target = configured.find((t) => t.kind === kind) ?? null;
+  const evaluation = state.status === 'ready' ? (state.evaluations.find((e) => e.target.kind === kind) ?? null) : null;
+  const bytesState = bytesStateOf(evaluation, state);
+
+  const select = (next: AdminTargetKind) => {
+    setInspect(next);
+    if (switchable.includes(next)) setActiveKind(next);
+  };
+  const onRefresh = () => {
+    refresh();
+    setRefreshKey((key) => key + 1);
+  };
 
   if (!isAdminMode) {
     return (
@@ -139,22 +154,57 @@ export default function AdminRolesPage() {
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
       <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white p-4 md:p-5 flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-[14px] font-[600] text-[#111]">Roles on the USDCx faucet</div>
-          <div className="text-[12px] text-[rgba(0,0,0,0.5)] mt-0.5 break-all">
-            Faucet <span className="font-mono">{cfg.faucetId || 'not configured'}</span> on {cfg.networkId}. Read from
-            the faucet&apos;s on-chain state.
+          <div className="text-[14px] font-[600] text-[#111]">
+            {target ? `Roles on the ${target.labels.contractNoun}` : 'Roles'}
           </div>
+          <div className="text-[12px] text-[rgba(0,0,0,0.5)] mt-0.5 break-all">
+            {target ? (
+              <>
+                {target.labels.contractNoun} <span className="font-mono">{target.contractId || 'not configured'}</span> on{' '}
+                {target.networkId}. Read from the contract&apos;s on-chain state.
+              </>
+            ) : (
+              'No contract is configured for this console.'
+            )}
+          </div>
+          {target?.kind === 'agglayer' && (
+            <div className="text-[12px] text-[rgba(0,0,0,0.5)] mt-1">
+              FAUCET_ADMIN is not a bridge role: each bridged-token faucet carries its own ADMIN role.
+            </div>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={() => setRefreshKey((key) => key + 1)}
-          className="h-9 px-3 rounded-[8px] border border-[rgba(0,0,0,0.12)] text-[12px] font-[500] text-[#111] hover:bg-gray-50 transition-colors shrink-0"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {configured.length > 1 && (
+            <select
+              aria-label="Contract"
+              value={kind ?? ''}
+              onChange={(e) => select(e.target.value as AdminTargetKind)}
+              className="h-9 px-2 rounded-[8px] border border-[rgba(0,0,0,0.12)] text-[12px] font-[500] text-[#111] bg-white"
+            >
+              {configured.map((t) => (
+                <option key={t.kind} value={t.kind}>
+                  {t.labels.contractShort}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="h-9 px-3 rounded-[8px] border border-[rgba(0,0,0,0.12)] text-[12px] font-[500] text-[#111] hover:bg-gray-50 transition-colors shrink-0"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
-      <RoleHolders key={refreshKey} />
+      {target ? (
+        <RoleHolders key={`${refreshKey}:${target.kind}`} target={target} bytesState={bytesState} />
+      ) : (
+        <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
+          Not configured.
+        </div>
+      )}
     </div>
   );
 }

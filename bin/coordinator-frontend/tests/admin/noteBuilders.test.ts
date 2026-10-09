@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Note } from '@miden-sdk/miden-sdk';
 import { initSync } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
-import { buildAdminNoteBytes, __setInitializedForTests } from '@/lib/admin/noteBuilders';
+import { buildAdminNoteBytes, readIsPaused, __setInitializedForTests } from '@/lib/admin/noteBuilders';
 import type { AdminRecipe, AdminActionArgs } from '@/lib/admin/recipe';
 
 // Same dummy account ids / bytes as `tests/roundtrip/deserialize.test.ts` (dumped from the Rust
@@ -88,5 +88,11 @@ describe('buildAdminNoteBytes', () => {
     // The tag encodes the target account; a different contract id gives a different tag.
     const usdcx = Note.deserialize(buildAdminNoteBytes(base));
     expect(note.metadata().tag().asU32()).not.toBe(usdcx.metadata().tag().asU32());
+  });
+});
+
+describe('readIsPaused', () => {
+  it('is exported', () => {
+    expect(typeof readIsPaused).toBe('function');
   });
 });

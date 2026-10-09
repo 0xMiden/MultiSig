@@ -144,6 +144,11 @@ export function readEnabledAttesters(faucetBytes: Uint8Array): string[] {
   return wasm.enabled_attesters(faucetBytes);
 }
 
+/** Whether the contract (faucet or bridge) is paused, from its serialized account bytes. */
+export function readIsPaused(contractBytes: Uint8Array): boolean {
+  return wasm.is_paused(contractBytes);
+}
+
 /**
  * Reads the current fee (base units) scheduled for `noteScriptRootHex` in the faucet's constant
  * fee policy, or `null` when no explicit fee is set for that script. `initAdminWasm()` must have
