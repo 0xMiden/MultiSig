@@ -4,7 +4,7 @@ import { useMemo, type ComponentType } from 'react';
 import { isAdminMode } from '@/config/appMode';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { useFaucetRoles } from '@/hooks/useFaucetRoles';
-import { useFaucetAccountBytes, type FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import { useFaucetAccountBytes, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { AdminBanner } from '@/components/admin/AdminBanner';
 import { resolveActionSender, type ActionSender } from '@/lib/admin/directAction';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';

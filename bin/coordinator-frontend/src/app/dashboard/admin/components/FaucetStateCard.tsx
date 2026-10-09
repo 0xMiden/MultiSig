@@ -1,6 +1,6 @@
 'use client';
 
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 import { groupDigits } from '@/lib/tokenAmounts';
 

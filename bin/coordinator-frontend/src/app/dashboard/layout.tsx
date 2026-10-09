@@ -12,6 +12,7 @@ import type { ActionType } from "medina-agent";
 import "medina-agent/styles.css";
 import AccountStatusBanner from "./components/AccountStatusBanner";
 import { isAdminMode } from "@/config/appMode";
+import { AdminTargetProvider } from "@/contexts/AdminTargetContext";
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT?.trim() ?? "";
 
@@ -105,7 +106,13 @@ export default function Layout({
 }>) {
   return (
     <DashboardUIProvider>
-      <DashboardShell>{children}</DashboardShell>
+      {isAdminMode ? (
+        <AdminTargetProvider>
+          <DashboardShell>{children}</DashboardShell>
+        </AdminTargetProvider>
+      ) : (
+        <DashboardShell>{children}</DashboardShell>
+      )}
     </DashboardUIProvider>
   );
 }

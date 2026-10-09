@@ -8,7 +8,7 @@ import { getAdminConfig } from '@/config/adminConfig';
 import { ROLES } from '@/lib/admin/roles';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {

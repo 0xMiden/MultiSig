@@ -8,7 +8,7 @@ import { getAdminConfig } from '@/config/adminConfig';
 import { shortFaucetId, groupDigits } from '@/lib/tokenAmounts';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 import { initAdminWasm, readNoteFee } from '@/lib/admin/noteBuilders';
 import { ACTION_INFO } from '@/lib/admin/roles';

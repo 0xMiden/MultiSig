@@ -6,7 +6,7 @@ import { Field, ToggleField, textInputClass } from './fields';
 import { parseWordHex } from '@/lib/admin/validation';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { ACTION_INFO } from '@/lib/admin/roles';
 import { useFaucetConfig } from '@/hooks/useFaucetConfig';
 

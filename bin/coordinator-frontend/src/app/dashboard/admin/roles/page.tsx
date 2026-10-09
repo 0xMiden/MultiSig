@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { isAdminMode } from '@/config/appMode';
 import { getAdminConfig } from '@/config/adminConfig';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { useFaucetAccountBytes } from '@/hooks/useFaucetAccountBytes';
+import { useFaucetAccountBytes } from '@/hooks/useAdminTargets';
 import { copyToClipboard } from '@/lib/helpers';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
 import { ACTION_LABEL, ROLES, actionsOfRole, listRoleHolders, type Role } from '@/lib/admin/roles';

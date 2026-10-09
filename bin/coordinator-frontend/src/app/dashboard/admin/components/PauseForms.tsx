@@ -3,7 +3,7 @@
 import { AdminActionCard } from './AdminActionCard';
 import type { AdminRecipe } from '@/lib/admin/recipe';
 import type { ActionSender } from '@/lib/admin/directAction';
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { ACTION_INFO } from '@/lib/admin/roles';
 
 interface GroupProps {

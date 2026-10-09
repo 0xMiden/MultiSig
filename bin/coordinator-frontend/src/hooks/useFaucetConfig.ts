@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { FaucetBytesState } from './useFaucetAccountBytes';
+import type { FaucetBytesState } from './useAdminTargets';
 import {
   initAdminWasm,
   readCurrentMinBurn,

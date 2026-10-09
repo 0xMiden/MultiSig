@@ -11,7 +11,7 @@ import { ValidationError } from '@/lib/admin/validation';
 import { describeExecutionError } from '@/lib/errors';
 import { accountIdHexFromBech32, type ActionSender } from '@/lib/admin/directAction';
 import { shortFaucetId } from '@/lib/tokenAmounts';
-import type { FaucetBytesState } from '@/hooks/useFaucetAccountBytes';
+import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 
 type Step = 'form' | 'warn' | 'review';
 
