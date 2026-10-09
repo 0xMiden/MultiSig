@@ -10,7 +10,8 @@ export interface CspConfig {
   noteTransportUrl: string;
   proverUrl: string;
   chatEndpoint: string;
-  paraProduction: boolean;
+  /** Para served from *.getpara.com (sandbox, beta, production) rather than its local dev stack. */
+  paraHosted: boolean;
   /** Extra connect-src origins, space- or comma-separated (NEXT_PUBLIC_CSP_CONNECT_SRC). */
   extraConnectSrc: string;
 }
@@ -39,7 +40,7 @@ export function extraOrigins(value: string): string[] {
 }
 
 export function buildContentSecurityPolicy(config: CspConfig): string {
-  const para = config.paraProduction
+  const para = config.paraHosted
     ? ['https://*.getpara.com', 'wss://*.getpara.com', 'https://*.usecapsule.com']
     // Para's development environment talks to locally running Para services.
     : ['http://localhost:8080', 'http://localhost:3003', 'ws://localhost:3000'];
@@ -55,7 +56,7 @@ export function buildContentSecurityPolicy(config: CspConfig): string {
   ]);
   if (config.dev) connectSrc.add('ws://localhost:*');
 
-  const paraFrames = config.paraProduction
+  const paraFrames = config.paraHosted
     ? ['https://*.getpara.com', 'https://*.usecapsule.com']
     : ['http://localhost:3003'];
 
