@@ -1232,6 +1232,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       setPendingCandidateWarning(null);
       try {
+        // Bring the client to the chain tip first. Building a proposal executes
+        // the transaction, which loads foreign accounts (the fee faucet) at the
+        // store's sync height, and the node prunes that state after about 50
+        // blocks: a tab left unsynced for a few minutes otherwise fails with
+        // "before_foreign_load". The multisig client syncs before executing a
+        // proposal, but not before creating one.
+        const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+        if (liveClient) await liveClient.syncChain();
         const created = await create(ms);
         if (multisigRef.current === ms) setProposals(ms.listProposals());
         toast.success(`${label} proposal created`);
@@ -1249,7 +1257,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setCreatingProposal(false);
       }
     },
-    [multisig, inspectAccountLock],
+    [multisig, midenClient, inspectAccountLock],
   );
 
   const handleCreateAddSignerProposal = useCallback(
