@@ -2,49 +2,51 @@
 
 Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Miden Wallet extension, or a Ledger over direct USB.
 
-## RC compatibility baseline
+## Compatibility baseline
 
-The RC versions are intentionally pinned because Guardian proposal serialization must match the Miden SDK version:
+The versions are intentionally pinned because Guardian proposal serialization must match the Miden SDK version, and a stable Miden node rejects pre-release clients:
 
 | Package group | Version |
 | --- | --- |
-| `@openzeppelin/guardian-client` | `0.18.0-rc.2` |
-| `@openzeppelin/miden-multisig-client` | `0.18.0-rc.2` |
-| `@miden-sdk/*` | `0.17.0-rc.4` |
+| `@openzeppelin/guardian-client` | `0.18.0` |
+| `@openzeppelin/miden-multisig-client` | `0.18.0` |
+| `@miden-sdk/*` | `0.17.3` |
 | `@getpara/*` | `3.20.0` |
 
-Keep the installed versions in `package-lock.json` together; do not independently upgrade the Miden or Guardian packages.
+Keep the installed versions in `package-lock.json` together; do not independently upgrade the Miden or Guardian packages. `@openzeppelin/miden-multisig-client` 0.18.0 pins `@miden-sdk/miden-sdk` 0.17.0 exactly, so `package.json` overrides it to 0.17.3 to keep a single SDK copy (`npm ls @miden-sdk/miden-sdk` must show one deduped version). `.npmrc` sets `legacy-peer-deps=true`, which the Para peer graph needs.
 
-This application is configured for Miden **devnet** and communicates directly with Guardian.
+This application is configured for Miden **testnet** by default and communicates directly with Guardian.
 
 ## Prerequisites
 
 - Node.js 20.19 or newer
 - npm
-- A Guardian `0.18.0-rc.2` endpoint configured for the same Miden devnet
+- A Guardian `0.18.0` endpoint on the same Miden network (testnet: `https://guardian-testnet.openzeppelin.com`)
 - Optional: Miden Wallet browser extension or a Para API key
 
 ## Environment setup
 
-Copy `.env.example` to `.env.local`, then provide the Guardian endpoint:
+Copy `.env.example` to `.env.local` (it already holds the testnet values):
 
 ```bash
-NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://your-guardian.example
-NEXT_PUBLIC_MIDEN_RPC_URL=devnet
-NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
+NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://guardian-testnet.openzeppelin.com
+NEXT_PUBLIC_MIDEN_RPC_URL=testnet
+NEXT_PUBLIC_MIDEN_NETWORK=testnet
+NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=testnet
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 ```
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18.0-rc.2` base URL | none |
-| `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden RPC URL or SDK network shorthand | `devnet` |
-| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `devnet` |
-| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18.0` base URL | none |
+| `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden RPC URL or SDK network shorthand | `testnet` |
+| `NEXT_PUBLIC_MIDEN_NETWORK` | Network identity (`devnet`, `testnet`, `mainnet`, `local`, `custom`) | inferred from the RPC |
+| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `testnet` |
+| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Account-registration invitation code, for nodes that gate registration (devnet) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | Enables Para signing | none |
 | `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
 
-The app deliberately has no fallback Guardian URL. This prevents an RC/devnet browser client from silently connecting to the previous public deployment.
+The app deliberately has no fallback Guardian URL. This prevents a browser client from silently connecting to a Guardian on a different network or version.
 
 ## Install and run
 
@@ -74,8 +76,9 @@ not required for Ledger testing.
 
 1. Check out `ledger-integration` with these changes, then run the install/run
    commands above from `bin/coordinator-frontend`. If `.env.local` does not exist,
-   copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18.0-rc.2**
-   endpoint with ECDSA support on the same Miden devnet as the app. Restart the
+   copy `.env.example` to `.env.local`. Set a reachable Guardian **0.18.0**
+   endpoint with ECDSA support on the same Miden network as the app (the
+   testnet default is `https://guardian-testnet.openzeppelin.com`). Restart the
    dev server after environment changes. The root Docker Compose stack starts
    only the frontend; Guardian and Miden services must be provided separately.
 2. Open `http://localhost:3000` in desktop **Chrome or Edge**, preferably in a
@@ -122,7 +125,7 @@ An already-submitted transaction cannot be undone by cancelling the device UI.
 
 ### End-to-end checklist
 
-Use disposable devnet accounts and test funds. Start with a **1-of-1 ECDSA**
+Use disposable testnet accounts and test funds. Start with a **1-of-1 ECDSA**
 account so a missing second signer does not block execution. Ledger cannot sign
 for a Falcon account or an account that does not authorize its commitment.
 
@@ -191,7 +194,7 @@ When a new multisig account is created, the app:
 
 1. registers it with Guardian;
 2. registers its note tag locally;
-3. calls the devnet node's account-registration endpoint with the configured invitation code;
+3. registers it with the node: on devnet through the account-registration endpoint with the configured invitation code (which also funds it), elsewhere through the SDK, and only if the node does not already allow the account;
 4. syncs until the initial funding note is available;
 5. exposes that note in **Receive Funds**, where the normal multisig proposal/sign/execute flow deploys and funds the account.
 
@@ -219,8 +222,8 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 
 ## Troubleshooting
 
-- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0-rc.2` on devnet. Restart Next.js after changing `.env.local`.
-- **Old account or decoding errors:** clear this origin's site data, reload, and create a fresh RC account.
-- **Funding note does not appear:** use **Retry funding**. Confirm the RPC is devnet and the invitation code is accepted by that node.
+- **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to Guardian `0.18.0` on the same network as the RPC (testnet by default). Restart Next.js after changing `.env.local`.
+- **Old account or decoding errors:** clear this origin's site data, reload, and create a fresh account.
+- **Funding note does not appear:** use **Retry funding**. On devnet, confirm the invitation code is accepted by that node; on testnet, fund the account from the testnet faucet.
 - **Miden Wallet does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
 - **Para does not appear:** set `NEXT_PUBLIC_PARA_API_KEY` and restart the development server.

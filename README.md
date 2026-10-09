@@ -14,7 +14,7 @@ credentials and the Miden Wallet extension are also unnecessary for this path.
 Prerequisites: Node.js **20.19+**, npm, desktop **Chrome or Edge**, a USB data
 cable, and a Ledger with its Ethereum app installed. Use localhost or HTTPS;
 Safari, Firefox and mobile USB are not supported by this implementation. Use a
-separate browser profile and disposable devnet accounts for testing.
+separate browser profile and disposable testnet accounts for testing.
 
 From the repository root:
 
@@ -29,16 +29,19 @@ cp .env.example .env.local
 Edit `.env.local` before starting the app:
 
 ```dotenv
-NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://your-guardian.example
-NEXT_PUBLIC_MIDEN_RPC_URL=devnet
-NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
+NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://guardian-testnet.openzeppelin.com
+NEXT_PUBLIC_MIDEN_RPC_URL=testnet
+NEXT_PUBLIC_MIDEN_NETWORK=testnet
+NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=testnet
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 ```
 
-Replace the Guardian placeholder with a reachable **0.18.0-rc.2** instance with
-ECDSA support, configured for the same Miden devnet. Use the registration code
-accepted by that deployment. The pinned Miden SDK is **0.17.0-rc.4**; keep the
-lockfile versions together. The root Docker Compose stack runs only the frontend;
+The defaults target Miden **testnet** with OpenZeppelin's testnet Guardian
+(**0.18.0**, ECDSA support). To use another network, point the Guardian, RPC and
+note transport at that same network (the registration code only matters where the
+node gates account registration, e.g. devnet). The pinned Miden SDK is **0.17.3**
+(stable; a stable node rejects pre-release clients); keep the lockfile versions
+together. The root Docker Compose stack runs only the frontend;
 Guardian, RPC and note transport must be provided separately.
 
 ```bash
@@ -279,9 +282,10 @@ The frontend is configured via `NEXT_PUBLIC_*` environment variables, set at bui
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Guardian service URL for proposal coordination | _(required)_ |
-| `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden node RPC URL or SDK network shorthand | `devnet` |
-| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `devnet` |
-| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
+| `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden node RPC URL or SDK network shorthand | `testnet` |
+| `NEXT_PUBLIC_MIDEN_NETWORK` | Network identity (`devnet`, `testnet`, `mainnet`, `local`, `custom`) | _(inferred from the RPC)_ |
+| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `testnet` |
+| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Account-registration invitation code, for nodes that gate registration (devnet) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | [Para](https://getpara.com) wallet API key (enables Para wallet support) | _(empty — Para disabled)_ |
 | `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
 
@@ -318,9 +322,10 @@ npm run dev
 Create a `.env.local` file for local development:
 
 ```bash
-NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://your-guardian.example
-NEXT_PUBLIC_MIDEN_RPC_URL=devnet
-NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
+NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://guardian-testnet.openzeppelin.com
+NEXT_PUBLIC_MIDEN_RPC_URL=testnet
+NEXT_PUBLIC_MIDEN_NETWORK=testnet
+NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=testnet
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 NEXT_PUBLIC_PARA_API_KEY=<your-para-api-key>
 NEXT_PUBLIC_PARA_ENVIRONMENT=development
