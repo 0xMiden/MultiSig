@@ -16,7 +16,8 @@ import { Transaction, type MidenTransaction } from '@miden-sdk/miden-wallet-adap
 import { freshSaltWord } from './adminRequest';
 import { buildAdminNoteBytes, initAdminWasm } from './noteBuilders';
 import type { AdminAction, AdminRecipe } from './recipe';
-import { ACTION_ROLE, type Role } from './roles';
+import { ANY_HELD_ROLE, actionRoleOf, type AdminTargetProfile } from './target';
+import { holdsAnyRole, type RoleFlags } from './roles';
 
 /**
  * Direct admin actions: an account connected through Bread that *itself* holds a faucet role
@@ -126,18 +127,21 @@ export async function submitDirectAdminAction(
 }
 
 /**
- * Picks the sender for `action` from who holds its gating role: the multisig when it does (the
- * reviewed, co-signed path), else the connected Bread account when *it* does, else nobody
- * (`null`, the action stays locked). A `null` roles record means that party is absent or its
- * roles are not known yet, which never unlocks anything.
+ * Picks the sender for `action` on `target` from who holds its gating role: the multisig when it
+ * does (the reviewed, co-signed path), else the connected Bread account, else nobody. An action
+ * the target does not offer, or unknown roles (`null`), never unlocks anything. Renounce
+ * (`ANY_HELD_ROLE`) is open to whichever party holds any role at all.
  */
 export function resolveActionSender(
   action: AdminAction,
-  multisigRoles: Record<Role, boolean> | null,
-  breadRoles: Record<Role, boolean> | null,
+  target: AdminTargetProfile,
+  multisigRoles: RoleFlags | null,
+  breadRoles: RoleFlags | null,
 ): ActionSender | null {
-  const role = ACTION_ROLE[action];
-  if (multisigRoles?.[role]) return 'multisig';
-  if (breadRoles?.[role]) return 'bread';
+  const gate = actionRoleOf(target, action);
+  if (gate === null) return null;
+  const holds = (flags: RoleFlags | null) => (gate === ANY_HELD_ROLE ? holdsAnyRole(flags) : !!flags?.[gate]);
+  if (holds(multisigRoles)) return 'multisig';
+  if (holds(breadRoles)) return 'bread';
   return null;
 }

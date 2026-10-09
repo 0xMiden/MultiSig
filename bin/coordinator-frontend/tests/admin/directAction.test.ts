@@ -11,7 +11,7 @@ import {
   submitDirectAdminAction,
 } from '@/lib/admin/directAction';
 import type { AdminRecipe } from '@/lib/admin/recipe';
-import type { Role } from '@/lib/admin/roles';
+import { AGGLAYER_PROFILE, USDCX_PROFILE } from '@/lib/admin/target';
 
 // Same proven-valid dummy ids as `tests/admin/noteBuilders.test.ts`.
 const FAUCET = '0x090909080909093109090909090909';
@@ -175,28 +175,30 @@ describe('submitDirectAdminAction', () => {
 });
 
 describe('resolveActionSender', () => {
-  const none: Record<Role, boolean> = {
-    ADMIN: false,
-    ATTEST_ADMIN: false,
-    DOM_PAUSER: false,
-    DOM_UNPAUSER: false,
-    BLK_MANAGER: false,
-  };
+  const none = { ADMIN: false, ATTEST_ADMIN: false, DOM_PAUSER: false, DOM_UNPAUSER: false, BLK_MANAGER: false };
+  const bridgeNone = { ADMIN: false, PAUSER: false, FAUCET_MNGR: false, GER_INJECTOR: false, GER_REMOVER: false, FEE_MNGR: false };
 
   it('prefers the multisig when it holds the role', () => {
-    expect(resolveActionSender('pause', { ...none, DOM_PAUSER: true }, { ...none, DOM_PAUSER: true })).toBe('multisig');
-    expect(resolveActionSender('pause', { ...none, DOM_PAUSER: true }, null)).toBe('multisig');
+    expect(resolveActionSender('pause', USDCX_PROFILE, { ...none, DOM_PAUSER: true }, { ...none, DOM_PAUSER: true })).toBe('multisig');
+    expect(resolveActionSender('pause', USDCX_PROFILE, { ...none, DOM_PAUSER: true }, null)).toBe('multisig');
   });
-
   it('falls back to the Bread account when only it holds the role', () => {
-    expect(resolveActionSender('pause', none, { ...none, DOM_PAUSER: true })).toBe('bread');
-    expect(resolveActionSender('pause', null, { ...none, DOM_PAUSER: true })).toBe('bread');
-    // The role gating pause is not the one gating unpause.
-    expect(resolveActionSender('unpause', none, { ...none, DOM_PAUSER: true })).toBe(null);
+    expect(resolveActionSender('pause', USDCX_PROFILE, none, { ...none, DOM_PAUSER: true })).toBe('bread');
+    expect(resolveActionSender('unpause', USDCX_PROFILE, none, { ...none, DOM_PAUSER: true })).toBe(null);
   });
-
   it('is locked when neither holds the role or nothing is known', () => {
-    expect(resolveActionSender('pause', none, none)).toBe(null);
-    expect(resolveActionSender('pause', null, null)).toBe(null);
+    expect(resolveActionSender('pause', USDCX_PROFILE, none, none)).toBe(null);
+    expect(resolveActionSender('pause', USDCX_PROFILE, null, null)).toBe(null);
+  });
+  it('uses the bridge gating on the bridge and never offers actions the target lacks', () => {
+    expect(resolveActionSender('pause', AGGLAYER_PROFILE, { ...bridgeNone, PAUSER: true }, null)).toBe('multisig');
+    expect(resolveActionSender('unpause', AGGLAYER_PROFILE, { ...bridgeNone, PAUSER: true }, null)).toBe(null);
+    expect(resolveActionSender('unpause', AGGLAYER_PROFILE, { ...bridgeNone, ADMIN: true }, null)).toBe('multisig');
+    expect(resolveActionSender('set_max_supply', AGGLAYER_PROFILE, { ...bridgeNone, ADMIN: true }, null)).toBe(null);
+  });
+  it('offers renounce to any role holder, multisig first', () => {
+    expect(resolveActionSender('rbac_renounce', AGGLAYER_PROFILE, { ...bridgeNone, FEE_MNGR: true }, null)).toBe('multisig');
+    expect(resolveActionSender('rbac_renounce', AGGLAYER_PROFILE, bridgeNone, { ...bridgeNone, PAUSER: true })).toBe('bread');
+    expect(resolveActionSender('rbac_renounce', AGGLAYER_PROFILE, bridgeNone, bridgeNone)).toBe(null);
   });
 });

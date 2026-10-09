@@ -117,3 +117,8 @@ function validateBech32Network(bech32: string, networkId: string): void {
     throw new ValidationError(`Account ID is on network ${hrp}, expected ${expectedHrp}`);
   }
 }
+
+/** A miden-standards `RoleSymbol`: 1-12 characters from A-Z and underscore. */
+export function isRoleSymbol(input: string): boolean {
+  return /^[A-Z_]{1,12}$/.test(input);
+}

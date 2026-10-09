@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseU64, parseMinBurn, parseWordHex, parseNoteScriptRoot, normalizeAccountId, ValidationError } from '@/lib/admin/validation';
+import { parseU64, parseMinBurn, parseWordHex, parseNoteScriptRoot, normalizeAccountId, ValidationError, isRoleSymbol } from '@/lib/admin/validation';
 import { AccountId, AccountInterface, NetworkId } from '@miden-sdk/miden-sdk';
 
 describe('parseU64', () => {
@@ -81,5 +81,12 @@ describe('normalizeAccountId', () => {
     accountId.free();
     const upperBech32 = bech32.toUpperCase();
     expect(normalizeAccountId(upperBech32, 'devnet')).toBe(hexId);
+  });
+});
+
+describe('isRoleSymbol', () => {
+  it('accepts A-Z and _ up to 12 chars, rejects the rest', () => {
+    for (const ok of ['ADMIN', 'PAUSER', 'GER_INJECTOR', 'A', 'FAUCET_MNGR']) expect(isRoleSymbol(ok)).toBe(true);
+    for (const bad of ['', 'pauser', 'PAUSER ', 'A VERY LONG ROLE', 'ROLE-1', 'ADMINISTRATOR']) expect(isRoleSymbol(bad)).toBe(false);
   });
 });

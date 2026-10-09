@@ -1,112 +1,86 @@
 import { account_has_role, rbac_role_members } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 import type { AdminAction } from '@/lib/admin/recipe';
+import { ANY_HELD_ROLE, USDCX_PROFILE, actionRoleOf, roleSymbols, type AdminTargetProfile } from '@/lib/admin/target';
 
-/** The faucet's RBAC roles, verified against the faucet's own role set. */
-export const ROLES = ['ADMIN', 'ATTEST_ADMIN', 'DOM_PAUSER', 'DOM_UNPAUSER', 'BLK_MANAGER'] as const;
-export type Role = (typeof ROLES)[number];
+/** An on-chain role symbol. The set depends on the target (see `lib/admin/target`). */
+export type Role = string;
+/** Which of a target's roles an account holds, keyed by on-chain symbol. */
+export type RoleFlags = Record<string, boolean>;
 
-/**
- * The single role gating each admin action. `pause`/`unpause` are gated by distinct roles
- * (`DOM_PAUSER`/`DOM_UNPAUSER`) even though they're a toggle pair -- do not collapse them.
- */
-export const ACTION_ROLE: Record<AdminAction, Role> = {
-  set_max_supply: 'ADMIN',
-  set_min_burn: 'ADMIN',
-  set_note_fee: 'ADMIN',
-  rbac_grant: 'ADMIN',
-  rbac_revoke: 'ADMIN',
-  set_attester: 'ATTEST_ADMIN',
-  pause: 'DOM_PAUSER',
-  unpause: 'DOM_UNPAUSER',
-  blocklist: 'BLK_MANAGER',
-};
+/** The USDCx faucet's roles; kept for callers that specifically mean USDCx. */
+export const ROLES: readonly string[] = roleSymbols(USDCX_PROFILE);
 
-/**
- * Pure role evaluator: applies `check` to every role in {@link ROLES} and returns which ones it
- * approves. Kept separate from {@link evaluateRoles} so the mapping logic is unit-testable
- * without a real serialized faucet `Account` (see ruling R-pre1).
- */
-export function rolesFromChecker(check: (role: Role) => boolean): Record<Role, boolean> {
-  const result = {} as Record<Role, boolean>;
-  for (const role of ROLES) {
-    result[role] = check(role);
-  }
+/** Pure role evaluator over a target's roles; testable without serialized account bytes. */
+export function rolesFromChecker(target: AdminTargetProfile, check: (role: string) => boolean): RoleFlags {
+  const result: RoleFlags = {};
+  for (const role of roleSymbols(target)) result[role] = check(role);
   return result;
 }
 
 /**
- * Evaluates every role in {@link ROLES} for `accountHex` against the already-fetched, serialized
- * faucet `Account` bytes. Pure over its inputs: callers are responsible for fetching
- * `faucetBytes` and initializing the admin wasm module (`initAdminWasm()`) first.
+ * Evaluates every role of `target` for `accountHex` against the already-fetched, serialized
+ * contract `Account` bytes. Callers fetch the bytes and run `initAdminWasm()` first.
  */
-export function evaluateRoles(faucetBytes: Uint8Array, accountHex: string): Record<Role, boolean> {
-  return rolesFromChecker((role) => account_has_role(faucetBytes, accountHex, role));
+export function evaluateRoles(contractBytes: Uint8Array, accountHex: string, target: AdminTargetProfile): RoleFlags {
+  return rolesFromChecker(target, (role) => account_has_role(contractBytes, accountHex, role));
 }
 
-/** The admin actions each role unlocks: {@link ACTION_ROLE} read the other way round. */
-export function actionsOfRole(role: Role): AdminAction[] {
-  return (Object.keys(ACTION_ROLE) as AdminAction[]).filter((action) => ACTION_ROLE[action] === role);
+export function holdsAnyRole(flags: RoleFlags | null): boolean {
+  return !!flags && Object.values(flags).some(Boolean);
 }
 
-/**
- * Pure counterpart of {@link listRoleHolders}: asks `list` for the holders of every role in
- * {@link ROLES}. Separate for the same reason as {@link rolesFromChecker} -- testable without a
- * serialized faucet `Account`.
- */
-export function holdersFromLister(list: (role: Role) => string[]): Record<Role, string[]> {
-  const result = {} as Record<Role, string[]>;
-  for (const role of ROLES) {
-    result[role] = list(role);
-  }
+export function holdersFromLister(target: AdminTargetProfile, list: (role: string) => string[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const role of roleSymbols(target)) result[role] = list(role);
   return result;
 }
 
-/**
- * Every account holding each role on the faucet, read from the faucet's RBAC membership map in
- * the already-fetched, serialized faucet `Account` bytes. As with {@link evaluateRoles}, callers
- * fetch `faucetBytes` and call `initAdminWasm()` first.
- */
-export function listRoleHolders(faucetBytes: Uint8Array): Record<Role, string[]> {
-  return holdersFromLister((role) => rbac_role_members(faucetBytes, role));
+export function listRoleHolders(contractBytes: Uint8Array, target: AdminTargetProfile): Record<string, string[]> {
+  return holdersFromLister(target, (role) => rbac_role_members(contractBytes, role));
+}
+
+/** The target's actions `role` unlocks (renounce is open to every role holder). */
+export function actionsOfRole(target: AdminTargetProfile, role: string): AdminAction[] {
+  return target.actions.filter((action) => {
+    const gate = actionRoleOf(target, action);
+    return gate === role || gate === ANY_HELD_ROLE;
+  });
 }
 
 /** Short, human-readable name of what each admin action does, for listing a role's powers. */
-export const ACTION_LABEL: Record<AdminAction, string> = {
-  set_max_supply: 'Set the max supply',
-  set_min_burn: 'Set the minimum burn amount',
-  set_note_fee: 'Set note fees',
-  rbac_grant: 'Grant roles',
-  rbac_revoke: 'Revoke roles',
-  set_attester: 'Enable or disable attesters',
-  pause: 'Pause the faucet',
-  unpause: 'Unpause the faucet',
-  blocklist: 'Block or unblock accounts',
-};
+export function actionLabel(target: AdminTargetProfile, action: AdminAction): string {
+  const noun = target.kind === 'agglayer' ? 'bridge' : 'faucet';
+  switch (action) {
+    case 'set_max_supply': return 'Set the max supply';
+    case 'set_min_burn': return 'Set the minimum burn amount';
+    case 'set_note_fee': return 'Set note fees';
+    case 'rbac_grant': return 'Grant roles';
+    case 'rbac_revoke': return 'Revoke roles';
+    case 'rbac_set_admin': return "Change a role's admin role";
+    case 'rbac_renounce': return 'Renounce a held role';
+    case 'set_attester': return 'Enable or disable attesters';
+    case 'pause': return `Pause the ${noun}`;
+    case 'unpause': return `Unpause the ${noun}`;
+    case 'blocklist': return 'Block or unblock accounts';
+    default: { const unreachable: never = action; return unreachable; }
+  }
+}
 
 /** Card title and one-line description of each admin action, as shown on the admin page. */
-export const ACTION_INFO: Record<AdminAction, { title: string; description: string }> = {
-  set_max_supply: {
-    title: 'Set max supply',
-    description: "Sets the faucet's maximum issuable supply, in base units.",
-  },
-  set_min_burn: {
-    title: 'Set min burn',
-    description: 'Sets the minimum amount that can be burned, in base units.',
-  },
-  set_note_fee: {
-    title: 'Set note fee',
-    description: 'Sets the fee required to submit notes using a given note script.',
-  },
-  rbac_grant: { title: 'Grant role', description: 'Grants an RBAC role to an account on this faucet.' },
-  rbac_revoke: { title: 'Revoke role', description: 'Revokes an RBAC role from an account on this faucet.' },
-  set_attester: {
-    title: 'Set attester',
-    description: 'Enables or disables an attester commitment for this faucet.',
-  },
-  pause: { title: 'Pause USDCx', description: 'Pauses all transfers and operations on this faucet.' },
-  unpause: { title: 'Unpause USDCx', description: 'Resumes transfers and operations on this faucet.' },
-  blocklist: {
-    title: 'Block or unblock account',
-    description: "Adds or removes an account from this faucet's blocklist.",
-  },
-};
+export function actionInfo(target: AdminTargetProfile, action: AdminAction): { title: string; description: string } {
+  const noun = target.labels.contractNoun;
+  switch (action) {
+    case 'set_max_supply': return { title: 'Set max supply', description: "Sets the faucet's maximum issuable supply, in base units." };
+    case 'set_min_burn': return { title: 'Set min burn', description: 'Sets the minimum amount that can be burned, in base units.' };
+    case 'set_note_fee': return { title: 'Set note fee', description: 'Sets the fee required to submit notes using a given note script.' };
+    case 'rbac_grant': return { title: 'Grant role', description: `Grants an RBAC role to an account on the ${noun}.` };
+    case 'rbac_revoke': return { title: 'Revoke role', description: `Revokes an RBAC role from an account on the ${noun}.` };
+    case 'rbac_set_admin': return { title: 'Set role admin', description: 'Changes which role administers a role (grants, revokes). Empty reverts to the root admin role.' };
+    case 'rbac_renounce': return { title: 'Renounce role', description: `Gives up a role the sender holds on the ${noun}. Cannot be undone by the sender.` };
+    case 'set_attester': return { title: 'Set attester', description: 'Enables or disables an attester commitment for this faucet.' };
+    case 'pause': return { title: target.labels.pauseTitle, description: target.kind === 'agglayer' ? 'Emergency stop: blocks bridge-out, claims, GER injection and faucet changes.' : 'Pauses all transfers and operations on this faucet.' };
+    case 'unpause': return { title: target.labels.unpauseTitle, description: target.kind === 'agglayer' ? 'Resumes bridge operations. BRIDGE_ADMIN only.' : 'Resumes transfers and operations on this faucet.' };
+    case 'blocklist': return { title: 'Block or unblock account', description: "Adds or removes an account from this faucet's blocklist." };
+    default: { const unreachable: never = action; return unreachable; }
+  }
+}
