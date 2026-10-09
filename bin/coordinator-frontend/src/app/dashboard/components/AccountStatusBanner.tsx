@@ -67,8 +67,8 @@ const AccountStatusBanner = () => {
         >
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-[#C2410C]">
-              {accountFunding.phase === "registering" && "Registering account on devnet"}
-              {accountFunding.phase === "waiting-for-note" && "Waiting for devnet funding"}
+              {accountFunding.phase === "registering" && "Registering account on the network"}
+              {accountFunding.phase === "waiting-for-note" && "Waiting for account funding"}
               {accountFunding.phase === "funding-available" && "Funding note ready"}
               {accountFunding.phase === "error" && "Account funding needs attention"}
             </span>

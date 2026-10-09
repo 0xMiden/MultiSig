@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe('RPC configuration', () => {
   it.each([
-    [undefined, 'https://rpc.devnet.miden.io'],
+    [undefined, 'https://rpc.testnet.miden.io'],
     ['devnet', 'https://rpc.devnet.miden.io'],
     [' DEVNET ', 'https://rpc.devnet.miden.io'],
     ['testnet', 'https://rpc.testnet.miden.io'],

@@ -9,12 +9,12 @@ const rpcEndpoints: Record<string, string> = {
   local: 'http://localhost:57291',
   localhost: 'http://localhost:57291',
 };
-const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'devnet';
+const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'testnet';
 export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? configuredRpc;
 // The network identity behind the RPC: the Miden Wallet's network and the
 // Bech32 address prefix follow it (set NEXT_PUBLIC_MIDEN_NETWORK for a custom RPC).
 export const MIDEN_NETWORK: MidenNetwork = resolveMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK, configuredRpc);
-export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';
+export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'testnet';
 // Unset keeps in-browser proving: a remote prover sees the full transaction
 // witness, including private note contents, so using one must be a deliberate
 // choice. In-browser proving can outlast a transaction's expiration window, in

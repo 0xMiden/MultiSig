@@ -523,7 +523,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       };
       if (!url.trim()) {
         setGuardianStatus("error");
-        return fail("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.");
+        return fail("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network (testnet: https://guardian-testnet.openzeppelin.com).");
       }
       // A URL the CSP blocks would only fail as an opaque network error; keep
       // the current Guardian and say why instead.
@@ -717,7 +717,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon",
     ) => {
       if (!guardianUrl.trim()) {
-        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network (testnet: https://guardian-testnet.openzeppelin.com).";
         setError(msg);
         throw new Error(msg);
       }
@@ -838,7 +838,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const handleLoad = useCallback(
     async (accountId: string, signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon") => {
       if (!guardianUrl.trim()) {
-        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network (testnet: https://guardian-testnet.openzeppelin.com).";
         setError(msg);
         throw new Error(msg);
       }
