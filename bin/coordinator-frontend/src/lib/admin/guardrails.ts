@@ -1,6 +1,7 @@
 import { rbac_role_members } from '@/lib/usdcxAdminWasm/usdcx_admin_notes';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
-import type { AdminRecipe } from '@/lib/admin/recipe';
+import { recipeTarget, type AdminRecipe } from '@/lib/admin/recipe';
+import { roleLabel, type AdminTargetProfile } from '@/lib/admin/target';
 
 /**
  * These guardrails are frontend-only safety conveniences -- the chain enforces none of them.
@@ -27,37 +28,36 @@ function sameAccount(a: string, b: string): boolean {
 }
 
 /**
- * Last-ADMIN guardrail. Only relevant for an `rbac_revoke` of the `ADMIN` role: computes what the
- * ADMIN member set would look like after the proposed revoke lands, and `block`s if that would be
- * empty (a permanent, unrecoverable lockout). Short of that, `warn`s when the acting multisig is
- * revoking its own ADMIN membership (it may lose the ability to manage this faucet from this
- * account, even though other ADMINs remain).
- *
- * Pure over its inputs -- callers fetch `adminMembers` via `rbac_role_members(faucetBytes,
- * 'ADMIN')` first (see {@link runGuardrails}).
+ * Last-ADMIN guardrail: an `rbac_revoke` of `ADMIN`, or an `rbac_renounce` of `ADMIN` by the acting
+ * account, must not empty the root role (a permanent, unrecoverable lockout; the bridge spec:
+ * "BRIDGE_ADMIN must never be emptied"). Short of that, `warn`s when the acting account is the one
+ * losing ADMIN. Pure: callers fetch `adminMembers` via `rbac_role_members(bytes, 'ADMIN')`.
  */
 export function decideLastAdmin(
   adminMembers: string[],
   actingAccountId: string,
   recipe: AdminRecipe,
+  target: AdminTargetProfile,
 ): GuardrailResult {
-  if (recipe.action !== 'rbac_revoke' || recipe.actionArgs.action !== 'rbac_revoke') return OK;
-  const { role, accountId: target } = recipe.actionArgs;
-  if (role !== 'ADMIN') return OK;
+  const args = recipe.actionArgs;
+  let losing: string;
+  if (args.action === 'rbac_revoke' && args.role === 'ADMIN') losing = args.accountId;
+  else if (args.action === 'rbac_renounce' && args.role === 'ADMIN') losing = actingAccountId;
+  else return OK;
 
-  const remaining = adminMembers.filter((member) => !sameAccount(member, target));
+  const admin = roleLabel(target, 'ADMIN');
+  const noun = target.labels.contractNoun;
+  const remaining = adminMembers.filter((member) => !sameAccount(member, losing));
   if (remaining.length === 0) {
     return {
       level: 'block',
-      message:
-        'This would revoke the last ADMIN on this faucet, permanently locking out administration. The chain does not prevent this -- it cannot be undone.',
+      message: `This would remove the last ${admin} on this ${noun}, permanently locking out administration. The chain does not prevent this -- it cannot be undone.`,
     };
   }
-  if (sameAccount(target, actingAccountId)) {
+  if (sameAccount(losing, actingAccountId)) {
     return {
       level: 'warn',
-      message:
-        'This revokes ADMIN from the multisig you are currently acting as. Other ADMINs remain, but you may lose the ability to manage this faucet from this account.',
+      message: `This removes ${admin} from the account you are acting as. Other ${admin}s remain, but you may lose the ability to manage this ${noun} from this account.`,
     };
   }
   return OK;
@@ -102,6 +102,32 @@ export function decideRevokeInFlight(recipe: AdminRecipe, inflightRecipes: Admin
   return OK;
 }
 
+/**
+ * Bridge-only: the order in which pending notes are consumed is not under the operator's control,
+ * so an ADMIN grant and an ADMIN revoke/renounce must not be in flight at the same time (the
+ * revoke could land first and leave the grant unauthorised, or the reverse). `warn`s; never blocks.
+ */
+export function decideAdminChurnInFlight(recipe: AdminRecipe, inflightRecipes: AdminRecipe[]): GuardrailResult {
+  if (recipeTarget(recipe) !== 'agglayer') return OK;
+  const kind = (r: AdminRecipe): 'grant' | 'remove' | null => {
+    const a = r.actionArgs;
+    if (a.action === 'rbac_grant' && a.role === 'ADMIN') return 'grant';
+    if ((a.action === 'rbac_revoke' || a.action === 'rbac_renounce') && a.role === 'ADMIN') return 'remove';
+    return null;
+  };
+  const mine = kind(recipe);
+  if (!mine) return OK;
+  const opposite = mine === 'grant' ? 'remove' : 'grant';
+  if (inflightRecipes.some((r) => recipeTarget(r) === 'agglayer' && kind(r) === opposite)) {
+    return {
+      level: 'warn',
+      message:
+        'A BRIDGE_ADMIN grant and a BRIDGE_ADMIN revoke/renounce would be in flight at the same time. The bridge consumes pending notes in any order; wait for the other proposal to land first.',
+    };
+  }
+  return OK;
+}
+
 const SEVERITY: Record<GuardrailResult['level'], number> = { ok: 0, warn: 1, block: 2 };
 
 function mostSevere(results: GuardrailResult[]): GuardrailResult {
@@ -109,7 +135,7 @@ function mostSevere(results: GuardrailResult[]): GuardrailResult {
 }
 
 /**
- * Composes all three guardrails for a proposed `recipe`. Fetches the current ADMIN member set via
+ * Composes all four guardrails for a proposed `recipe`. Fetches the current ADMIN member set via
  * `rbac_role_members` (initializing the admin wasm module first) and returns the single most
  * severe result (`block` > `warn` > `ok`). The UI blocks submission on `block` and requires an
  * explicit typed confirmation on `warn`.
@@ -119,15 +145,17 @@ function mostSevere(results: GuardrailResult[]): GuardrailResult {
  * exercised end-to-end in Task 14. Only the pure `decide*` functions above are unit-tested here.
  */
 export async function runGuardrails(
-  faucetBytes: Uint8Array,
+  contractBytes: Uint8Array,
+  target: AdminTargetProfile,
   recipe: AdminRecipe,
   inflightRecipes: AdminRecipe[],
 ): Promise<GuardrailResult> {
   await initAdminWasm();
-  const adminMembers = rbac_role_members(faucetBytes, 'ADMIN');
+  const adminMembers = rbac_role_members(contractBytes, 'ADMIN');
   return mostSevere([
-    decideLastAdmin(adminMembers, recipe.senderAccountId, recipe),
+    decideLastAdmin(adminMembers, recipe.senderAccountId, recipe, target),
     decideRoleSeparation(recipe, recipe.senderAccountId),
     decideRevokeInFlight(recipe, inflightRecipes),
+    decideAdminChurnInFlight(recipe, inflightRecipes),
   ]);
 }
