@@ -4,10 +4,17 @@ import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { useBridgeState } from '@/hooks/useBridgeState';
 import type { AdminTargetProfile } from '@/lib/admin/target';
 
-/** Paused flag and holder counts for the bridge, at the top of the AggLayer console. */
+/** Paused flag and holder counts for the bridge, at the top of the AggLayer console; a read failure shows as an alert. */
 export function BridgeStateCard({ faucetBytesState, target }: { faucetBytesState: FaucetBytesState; target: AdminTargetProfile }) {
   const state = useBridgeState(faucetBytesState, target);
   if (!state) return null;
+  if (state.status === 'error') {
+    return (
+      <div role="alert" className="rounded-[10px] border border-red-200 bg-red-50 p-4 md:p-5 text-[13px] text-red-700">
+        {state.message}
+      </div>
+    );
+  }
   return (
     <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white">
       <div className="text-[14px] font-[600] text-[#111] mb-0.5">Bridge state</div>

@@ -4,17 +4,12 @@ import { useEffect, useState } from 'react';
 import type { FaucetBytesState } from '@/hooks/useAdminTargets';
 import { initAdminWasm, readIsPaused } from '@/lib/admin/noteBuilders';
 import { listRoleHolders } from '@/lib/admin/roles';
+import { bridgeStateFromBytes, type BridgeStateResult } from '@/lib/admin/bridgeState';
 import type { AdminTargetProfile } from '@/lib/admin/target';
 
-export interface BridgeState {
-  paused: boolean;
-  /** Holder count per on-chain role symbol. */
-  holderCounts: Record<string, number>;
-}
-
-/** The bridge's paused flag and role holder counts from its account bytes; `null` until readable. */
-export function useBridgeState(state: FaucetBytesState, target: AdminTargetProfile): BridgeState | null {
-  const [value, setValue] = useState<BridgeState | null>(null);
+/** The bridge's state from its account bytes (see `bridgeStateFromBytes`); `null` until the bytes are ready. */
+export function useBridgeState(state: FaucetBytesState, target: AdminTargetProfile): BridgeStateResult | null {
+  const [value, setValue] = useState<BridgeStateResult | null>(null);
   useEffect(() => {
     if (state.status !== 'ready') {
       setValue(null);
@@ -22,14 +17,15 @@ export function useBridgeState(state: FaucetBytesState, target: AdminTargetProfi
     }
     let cancelled = false;
     (async () => {
+      let result: BridgeStateResult;
       try {
         await initAdminWasm();
-        const holders = listRoleHolders(state.bytes, target);
-        const holderCounts = Object.fromEntries(Object.entries(holders).map(([role, ids]) => [role, ids.length]));
-        if (!cancelled) setValue({ paused: readIsPaused(state.bytes), holderCounts });
-      } catch {
-        if (!cancelled) setValue(null);
+        result = bridgeStateFromBytes(state.bytes, target, { listRoleHolders, readIsPaused });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        result = { status: 'error', message: `Could not read the ${target.labels.contractNoun}'s state: ${message}` };
       }
+      if (!cancelled) setValue(result);
     })();
     return () => {
       cancelled = true;
