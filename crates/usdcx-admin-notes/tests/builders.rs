@@ -196,3 +196,36 @@ fn set_attester_enabled_true_and_false_notes_differ() {
         usdcx_admin_notes::set_attester(faucet, sender, commitment, false, serial(14)).unwrap();
     assert_ne!(enabled.id(), disabled.id(), "enabled and disabled must produce distinct notes");
 }
+
+#[test]
+fn rbac_set_admin_targets_the_contract_and_round_trips() {
+    let (faucet, sender) = faucet_and_sender();
+    let role = usdcx_admin_notes::role_symbol("PAUSER").unwrap();
+    let admin = usdcx_admin_notes::role_symbol("FEE_MNGR").unwrap();
+    let note =
+        usdcx_admin_notes::rbac_set_admin(faucet, sender, role, Some(admin), serial(1)).unwrap();
+    assert_well_formed(&note, sender, faucet);
+    let grant = usdcx_admin_notes::rbac(
+        faucet,
+        sender,
+        RbacConfig::GrantRole { role: usdcx_admin_notes::role_symbol("PAUSER").unwrap(), account: sender },
+        serial(9),
+    )
+    .unwrap();
+    assert_eq!(note.script().root(), grant.script().root());
+}
+
+#[test]
+fn rbac_set_admin_accepts_none_to_revert_to_admin() {
+    let (faucet, sender) = faucet_and_sender();
+    let role = usdcx_admin_notes::role_symbol("PAUSER").unwrap();
+    assert!(usdcx_admin_notes::rbac_set_admin(faucet, sender, role, None, serial(2)).is_ok());
+}
+
+#[test]
+fn rbac_renounce_targets_the_contract_and_round_trips() {
+    let (faucet, sender) = faucet_and_sender();
+    let role = usdcx_admin_notes::role_symbol("PAUSER").unwrap();
+    let note = usdcx_admin_notes::rbac_renounce(faucet, sender, role, serial(3)).unwrap();
+    assert_well_formed(&note, sender, faucet);
+}

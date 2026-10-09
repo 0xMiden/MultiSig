@@ -33,3 +33,18 @@ fn rbac_role_members_lists_admins() {
     assert!(ids.contains(&admin_b.to_hex()));
     assert_eq!(ids.len(), 2);
 }
+
+#[test]
+fn role_symbol_accepts_bridge_role_names() {
+    for name in ["ADMIN", "PAUSER", "FAUCET_MNGR", "GER_INJECTOR", "GER_REMOVER", "FEE_MNGR"] {
+        assert!(usdcx_admin_notes::role_symbol(name).is_ok(), "{name}");
+    }
+    assert!(usdcx_admin_notes::role_symbol("pauser").is_err(), "lowercase is not a role symbol");
+    assert!(usdcx_admin_notes::role_symbol("A VERY LONG ROLE NAME").is_err());
+}
+
+#[test]
+fn is_paused_is_false_on_a_fresh_faucet() {
+    let (faucet, _holder, _other) = usdcx_admin_notes::testing::faucet_with_admin();
+    assert!(!usdcx_admin_notes::is_paused(&faucet));
+}

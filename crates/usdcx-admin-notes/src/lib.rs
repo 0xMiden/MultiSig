@@ -23,7 +23,7 @@ use miden_protocol::crypto::rand::RandomCoin;
 use miden_protocol::errors::NoteError;
 use miden_protocol::note::{Note, NoteScriptRoot};
 use miden_protocol::{Felt, Word};
-use miden_standards::account::access::RoleBasedAccessControl;
+use miden_standards::account::access::{PausableStorage, RoleBasedAccessControl};
 use miden_standards::account::policies::MinBurnAmount;
 use miden_standards::note::config::{
     BlocklistConfig, BlocklistConfigNote, ConstantFeePolicyConfigNote, FaucetMetadataConfig,
@@ -207,6 +207,16 @@ pub fn enabled_attesters(faucet: &Account) -> Vec<Word> {
         .collect()
 }
 
+/// Whether the contract is currently paused: the `Pausable` component's `is_paused` value slot
+/// (zero word = running, `[1, 0, 0, 0]` = paused). `false` if the slot is absent.
+pub fn is_paused(account: &Account) -> bool {
+    account
+        .storage()
+        .get_item(PausableStorage::is_paused_slot())
+        .map(|w| w[0] == Felt::ONE)
+        .unwrap_or(false)
+}
+
 /// The note-script roots of every admin note kind this crate builds, labelled. Kinds that share
 /// a note script (RBAC grant/revoke, pause/unpause) share a root, so one label covers both.
 pub fn admin_note_kinds() -> Vec<(&'static str, NoteScriptRoot)> {
@@ -305,6 +315,28 @@ pub fn pause(
         .serial_number(serial)
         .build()?;
     Ok(Note::from(note))
+}
+
+/// RBAC `SetRoleAdmin` (role: the target role's current effective admin). `admin_role = None`
+/// reverts `role` to management by the default `ADMIN` role.
+pub fn rbac_set_admin(
+    target: AccountId,
+    sender: AccountId,
+    role: RoleSymbol,
+    admin_role: Option<RoleSymbol>,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    rbac(target, sender, RbacConfig::SetRoleAdmin { role, admin_role }, serial)
+}
+
+/// RBAC `RenounceRole`: the sender gives up `role` on the target contract.
+pub fn rbac_renounce(
+    target: AccountId,
+    sender: AccountId,
+    role: RoleSymbol,
+    serial: Word,
+) -> Result<Note, AdminNoteError> {
+    rbac(target, sender, RbacConfig::RenounceRole { role }, serial)
 }
 
 /// `block` / `unblock` an account (role: BLK_MANAGER).

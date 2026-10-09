@@ -100,6 +100,13 @@ pub fn enabled_attesters(faucet_account: &[u8]) -> Result<Vec<String>, JsError> 
     Ok(builders::enabled_attesters(&faucet).iter().map(|w| w.to_hex()).collect())
 }
 
+/// Whether the contract (faucet or bridge) is paused, from its serialized `Account` bytes.
+#[wasm_bindgen]
+pub fn is_paused(account: &[u8]) -> Result<bool, JsError> {
+    let account = Account::read_from_bytes(account).map_err(js)?;
+    Ok(builders::is_paused(&account))
+}
+
 // --- on-chain history helpers ----------------------------------------------
 
 /// The id of a note from the fields a `TransactionHeader`'s output `NoteHeader` carries on the
@@ -227,6 +234,48 @@ pub fn build_rbac_revoke(
     };
     let note =
         builders::rbac(acct(faucet_hex)?, acct(sender_hex)?, config, word(serial)?).map_err(js)?;
+    Ok(note.to_bytes())
+}
+
+/// Build an RBAC set-role-admin note. `admin_role = None` reverts the role to `ADMIN` management.
+#[wasm_bindgen]
+pub fn build_rbac_set_admin(
+    target_hex: &str,
+    sender_hex: &str,
+    role: &str,
+    admin_role: Option<String>,
+    serial: &[u8],
+) -> Result<Vec<u8>, JsError> {
+    let admin_role = match admin_role {
+        Some(symbol) => Some(builders::role_symbol(&symbol).map_err(js)?),
+        None => None,
+    };
+    let note = builders::rbac_set_admin(
+        acct(target_hex)?,
+        acct(sender_hex)?,
+        builders::role_symbol(role).map_err(js)?,
+        admin_role,
+        word(serial)?,
+    )
+    .map_err(js)?;
+    Ok(note.to_bytes())
+}
+
+/// Build an RBAC renounce note (the sender gives up `role`).
+#[wasm_bindgen]
+pub fn build_rbac_renounce(
+    target_hex: &str,
+    sender_hex: &str,
+    role: &str,
+    serial: &[u8],
+) -> Result<Vec<u8>, JsError> {
+    let note = builders::rbac_renounce(
+        acct(target_hex)?,
+        acct(sender_hex)?,
+        builders::role_symbol(role).map_err(js)?,
+        word(serial)?,
+    )
+    .map_err(js)?;
     Ok(note.to_bytes())
 }
 
