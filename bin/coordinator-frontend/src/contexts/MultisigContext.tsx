@@ -34,7 +34,8 @@ import { executeCustomProposal } from "@/lib/admin/adminExecute";
 import { buildDirectAdminTransactionRequest, submitDirectAdminAction } from "@/lib/admin/directAction";
 import { useOnChainHistory, type OnChainHistory } from "@/hooks/useOnChainHistory";
 import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
-import type { AdminRecipe } from "@/lib/admin/recipe";
+import { recipeTarget, type AdminRecipe } from "@/lib/admin/recipe";
+import { profileOf } from "@/lib/admin/target";
 import {
   recordObserved,
   recordExecuted,
@@ -1277,7 +1278,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
         Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
     ) => {
-      await runProposalCreation(`USDCx ${recipe.action}`, async (ms) => {
+      await runProposalCreation(`${profileOf(recipeTarget(recipe)).labels.contractShort} ${recipe.action}`, async (ms) => {
         if (!midenClient) throw new Error("Load an account first");
         const draft: AdminRecipe = {
           ...recipe,

@@ -8,7 +8,7 @@ import type { OnChainNote, OnChainTx } from './decode';
 
 /** What an output note of a multisig transaction is, judged by its target tag and attachments. */
 export type NoteRole =
-  /** An admin note addressed to the USDCx faucet. */
+  /** An admin note addressed to the administered contract (USDCx faucet or AggLayer bridge). */
   | 'admin'
   /** The fee-sponsorship note bound (by attachment) to an admin note, also addressed to the faucet. */
   | 'fee_sponsorship'
@@ -17,13 +17,17 @@ export type NoteRole =
   | 'other';
 
 export interface TargetTags {
-  /** `NoteTag::with_account_target(faucet)` as u32, or null when the faucet is not configured. */
+  /** `NoteTag::with_account_target(contract)` as u32, or null when that contract is not configured. */
   faucetTag: number | null;
+  bridgeTag: number | null;
   feeFaucetTag: number | null;
 }
 
 export function classifyNote(note: OnChainNote, tags: TargetTags): NoteRole {
-  if (tags.faucetTag !== null && note.tag === tags.faucetTag) {
+  const isContract =
+    (tags.faucetTag !== null && note.tag === tags.faucetTag) ||
+    (tags.bridgeTag !== null && note.tag === tags.bridgeTag);
+  if (isContract) {
     return note.attachmentSchemes.some((s) => s !== 0) ? 'fee_sponsorship' : 'admin';
   }
   if (tags.feeFaucetTag !== null && note.tag === tags.feeFaucetTag) return 'fee_payment';
@@ -31,7 +35,7 @@ export function classifyNote(note: OnChainNote, tags: TargetTags): NoteRole {
 }
 
 export const NOTE_ROLE_LABEL: Record<NoteRole, string> = {
-  admin: 'Admin note to the USDCx faucet',
+  admin: 'Admin note to the administered contract',
   fee_sponsorship: 'Fee sponsorship for the admin note',
   fee_payment: 'Fee payment',
   other: 'Note',

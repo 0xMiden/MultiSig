@@ -69,7 +69,7 @@ function targetTags(): TargetTags {
       return null;
     }
   };
-  return { faucetTag: tag(cfg.faucetId), feeFaucetTag: tag(cfg.feeFaucetId) };
+  return { faucetTag: tag(cfg.faucetId), bridgeTag: tag(cfg.bridgeId), feeFaucetTag: tag(cfg.feeFaucetId) };
 }
 
 /** Script root hex -> admin action label, from the vendored crate. */
@@ -84,7 +84,7 @@ function noteKindsByRoot(): Map<string, string> {
 
 /**
  * Indexes the locally-known custom proposals by the id of the admin note each one builds. The
- * recipe label (`usdcx_v1_…`) carries everything needed to rebuild the note, so this needs no
+ * recipe label (`usdcx_v1_…` / `agg_v1_…`) carries everything needed to rebuild the note, so this needs no
  * per-browser recipe store and names notes created from any browser.
  */
 export function indexKnownProposals(entries: readonly ProposalHistoryEntry[]): KnownProposalIndex {

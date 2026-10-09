@@ -83,7 +83,7 @@ describe('decodeTransactionRecord on real testnet data', () => {
 
 describe('classifyNote', () => {
   it('tells the admin note from its fee sponsorship by the faucet tag and attachments', () => {
-    const tags = { faucetTag: account_target_tag(FAUCET), feeFaucetTag: null };
+    const tags = { faucetTag: account_target_tag(FAUCET), bridgeTag: null, feeFaucetTag: null };
     const last = decodeTransactionRecord(records[records.length - 1], note_id_from_header);
     const roles = last.outputNotes.map((n) => classifyNote(n, tags)).sort();
     expect(roles).toEqual(['admin', 'fee_sponsorship', 'other']);
@@ -94,7 +94,18 @@ describe('classifyNote', () => {
 
   it('is "other" for everything when no faucet is configured', () => {
     const last = decodeTransactionRecord(records[records.length - 1], note_id_from_header);
-    for (const n of last.outputNotes) expect(classifyNote(n, { faucetTag: null, feeFaucetTag: null })).toBe('other');
+    for (const n of last.outputNotes) expect(classifyNote(n, { faucetTag: null, bridgeTag: null, feeFaucetTag: null })).toBe('other');
+  });
+});
+
+describe('classifyNote (bridge)', () => {
+  it('classifies notes to the bridge as admin notes too', () => {
+    const tags = { faucetTag: account_target_tag(FAUCET), bridgeTag: null, feeFaucetTag: null };
+    const last = decodeTransactionRecord(records[records.length - 1], note_id_from_header);
+    const admin = last.outputNotes.find((n) => classifyNote(n, tags) === 'admin')!;
+    // Pretend the faucet were the bridge: the same tag under `bridgeTag` classifies identically.
+    expect(classifyNote(admin, { faucetTag: null, bridgeTag: account_target_tag(FAUCET), feeFaucetTag: null })).toBe('admin');
+    expect(classifyNote(admin, { faucetTag: null, bridgeTag: null, feeFaucetTag: null })).toBe('other');
   });
 });
 
