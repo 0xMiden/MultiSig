@@ -1,4 +1,5 @@
-import type { AdminRecipe } from '@/lib/admin/recipe';
+import { recipeTarget, type AdminRecipe } from '@/lib/admin/recipe';
+import { profileOf, roleLabel } from '@/lib/admin/target';
 
 /** A human-readable description of an admin recipe's effect. */
 export interface AdminRecipeDescription {
@@ -15,6 +16,7 @@ export interface AdminRecipeDescription {
  */
 export function describeAdminRecipe(recipe: AdminRecipe): AdminRecipeDescription {
   const args = recipe.actionArgs;
+  const target = profileOf(recipeTarget(recipe));
   switch (args.action) {
     case 'set_max_supply':
       return { title: 'Set max supply', lines: [`New max supply: ${args.maxSupply}`] };
@@ -30,18 +32,28 @@ export function describeAdminRecipe(recipe: AdminRecipe): AdminRecipeDescription
         ],
       };
     case 'rbac_grant':
-      return { title: 'Grant role', lines: [`Role: ${args.role}`, `Target: ${args.accountId}`] };
+      return { title: 'Grant role', lines: [`Role: ${roleLabel(target, args.role)}`, `Target: ${args.accountId}`] };
     case 'rbac_revoke':
-      return { title: 'Revoke role', lines: [`Role: ${args.role}`, `Target: ${args.accountId}`] };
+      return { title: 'Revoke role', lines: [`Role: ${roleLabel(target, args.role)}`, `Target: ${args.accountId}`] };
+    case 'rbac_set_admin':
+      return {
+        title: 'Set role admin',
+        lines: [
+          `Role: ${roleLabel(target, args.role)}`,
+          `Admin role: ${args.adminRole ? roleLabel(target, args.adminRole) : `${roleLabel(target, 'ADMIN')} (default)`}`,
+        ],
+      };
+    case 'rbac_renounce':
+      return { title: 'Renounce role', lines: [`Role: ${roleLabel(target, args.role)}`] };
     case 'set_attester':
       return {
         title: 'Set attester',
         lines: [`Commitment: ${args.commitment}`, `Enabled: ${args.enabled ? 'yes' : 'no'}`],
       };
     case 'pause':
-      return { title: 'Pause USDCx', lines: [] };
+      return { title: target.labels.pauseTitle, lines: [] };
     case 'unpause':
-      return { title: 'Unpause USDCx', lines: [] };
+      return { title: target.labels.unpauseTitle, lines: [] };
     case 'blocklist':
       return {
         title: args.blocked ? 'Block account' : 'Unblock account',

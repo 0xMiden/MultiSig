@@ -1,4 +1,5 @@
 import { FeltArray, Poseidon2, Word } from '@miden-sdk/miden-sdk';
+import { profileOf, type AdminTargetKind } from '@/lib/admin/target';
 
 /**
  * The set of admin actions the USDCx admin console can propose. This is the
@@ -11,6 +12,8 @@ export type AdminAction =
   | 'set_note_fee'
   | 'rbac_grant'
   | 'rbac_revoke'
+  | 'rbac_set_admin'
+  | 'rbac_renounce'
   | 'set_attester'
   | 'pause'
   | 'unpause'
@@ -27,6 +30,8 @@ export type AdminActionArgs =
   | { action: 'set_note_fee'; noteScriptRoot: string; feeAmount: string }
   | { action: 'rbac_grant'; role: string; accountId: string }
   | { action: 'rbac_revoke'; role: string; accountId: string }
+  | { action: 'rbac_set_admin'; role: string; adminRole: string | null }
+  | { action: 'rbac_renounce'; role: string }
   | { action: 'set_attester'; commitment: string; enabled: boolean }
   | { action: 'pause' }
   | { action: 'unpause' }
@@ -46,7 +51,10 @@ export interface AdminRecipe {
   recipeVersion: 1;
   action: AdminAction;
   senderAccountId: string;
+  /** The target contract id (faucet or bridge); the name predates the bridge. */
   faucetId: string;
+  /** The contract kind; absent on recipes created before the AggLayer console = 'usdcx'. */
+  target?: AdminTargetKind;
   feeFaucetId: string;
   networkId: string;
   actionArgs: AdminActionArgs;
@@ -59,7 +67,10 @@ export interface AdminRecipe {
 // validates against `^[a-z0-9_]+$` and lowercases before storing as `rawProposalType`. So the
 // prefix uses `_` separators (not `.`) and the payload is base32 over [a-z2-7] (not base64url,
 // which has `-`, `_`, and case) -- every character survives both the regex and the lowercasing.
-const LABEL_PREFIX = 'usdcx_v1_';
+export function recipeTarget(r: Pick<AdminRecipe, 'target'>): AdminTargetKind {
+  return r.target ?? 'usdcx';
+}
+const LABEL_PREFIXES: readonly AdminTargetKind[] = ['usdcx', 'agglayer'];
 
 /**
  * Derives a deterministic serial number for an admin note from its salt,
@@ -130,27 +141,25 @@ function base32Decode(input: string): string {
 }
 
 /**
- * Encodes a recipe into a note label of the form `usdcx_v1_<base32>`,
+ * Encodes a recipe into a note label of the form `<target prefix><base32>` (`usdcx_v1_` / `agg_v1_`),
  * where the payload is the JSON-serialized recipe with `noteIdHex` stripped
  * (it is derived, not part of the signed binding, and must not be fed back
  * into the recipe on decode).
  */
 export function encodeRecipeLabel(r: AdminRecipe): string {
   const { noteIdHex: _omit, ...rest } = r;
-  return LABEL_PREFIX + base32Encode(JSON.stringify(rest));
+  return profileOf(recipeTarget(r)).labelPrefix + base32Encode(JSON.stringify(rest));
 }
 
 /**
  * Decodes a note label produced by `encodeRecipeLabel`. Returns `null` for
- * any label that is not a `usdcx_v1_` label, or that fails to decode/parse.
+ * any label that has neither known prefix, or that fails to decode/parse.
  */
 export function decodeRecipeLabel(label: string): AdminRecipe | null {
-  if (!label.startsWith(LABEL_PREFIX)) {
-    return null;
-  }
+  const kind = LABEL_PREFIXES.find((k) => label.startsWith(profileOf(k).labelPrefix));
+  if (!kind) return null;
   try {
-    const payload = label.slice(LABEL_PREFIX.length);
-    const json = base32Decode(payload);
+    const json = base32Decode(label.slice(profileOf(kind).labelPrefix.length));
     return JSON.parse(json) as AdminRecipe;
   } catch {
     return null;

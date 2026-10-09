@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeRecipeLabel, decodeRecipeLabel, deriveAdminSerial, type AdminRecipe } from '@/lib/admin/recipe';
+import { encodeRecipeLabel, decodeRecipeLabel, deriveAdminSerial, recipeTarget, type AdminRecipe } from '@/lib/admin/recipe';
 
 const salt = '0x' + '1'.repeat(64);
 const r: AdminRecipe = {
@@ -30,4 +30,25 @@ it('serial is deterministic in the salt', () => {
   expect(Buffer.from(a).toString('hex')).toBe(Buffer.from(b).toString('hex'));
   const c = deriveAdminSerial('0x' + '2'.repeat(64));
   expect(Buffer.from(c).toString('hex')).not.toBe(Buffer.from(a).toString('hex'));
+});
+
+const bridge: AdminRecipe = {
+  ...r, target: 'agglayer', faucetId: '0xb1d6e', action: 'rbac_set_admin',
+  actionArgs: { action: 'rbac_set_admin', role: 'PAUSER', adminRole: null },
+};
+
+it('a recipe without target is USDCx (old labels keep decoding as before)', () => {
+  expect(recipeTarget(r)).toBe('usdcx');
+  expect(decodeRecipeLabel(encodeRecipeLabel(r))?.target).toBeUndefined();
+});
+it('an AggLayer recipe gets the agg_v1_ prefix and round-trips through lowercasing', () => {
+  const label = encodeRecipeLabel(bridge);
+  expect(label.startsWith('agg_v1_')).toBe(true);
+  expect(label).toMatch(/^[a-z0-9_]+$/);
+  expect(decodeRecipeLabel(label.toLowerCase())).toEqual({ ...bridge });
+  expect(recipeTarget(decodeRecipeLabel(label)!)).toBe('agglayer');
+});
+it('renounce round-trips', () => {
+  const x: AdminRecipe = { ...bridge, action: 'rbac_renounce', actionArgs: { action: 'rbac_renounce', role: 'PAUSER' } };
+  expect(decodeRecipeLabel(encodeRecipeLabel(x))).toEqual(x);
 });

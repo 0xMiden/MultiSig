@@ -57,6 +57,9 @@ describe('buildAdminNoteBytes', () => {
         commitment: COMMITMENT_HEX,
         enabled: true,
       }),
+      recipe('rbac_set_admin', { action: 'rbac_set_admin', role: 'PAUSER', adminRole: 'FEE_MNGR' }),
+      recipe('rbac_set_admin', { action: 'rbac_set_admin', role: 'PAUSER', adminRole: null }),
+      recipe('rbac_renounce', { action: 'rbac_renounce', role: 'PAUSER' }),
       recipe('pause', { action: 'pause' }),
       recipe('unpause', { action: 'unpause' }),
       recipe('blocklist', { action: 'blocklist', accountId: OTHER, blocked: true }),
@@ -76,5 +79,14 @@ describe('buildAdminNoteBytes', () => {
     // Sanity: the builder uses r.feeFaucetId regardless of anything in actionArgs (there is no
     // fee faucet field in actionArgs to begin with) and still produces a valid note.
     expect(() => Note.deserialize(buildAdminNoteBytes(r))).not.toThrow();
+  });
+
+  it('addresses the note to the recipe contract id, whichever target', () => {
+    const base = recipe('rbac_renounce', { action: 'rbac_renounce', role: 'PAUSER' });
+    const note = Note.deserialize(buildAdminNoteBytes({ ...base, target: 'agglayer', faucetId: OTHER }));
+    expect(note.metadata().sender().toString().toLowerCase()).toBe(SENDER);
+    // The tag encodes the target account; a different contract id gives a different tag.
+    const usdcx = Note.deserialize(buildAdminNoteBytes(base));
+    expect(note.metadata().tag().asU32()).not.toBe(usdcx.metadata().tag().asU32());
   });
 });

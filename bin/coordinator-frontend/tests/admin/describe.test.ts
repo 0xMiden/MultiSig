@@ -102,4 +102,18 @@ describe('describeAdminRecipe', () => {
       lines: ['Target: 0xabc'],
     });
   });
+
+  it('describes the bridge actions with target wording', () => {
+    const bridge = (actionArgs: AdminActionArgs): AdminRecipe => ({ ...recipeFor(actionArgs), target: 'agglayer' });
+    expect(describeAdminRecipe(bridge({ action: 'pause' })).title).toBe('Pause bridge');
+    expect(describeAdminRecipe(bridge({ action: 'unpause' })).title).toBe('Unpause bridge');
+    expect(describeAdminRecipe(bridge({ action: 'rbac_set_admin', role: 'PAUSER', adminRole: null }))).toEqual({
+      title: 'Set role admin', lines: ['Role: PAUSER', 'Admin role: BRIDGE_ADMIN (default)'],
+    });
+    expect(describeAdminRecipe(bridge({ action: 'rbac_set_admin', role: 'PAUSER', adminRole: 'FEE_MNGR' })).lines).toEqual(['Role: PAUSER', 'Admin role: FEE_MNGR']);
+    expect(describeAdminRecipe(bridge({ action: 'rbac_renounce', role: 'PAUSER' }))).toEqual({ title: 'Renounce role', lines: ['Role: PAUSER'] });
+    expect(describeAdminRecipe(bridge({ action: 'rbac_grant', role: 'ADMIN', accountId: '0x1' })).lines[0]).toBe('Role: BRIDGE_ADMIN');
+    // USDCx titles unchanged
+    expect(describeAdminRecipe(recipeFor({ action: 'pause' })).title).toBe('Pause USDCx');
+  });
 });

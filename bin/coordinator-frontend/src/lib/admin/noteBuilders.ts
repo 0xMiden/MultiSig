@@ -83,6 +83,12 @@ export function buildAdminNoteBytes(r: AdminRecipe): Uint8Array {
         serial,
       );
 
+    case 'rbac_set_admin':
+      return wasm.build_rbac_set_admin(faucet, sender, r.actionArgs.role, r.actionArgs.adminRole ?? undefined, serial);
+
+    case 'rbac_renounce':
+      return wasm.build_rbac_renounce(faucet, sender, r.actionArgs.role, serial);
+
     case 'set_attester': {
       const commitment = Word.fromHex(r.actionArgs.commitment).serialize();
       return wasm.build_set_attester(faucet, sender, commitment, r.actionArgs.enabled, serial);
