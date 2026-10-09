@@ -1,5 +1,5 @@
 import { FeltArray, Poseidon2, Word } from '@miden-sdk/miden-sdk';
-import { profileOf, type AdminTargetKind } from '@/lib/admin/target';
+import { profileOf, type AdminTarget, type AdminTargetKind } from '@/lib/admin/target';
 
 /**
  * The set of admin actions the USDCx admin console can propose. This is the
@@ -153,17 +153,34 @@ export function encodeRecipeLabel(r: AdminRecipe): string {
 
 /**
  * Decodes a note label produced by `encodeRecipeLabel`. Returns `null` for
- * any label that has neither known prefix, or that fails to decode/parse.
+ * any label that has neither known prefix, that fails to decode/parse, or
+ * whose prefix names a different contract kind than the payload's `target`
+ * (the prefix is not part of the payload, so a mismatch is never ours).
  */
 export function decodeRecipeLabel(label: string): AdminRecipe | null {
   const kind = LABEL_PREFIXES.find((k) => label.startsWith(profileOf(k).labelPrefix));
   if (!kind) return null;
   try {
     const json = base32Decode(label.slice(profileOf(kind).labelPrefix.length));
-    return JSON.parse(json) as AdminRecipe;
+    const recipe = JSON.parse(json) as AdminRecipe;
+    return recipeTarget(recipe) === kind ? recipe : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * Whether a recipe's contract id is the contract this build administers for the recipe's kind.
+ * The id comes from the label's JSON, which any proposer controls: a recipe naming another contract
+ * is flagged rather than trusted. Ids compare case-insensitively.
+ */
+export function recipeContractStatus(
+  recipe: Pick<AdminRecipe, 'target' | 'faucetId'>,
+  configured: readonly Pick<AdminTarget, 'kind' | 'contractId'>[],
+): 'ok' | 'unknown_contract' {
+  const expected = configured.find((t) => t.kind === recipeTarget(recipe))?.contractId;
+  if (!expected || typeof recipe.faucetId !== 'string') return 'unknown_contract';
+  return expected.trim().toLowerCase() === recipe.faucetId.trim().toLowerCase() ? 'ok' : 'unknown_contract';
 }
 
 function storageKey(proposalId: string): string {

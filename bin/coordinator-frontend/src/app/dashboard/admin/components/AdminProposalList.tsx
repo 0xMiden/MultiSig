@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 import type { Proposal } from '@openzeppelin/miden-multisig-client';
-import { decodeRecipeLabel } from '@/lib/admin/recipe';
+import { decodeRecipeLabel, recipeContractStatus } from '@/lib/admin/recipe';
 import { describeAdminRecipe } from '@/lib/admin/describe';
 import { useAdminNoteConsumption } from '@/hooks/useAdminNoteConsumption';
 import { useMultisig } from '@/contexts/MultisigContext';
+import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import type { ConsumptionState } from '@/lib/admin/consumption';
 
 const STATE_LABELS: Record<ConsumptionState, string> = {
@@ -42,6 +43,8 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   const recipe = useMemo(() => (rawProposalType ? decodeRecipeLabel(rawProposalType) : null), [rawProposalType]);
   const { state, detail } = useAdminNoteConsumption(proposal, recipe);
   const { handleCancelProposal, cancelingProposal, handleExecuteProposal, executingProposal } = useMultisig();
+  const { configured } = useAdminTarget();
+  const unknownContract = recipe !== null && recipeContractStatus(recipe, configured) === 'unknown_contract';
 
   // A fully-signed admin proposal that never executed (or whose execution did
   // not land) can be retried — this re-syncs and re-executes at the current
@@ -58,6 +61,14 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
           <div className="text-[12px] font-[500] text-[#111] truncate">
             {recipe ? describeAdminRecipe(recipe).title : 'Unknown admin action'}
           </div>
+          {unknownContract && (
+            <span
+              className="inline-block mt-0.5 text-[11px] font-[500] px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-mono break-all"
+              title="This proposal targets a contract this console is not configured for"
+            >
+              Unknown contract {recipe.faucetId}
+            </span>
+          )}
           <div className="text-[11px] text-[rgba(0,0,0,0.45)] font-mono truncate" title={proposal.id}>
             {proposal.id.slice(0, 16)}…
           </div>

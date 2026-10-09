@@ -12,9 +12,16 @@ export interface AdminRecipeDescription {
  * co-signers who only otherwise see the signed transaction summary hash.
  * Amounts are left as the raw decimal strings carried by the recipe — this
  * stays pure/testable and leaves token-decimal formatting to the component
- * (which has access to `useFaucetDecimals`).
+ * (which has access to `useFaucetDecimals`). The last line always names the contract.
  */
 export function describeAdminRecipe(recipe: AdminRecipe): AdminRecipeDescription {
+  const target = profileOf(recipeTarget(recipe));
+  const d = describeAction(recipe);
+  // Co-signers see both contracts' proposals side by side: every description names its contract.
+  return { title: d.title, lines: [...d.lines, `Contract: ${target.labels.contractNoun} ${recipe.faucetId}`] };
+}
+
+function describeAction(recipe: AdminRecipe): AdminRecipeDescription {
   const args = recipe.actionArgs;
   const target = profileOf(recipeTarget(recipe));
   switch (args.action) {
