@@ -4,6 +4,7 @@ import {
   decideRoleSeparation,
   decideRevokeInFlight,
   decideAdminChurnInFlight,
+  decideSetRoleAdmin,
   type GuardrailResult,
 } from '@/lib/admin/guardrails';
 import type { AdminRecipe } from '@/lib/admin/recipe';
@@ -197,5 +198,35 @@ describe('bridge guardrails', () => {
     expectLevel(decideAdminChurnInFlight(pauserGrant, [revoke]), 'ok');
     // Not a USDCx rule.
     expectLevel(decideAdminChurnInFlight(recipe({ action: 'rbac_grant', actionArgs: { action: 'rbac_grant', role: 'ADMIN', accountId: OTHER } }), [recipe()]), 'ok');
+  });
+});
+
+describe('decideSetRoleAdmin', () => {
+  const setAdmin = (role: string, adminRole: string | null) =>
+    recipe({ action: 'rbac_set_admin', target: 'agglayer', actionArgs: { action: 'rbac_set_admin', role, adminRole } });
+
+  it('blocks re-parenting the root role to any other role', () => {
+    const result = decideSetRoleAdmin(setAdmin('ADMIN', 'PAUSER'), AGGLAYER_PROFILE);
+    expectLevel(result, 'block');
+    expect(result.level === 'block' && result.message).toMatch(/delegate BRIDGE_ADMIN administration to another role; the root role must stay self-administered/);
+    expectLevel(decideSetRoleAdmin(setAdmin('ADMIN', 'ADMIN'), AGGLAYER_PROFILE), 'block');
+  });
+
+  it('warns when another role is delegated to a non-root admin role', () => {
+    const result = decideSetRoleAdmin(setAdmin('GER_INJECTOR', 'FAUCET_MNGR'), AGGLAYER_PROFILE);
+    expectLevel(result, 'warn');
+    expect(result.level === 'warn' && result.message).toBe(
+      "GER_INJECTOR will then be granted/revoked by FAUCET_MNGR holders, not by BRIDGE_ADMIN; the console's action gating assumes the root admin.",
+    );
+  });
+
+  it('is ok when clearing to the default root admin or naming the root itself', () => {
+    expectLevel(decideSetRoleAdmin(setAdmin('PAUSER', null), AGGLAYER_PROFILE), 'ok');
+    expectLevel(decideSetRoleAdmin(setAdmin('ADMIN', null), AGGLAYER_PROFILE), 'ok');
+    expectLevel(decideSetRoleAdmin(setAdmin('PAUSER', 'ADMIN'), AGGLAYER_PROFILE), 'ok');
+  });
+
+  it('ignores other actions', () => {
+    expectLevel(decideSetRoleAdmin(recipe(), USDCX_PROFILE), 'ok');
   });
 });

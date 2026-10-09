@@ -120,8 +120,9 @@ export function RbacSetAdminForm({ faucetBytesState, inflightRecipes, sender }: 
         setAdminRole('');
       }}
     >
+      {/* The root role is not offered for re-parenting; `decideSetRoleAdmin` blocks it regardless. */}
       <Field label="Role">
-        <RoleSelect roles={target.roles} value={role} onChange={setRole} />
+        <RoleSelect roles={target.roles.filter((r) => r.symbol !== 'ADMIN')} value={role} onChange={setRole} />
       </Field>
       <Field label="Admin role (empty = default root admin)">
         <RoleSelect roles={target.roles} value={adminRole} onChange={setAdminRole} />

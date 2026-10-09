@@ -128,6 +128,30 @@ export function decideAdminChurnInFlight(recipe: AdminRecipe, inflightRecipes: A
   return OK;
 }
 
+/**
+ * Set-role-admin guardrail. The root role must stay self-administered: re-parenting `ADMIN` (any
+ * non-null admin role) is `block`ed -- while the new admin role has members, ADMIN delegation is
+ * theirs alone and they could then empty ADMIN. Delegating another role to a non-root admin role is
+ * allowed on-chain but `warn`s: the console gates grant/revoke on the root role. Clearing back to
+ * the default (`null`), or naming the root explicitly, is `ok`.
+ */
+export function decideSetRoleAdmin(recipe: AdminRecipe, target: AdminTargetProfile): GuardrailResult {
+  const args = recipe.actionArgs;
+  if (args.action !== 'rbac_set_admin' || args.adminRole === null) return OK;
+  const root = roleLabel(target, 'ADMIN');
+  if (args.role === 'ADMIN') {
+    return {
+      level: 'block',
+      message: `This would delegate ${root} administration to another role; the root role must stay self-administered.`,
+    };
+  }
+  if (args.adminRole === 'ADMIN') return OK;
+  return {
+    level: 'warn',
+    message: `${roleLabel(target, args.role)} will then be granted/revoked by ${roleLabel(target, args.adminRole)} holders, not by ${root}; the console's action gating assumes the root admin.`,
+  };
+}
+
 const SEVERITY: Record<GuardrailResult['level'], number> = { ok: 0, warn: 1, block: 2 };
 
 function mostSevere(results: GuardrailResult[]): GuardrailResult {
@@ -135,7 +159,7 @@ function mostSevere(results: GuardrailResult[]): GuardrailResult {
 }
 
 /**
- * Composes all four guardrails for a proposed `recipe`. Fetches the current ADMIN member set via
+ * Composes all five guardrails for a proposed `recipe`. Fetches the current ADMIN member set via
  * `rbac_role_members` (initializing the admin wasm module first) and returns the single most
  * severe result (`block` > `warn` > `ok`). The UI blocks submission on `block` and requires an
  * explicit typed confirmation on `warn`.
@@ -157,5 +181,6 @@ export async function runGuardrails(
     decideRoleSeparation(recipe, recipe.senderAccountId),
     decideRevokeInFlight(recipe, inflightRecipes),
     decideAdminChurnInFlight(recipe, inflightRecipes),
+    decideSetRoleAdmin(recipe, target),
   ]);
 }
