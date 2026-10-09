@@ -130,13 +130,6 @@ function base64ToBytes(base64: string): Uint8Array {
  * deserializing its own `txSummary` — no Guardian call, no chain sync, no
  * ambiguity between proposals. Same reconstruction `verifyProposalMetadataBinding`
  * already runs internally on every syncProposals().
- *
- * Returns full `Note` objects, not just IDs: sendPrivate() only skips its
- * local-database lookup when given an object with real `.id()`/`.assets()`
- * methods (checked via duck typing in the SDK's own sendPrivate wrapper). A
- * plain ID string or NoteId falls through to that lookup instead — which
- * fails here, because the note hasn't been executed yet, so it was never
- * written to the local database in the first place.
  */
 export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
   const summary = TransactionSummary.deserialize(base64ToBytes(txSummaryBase64));
@@ -151,41 +144,71 @@ export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
 }
 
 /**
- * Relays a private note's contents to its recipient via the note transport
- * service. Call this before execution, never after, so the block hint
- * (`scanAfterBlockNum`, the client's current sync height) is at or before the
- * note's on-chain commitment.
+ * The ids of the private notes a proposal will create, from the proposal's own
+ * transaction summary. Run this BEFORE executing: it throws if the summary
+ * holds no private note, because executing then would commit a note nobody
+ * can reconstruct.
  */
-export async function relayPrivateNote(
-  midenClient: MidenClient,
-  note: Note,
-  recipientId: string,
-  scanAfterBlockNum: number,
-): Promise<void> {
-  await midenClient.notes.sendPrivate({ note, to: recipientId, scanAfterBlockNum });
-}
-
-/**
- * Delivers every private note a proposal will create to its recipient, from
- * the proposal's own transaction summary, so any cosigner can run it right
- * before executing. Throws if the summary holds no private note: executing
- * then would commit a note nobody can reconstruct.
- */
-export async function relayProposalNotes(
-  midenClient: MidenClient,
+export function privateNoteIdsToDeliver(
   txSummaryBase64: string,
-  recipientId: string,
   extractNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
-): Promise<number> {
+): string[] {
   const notes = extractNotes(txSummaryBase64);
   if (notes.length === 0) {
     throw new Error('This private send has no private note to deliver, so it cannot be executed safely.');
   }
-  const scanAfterBlockNum = await midenClient.getSyncHeight();
-  for (const note of notes) {
-    await relayPrivateNote(midenClient, note, recipientId, scanAfterBlockNum);
+  return notes.map((note) => note.id().toString());
+}
+
+/** How long {@link relayProposalNotes} keeps trying to deliver a note. */
+export interface RelayRetry {
+  attempts: number;
+  delayMs: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_RELAY_RETRY: RelayRetry = { attempts: 20, delayMs: 3000 };
+
+/**
+ * Delivers a proposal's private output notes to their recipient through the
+ * note transport. Run this AFTER executing: the transport only accepts a note
+ * together with its inclusion proof, and the proof exists only once the
+ * creating transaction is committed and this client has synced past its block.
+ * So each attempt syncs first, then relays whatever is still undelivered.
+ * Throws if a note is still undelivered when the attempts run out.
+ */
+export async function relayProposalNotes(
+  midenClient: MidenClient,
+  noteIds: string[],
+  recipientId: string,
+  retry: RelayRetry = DEFAULT_RELAY_RETRY,
+): Promise<number> {
+  const sleep = retry.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  let pending = noteIds;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retry.attempts; attempt++) {
+    try {
+      await midenClient.sync();
+    } catch (err) {
+      lastError = err;
+    }
+    const undelivered: string[] = [];
+    for (const noteId of pending) {
+      try {
+        await midenClient.notes.sendPrivateOutput({ noteId, to: recipientId });
+      } catch (err) {
+        lastError = err;
+        undelivered.push(noteId);
+      }
+    }
+    pending = undelivered;
+    if (pending.length === 0) return noteIds.length;
+    if (attempt < retry.attempts) await sleep(retry.delayMs);
   }
-  return notes.length;
+  const reason = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    `${pending.length} of ${noteIds.length} private note(s) could not be delivered after ${retry.attempts} attempts: ${reason}`,
+  );
 }
 
 export async function registerAccountNoteTag(
