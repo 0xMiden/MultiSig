@@ -246,3 +246,32 @@ pub fn mock_chain_with_faucet_roles()
 
     (chain, faucet_id, admin, pauser, attest_admin, other)
 }
+
+/// A `MockChain` holding a deployed-equivalent AggLayer bridge (the published `miden-agglayer`
+/// crate's own testing builder) with `admin` holding the bridge's `ADMIN` (the spec's
+/// BRIDGE_ADMIN), `pauser` holding `PAUSER`, and the four operational roles seeded to throwaway
+/// ids. Returns `(chain, bridge_id, admin, pauser, other)`; `other` holds no role.
+pub fn mock_chain_with_bridge_roles() -> (MockChain, AccountId, AccountId, AccountId, AccountId) {
+    let admin = dummy_account_id(11);
+    let pauser = dummy_account_id(12);
+    let other = dummy_account_id(13);
+    let operator = dummy_account_id(14);
+
+    let bridge = miden_agglayer::testing::create_existing_bridge_account_with_roles(
+        Word::from([Felt::new(7).unwrap(), Felt::ZERO, Felt::ZERO, Felt::ZERO]),
+        admin,
+        operator, // FAUCET_MNGR
+        operator, // GER_INJECTOR
+        operator, // GER_REMOVER
+        operator, // FEE_MNGR
+        pauser,
+        86, // network id, arbitrary for the fixture
+    );
+    let bridge_id = bridge.id();
+    let mut chain_builder = MockChain::builder();
+    chain_builder
+        .add_account(bridge)
+        .expect("registering the bridge account in the MockChain");
+    let chain = chain_builder.build().expect("building the MockChain");
+    (chain, bridge_id, admin, pauser, other)
+}

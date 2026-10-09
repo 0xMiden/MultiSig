@@ -2490,6 +2490,8 @@ dependencies = [
  "miden-protocol-build-utils",
  "miden-standards 0.17.1",
  "miden-utils-sync 0.35.0",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -6275,6 +6277,7 @@ name = "usdcx-admin-notes"
 version = "0.1.0"
 dependencies = [
  "getrandom 0.2.16",
+ "miden-agglayer 0.17.1",
  "miden-protocol 0.17.1",
  "miden-standards 0.17.1",
  "miden-testing 0.17.1",

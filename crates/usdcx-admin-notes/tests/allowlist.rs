@@ -87,3 +87,11 @@ fn every_admin_note_script_is_on_the_faucet_allowlist() {
         assert!(allowed.contains(&root), "{name}: script root {hex} is not on the faucet allowlist");
     }
 }
+
+#[test]
+fn bridge_allowlist_includes_the_rbac_and_pause_notes() {
+    use miden_standards::note::config::{PauseConfigNote, RbacConfigNote};
+    let allowed = miden_agglayer::AggLayerBridge::allowed_notes();
+    assert!(allowed.contains(&RbacConfigNote::script_root()));
+    assert!(allowed.contains(&PauseConfigNote::script_root()));
+}

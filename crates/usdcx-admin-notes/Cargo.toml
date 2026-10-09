@@ -35,7 +35,7 @@ wasm = ["dep:wasm-bindgen", "dep:getrandom"]
 # guard fixture), and since `testing.rs` compiles into the LIB target (not a test target), that
 # dependency must be a normal (optional) one — a `[dev-dependencies]` entry is invisible to the lib
 # build even when this feature is on.
-testing = ["dep:miden-testing"]
+testing = ["dep:miden-testing", "dep:miden-agglayer"]
 
 [dependencies]
 miden-protocol  = { version = "=0.17.1", default-features = false, features = ["std"] }
@@ -49,6 +49,8 @@ getrandom = { version = "0.2", features = ["js"], optional = true }
 # See the `testing` feature above for why this is a normal (optional) dependency rather than a
 # `[dev-dependencies]` entry.
 miden-testing = { version = "=0.17.1", optional = true }
+# Same reason: the bridge fixture in `testing.rs` builds with the published crate's testing builder.
+miden-agglayer = { version = "=0.17.1", features = ["testing"], optional = true }
 
 [dev-dependencies]
 # For the async MockChain round-trip tests (`tests/roundtrip_0_17.rs`): `ExecutedTransaction`
@@ -58,3 +60,7 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 # integration tests (`tests/*.rs`) link against it — those link the lib as an ordinary dependency,
 # not `#[cfg(test)]`, so activating the feature is the only way to expose `pub mod testing` to them.
 usdcx-admin-notes = { path = ".", features = ["testing"] }
+# The AggLayer bridge is a second RBAC + Pausable network account our RBAC/pause notes target.
+# Dev-only: the published crate's `testing` fixtures build a deployed-equivalent bridge for the
+# MockChain round trip (`tests/agglayer_roundtrip_0_17.rs`). Pinned to the testnet bridge's line.
+miden-agglayer = { version = "=0.17.1", features = ["testing"] }
