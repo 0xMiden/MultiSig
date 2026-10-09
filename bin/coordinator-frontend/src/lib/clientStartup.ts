@@ -70,3 +70,14 @@ export async function waitForClientParts<M, C>(
     await sleep(pollMs);
   }
 }
+
+/**
+ * A misconfigured deployment (missing or invalid network env) must fail with
+ * the reason, before any start attempt: it is not a stale local store, so it
+ * must not trigger the store reset above.
+ */
+export function assertConfigured(errors: readonly string[]): void {
+  if (errors.length > 0) {
+    throw new Error(`This deployment is misconfigured: ${errors.join(' ')}`);
+  }
+}

@@ -29,9 +29,10 @@ import {
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
-import { LOCAL_KEYS_ENABLED, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { LOCAL_KEYS_ENABLED, MIDEN_NETWORK, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
 import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
-import { registerDevnetAccount } from './devnetRegistration';
+import { registerNodeAccount } from './nodeRegistration';
+import { registrationInvitationCode } from './midenNetwork';
 import { configureProverWorkflow } from './proverFallback';
 import { markExecutionPushed } from './pendingCandidate';
 import { retryProposalSubmission } from './proposalSubmission';
@@ -40,37 +41,42 @@ import { toast } from 'sonner';
 const registrationRequests = new Map<string, Promise<void>>();
 
 /**
- * Devnet funding requires the direct RPC: the high-level SDK short-circuits
- * when the network allows every account, without requesting a funding note.
+ * Registers a new account with the Miden node, on every network. The direct
+ * RPC (nodeRegistration.ts) is used because the SDK's own path skips the call
+ * when the node already allows the account. Registration funds a new account
+ * (devnet and testnet). The invitation code is the one the creator confirmed on
+ * the create page, else the network default (see defaultInvitationCode).
  */
 export function registerAccountOnNode(
   midenClient: MidenClient,
   accountId: string,
-  invitationCode = MIDEN_REGISTRATION_CODE,
+  userInvitationCode?: string,
 ): Promise<void> {
   const key = `${MIDEN_RPC_URL}:${accountId.toLowerCase()}`;
   const existing = registrationRequests.get(key);
   if (existing) return existing;
 
+  let code: string;
+  try {
+    code = registrationInvitationCode(MIDEN_NETWORK, MIDEN_REGISTRATION_CODE, userInvitationCode);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   const request = (async () => {
-    const devnet = /^https:\/\/rpc\.devnet\.miden\.io(?::443)?\/?$/.test(MIDEN_RPC_URL);
-    diagnosticLog('registration.START', { accountId, mode: devnet ? 'devnet-direct-rpc' : 'sdk' });
+    diagnosticLog('registration.START', { accountId, network: MIDEN_NETWORK, withInvitation: Boolean(code) });
     try {
-      if (devnet) {
-        await registerDevnetAccount(accountId, invitationCode, (identity) => {
-          diagnosticLog('registration.NETWORK_IDENTITY', { accountId, ...identity });
-        });
-      } else if (!(await midenClient.accounts.isAllowed(accountId))) {
-        await midenClient.accounts.register({ account: accountId, invitationCode });
-      }
+      await registerNodeAccount(MIDEN_RPC_URL, accountId, code, (identity) => {
+        diagnosticLog('registration.NETWORK_IDENTITY', { accountId, ...identity });
+      });
       diagnosticLog('registration.OK', { accountId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const duplicate = /\bALREADY_REGISTERED\b|\balready registered\b/i.test(message);
       const allowed = /\bACCOUNT_ALREADY_ALLOWED\b|\balready allowed on the network\b/i.test(message);
-      // Confirm the node accepts this account; never swallow unrelated failures.
-      if ((duplicate || (!devnet && allowed)) && await midenClient.accounts.isAllowed(accountId)) {
-        diagnosticLog('registration.ALREADY_ALLOWED', { accountId, fundingConfirmed: false });
+      // Already registered is fine once the node confirms it accepts the
+      // account; never swallow unrelated failures.
+      if ((duplicate || allowed) && await midenClient.accounts.isAllowed(accountId)) {
+        diagnosticLog('registration.ALREADY_ALLOWED', { accountId });
         return;
       }
       diagnosticLog('registration.FAIL', { accountId, error: diagnosticError(error) });

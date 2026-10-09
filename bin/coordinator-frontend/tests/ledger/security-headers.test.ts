@@ -5,9 +5,9 @@ import { staticSecurityHeaders } from '../../security-headers.mjs';
 const base: CspConfig = {
   nonce: 'abc123',
   dev: false,
-  guardianEndpoint: 'https://guardian-devnet.openzeppelin.com',
+  guardianEndpoints: ['https://guardian-devnet.openzeppelin.com'],
   midenRpcUrl: 'https://rpc.devnet.miden.io',
-  noteTransportUrl: 'devnet',
+  noteTransportUrl: 'https://transport.devnet.miden.io',
   proverUrl: 'local',
   chatEndpoint: '',
   paraHosted: true,
@@ -42,21 +42,24 @@ describe('buildContentSecurityPolicy', () => {
   it('limits connections to the configured services', () => {
     const connect = directives(buildContentSecurityPolicy({
       ...base,
+      guardianEndpoints: ['https://guardian-devnet.openzeppelin.com/api', 'https://guardian-testnet.openzeppelin.com'],
       midenRpcUrl: 'http://localhost:57291',
       chatEndpoint: 'https://chat.example.com/api/v1',
       extraConnectSrc: 'https://guardian.example.org, not-a-url javascript:alert(1)',
     })).get('connect-src')!;
     expect(connect).toEqual(expect.arrayContaining([
       "'self'",
-      'https://*.miden.io',
-      'https://*.openzeppelin.com',
       'https://guardian-devnet.openzeppelin.com',
+      'https://guardian-testnet.openzeppelin.com',
+      'https://transport.devnet.miden.io',
       'http://localhost:57291',
       'https://chat.example.com',
       'https://guardian.example.org',
       'https://*.getpara.com',
     ]));
     expect(connect.join(' ')).not.toMatch(/javascript:|not-a-url|\*(?!\.)|https:(?!\/\/)/);
+    // No wildcard for Miden or Guardian hosts: only what is configured.
+    expect(connect.filter((source) => /miden\.io|openzeppelin\.com/.test(source) && source.includes('*'))).toEqual([]);
   });
 
   it("follows Para's environment and relaxes only what React's dev build needs", () => {

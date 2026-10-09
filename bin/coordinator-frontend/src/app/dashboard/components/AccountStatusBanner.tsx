@@ -96,13 +96,13 @@ const AccountStatusBanner = () => {
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-[#C2410C]">
               {accountFunding.phase === "registering" && "Registering account on the network"}
-              {accountFunding.phase === "waiting-for-note" && "Waiting for devnet funding"}
+              {accountFunding.phase === "waiting-for-note" && "Waiting for funding"}
               {accountFunding.phase === "funding-available" && "Funding note ready"}
               {accountFunding.phase === "error" && "Account funding needs attention"}
             </span>
             <span className="text-[12px] font-[400] text-[#9A3412] wrap-break-word">
               {accountFunding.phase === "registering" && "The node is registering this account and preparing its initial funding note."}
-              {accountFunding.phase === "waiting-for-note" && "The account is registered. Waiting for its funding note to appear in Receive Funds."}
+              {accountFunding.phase === "waiting-for-note" && "The account is registered. Its funding note can take a few minutes to arrive; it will appear in Receive Funds."}
               {accountFunding.phase === "funding-available" && "Open Receive Funds, create a proposal for this note, then collect signatures to deploy and fund the account."}
               {accountFunding.phase === "error" && accountFunding.message}
             </span>

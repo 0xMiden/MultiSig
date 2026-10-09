@@ -47,8 +47,9 @@ import {
   registerAccountOnNode,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
-import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK } from "@/config/psm";
-import { deleteDatabase, startWithStoreReset, waitForClientParts, type StartupState } from "@/lib/clientStartup";
+import { CONFIG_ERRORS, GUARDIAN_ENDPOINT, GUARDIAN_ENDPOINTS, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK } from "@/config/psm";
+import { invitationCodeRequired } from "@/lib/midenNetwork";
+import { assertConfigured, deleteDatabase, startWithStoreReset, waitForClientParts, type StartupState } from "@/lib/clientStartup";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
@@ -65,6 +66,7 @@ import {
   removePendingDelivery,
 } from "@/lib/privateDelivery";
 import { setWalletCookie } from "@/lib/walletCookie";
+import { waitForFundingNote } from "@/lib/fundingWait";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -188,6 +190,8 @@ export interface MultisigContextValue {
     threshold: number,
     procedureThresholds?: ProcedureThreshold[],
     signatureScheme?: SignatureScheme,
+    /** Node-registration invitation code from the creator (mainnet); ignored where the network needs none. */
+    options?: { invitationCode?: string },
   ) => Promise<void>;
   handleLoad: (
     accountId: string,
@@ -285,8 +289,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   // Long-running work checks this after every await and stops touching state
   // once the user has moved to another account.
   const multisigRef = useRef<Multisig | null>(null);
+  // Invitation codes entered at creation, per account, so Retry funding reuses them.
+  const invitationCodes = useRef(new Map<string, string>());
   multisigRef.current = multisig;
   const fundingAccountId = useRef<string | null>(null);
+  // Each funding attempt's number: a newer attempt stops an older one's wait.
+  const fundingRun = useRef(0);
   const [accountFunding, setAccountFunding] = useState<AccountFundingState>({
     phase: "idle",
   });
@@ -571,7 +579,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       // A URL the CSP blocks would only fail as an opaque network error; keep
       // the current Guardian and say why instead.
       const blocked = guardianUrlProblem(url, {
-        configured: GUARDIAN_ENDPOINT,
+        guardians: GUARDIAN_ENDPOINTS,
         extra: process.env.NEXT_PUBLIC_CSP_CONNECT_SRC ?? "",
         self: window.location.origin,
       });
@@ -678,6 +686,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     try {
       // A local store left by an older SDK (e.g. a previous deployment on this
       // domain) can stop the client from starting: reset it once and retry.
+      assertConfigured(CONFIG_ERRORS);
       const client = await startWithStoreReset(
         () => createMidenClient(),
         () => deleteDatabase(MIDEN_DB_NAME),
@@ -718,7 +727,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requestAccountFunding = useCallback(
-    async (targetMultisig?: Multisig): Promise<void> => {
+    async (targetMultisig?: Multisig, { waitInBackground = false } = {}): Promise<boolean> => {
       const account = targetMultisig ?? multisig;
       // The latest client: this may run from a click made during start-up.
       const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
@@ -727,43 +736,50 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
 
       fundingAccountId.current = account.accountId;
-      // Checked after every await: the user may have switched account meanwhile.
+      const run = ++fundingRun.current;
+      // Checked after every await: the user may have switched account, or a
+      // newer attempt (Retry funding) may have taken over, meanwhile.
       const stillCurrent = () =>
+        fundingRun.current === run &&
         fundingAccountId.current === account.accountId &&
         multisigRef.current?.accountId === account.accountId;
       setAccountFunding({ phase: "registering" });
       try {
-        await registerAccountOnNode(liveClient, account.accountId);
-        if (!stillCurrent()) return;
-        // Only devnet sends a funding note on registration; elsewhere the account
-        // is funded like any other (e.g. from the network's faucet).
-        if (MIDEN_NETWORK !== "devnet") {
-          setAccountFunding({ phase: "idle" });
-          return;
-        }
-
-        setAccountFunding({ phase: "waiting-for-note" });
-        for (let attempt = 0; attempt < 8; attempt += 1) {
-          await liveClient.sync();
-          const notes = await account.getConsumableNotes();
-          if (!stillCurrent()) return;
-          setConsumableNotes(notes);
+        await registerAccountOnNode(liveClient, account.accountId, invitationCodes.current.get(account.accountId));
+        if (!stillCurrent()) return false;
+        // Registration funds a new account (devnet and testnet); the funding
+        // note can take a few minutes to arrive on testnet. Wait for it in the
+        // background when asked, so account creation is not held up. The wait
+        // is bounded (fundingWait.ts); the SDK queues these syncs with the
+        // user's own calls, so polling cannot overlap them.
+        const waitForNote = async () => {
+          setAccountFunding({ phase: "waiting-for-note" });
           const feeFaucet = await liveClient.feeFaucetId();
           const feeFaucetHex = feeFaucet.toString().toLowerCase();
           feeFaucet.free();
-          if (notes.some(note => note.assets.some(asset =>
-            asset.faucetId.toLowerCase() === feeFaucetHex && asset.amount > 0n))) {
-            setAccountFunding({ phase: "funding-available" });
-            return;
-          }
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-        }
-
-        throw new Error(
-          "Registration completed, but the funding note has not appeared yet. Sync and retry funding shortly.",
-        );
+          const outcome = await waitForFundingNote({
+            isCurrent: stillCurrent,
+            check: async () => {
+              await liveClient.sync();
+              const notes = await account.getConsumableNotes();
+              if (!stillCurrent()) return false;
+              setConsumableNotes(notes);
+              return notes.some(note => note.assets.some(asset =>
+                asset.faucetId.toLowerCase() === feeFaucetHex && asset.amount > 0n));
+            },
+          });
+          if (outcome !== "found" || !stillCurrent()) return false;
+          setAccountFunding({ phase: "funding-available" });
+          return true;
+        };
+        if (!waitInBackground) return await waitForNote();
+        void waitForNote().catch((waitError) => {
+          if (!stillCurrent()) return;
+          setAccountFunding({ phase: "error", message: formatError(waitError, "Account funding failed") });
+        });
+        return false;
       } catch (fundingError) {
-        if (!stillCurrent()) return;
+        if (!stillCurrent()) return false;
         const message = formatError(fundingError, "Account funding failed");
         setAccountFunding({ phase: "error", message });
         throw fundingError;
@@ -774,8 +790,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   const retryAccountFunding = useCallback(async () => {
     try {
-      await requestAccountFunding();
-      toast.success("Funding note is ready to receive");
+      // False when superseded (e.g. the user switched account meanwhile).
+      if (await requestAccountFunding()) toast.success("Funding note is ready to receive");
     } catch (fundingError) {
       toast.error(formatError(fundingError, "Account funding failed"));
     }
@@ -787,7 +803,13 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       threshold: number,
       procedureThresholds?: ProcedureThreshold[],
       signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon",
+      options?: { invitationCode?: string },
     ) => {
+      if (invitationCodeRequired(MIDEN_NETWORK) && !options?.invitationCode?.trim()) {
+        const msg = "Enter the invitation code to register the account on this network.";
+        setError(msg);
+        throw new Error(msg);
+      }
       if (!guardianUrl.trim()) {
         const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network.";
         setError(msg);
@@ -850,6 +872,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         );
         if (walletSource === "ledger" && clientSigner !== latestLedgerSigner.current) throw new Error("Ledger session changed; load the account again.");
         setMultisig(ms);
+        if (options?.invitationCode?.trim()) invitationCodes.current.set(ms.accountId, options.invitationCode.trim());
 
         // Persist account ID so middleware allows dashboard access
         if (ms.accountId) {
@@ -869,7 +892,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           if (midenClient && ms.accountId) {
             await watchAccountNotes(midenClient, ms.accountId);
             try {
-              await requestAccountFunding(ms);
+              await requestAccountFunding(ms, { waitInBackground: true });
             } catch {
               // Keep the newly-created account available so funding can be retried.
             }
@@ -1023,6 +1046,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
     const savedId = localStorage.getItem("currentWalletId");
     if (!savedId) return;
+    // Just created or loaded in this session: reloading would replace the
+    // account (and cancel work bound to it, such as the funding wait).
+    if (multisigRef.current?.accountId.toLowerCase() === savedId.toLowerCase()) {
+      autoLoadAttemptedRef.current = true;
+      return;
+    }
 
     const savedSource = localStorage.getItem(
       "currentWalletSource",
@@ -1109,7 +1138,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         register: () => multisig.registerOnGuardian(),
         sessionUnchanged: () => walletSource !== "ledger" || signerAtStart === latestLedgerSigner.current,
         registerNoteTag: () => registerAccountNoteTag(midenClient, multisig.accountId),
-        requestFunding: () => requestAccountFunding(multisig),
+        requestFunding: async () => { await requestAccountFunding(multisig); },
         sync: handleSync,
       });
       if (result.registered) setGuardianRegistrationRequired(false);

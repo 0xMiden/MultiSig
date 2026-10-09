@@ -1,6 +1,7 @@
 'use client';
 
-import { LOCAL_KEYS_ENABLED } from '@/config/psm';
+import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED } from '@/config/psm';
+import { GuardianChoices } from '@/components/GuardianChoices';
 import React, { useState, useEffect, useRef } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { copyToClipboard, truncateHex } from '@/lib/helpers';
@@ -277,10 +278,11 @@ export function AppHeader() {
                 <input
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
-                  placeholder="https://guardian-stg.openzeppelin.com"
+                  placeholder={GUARDIAN_ENDPOINT || "https://guardian.example.com"}
                   className="w-full px-2 py-1.5 border border-[#00000019] rounded-sm text-[11px] focus:outline-hidden focus:border-[#FF5500]"
                 />
               </div>
+              <GuardianChoices current={urlInput} onPick={setUrlInput} />
               {guardianError && <p role="alert" className="text-[10px] text-red-700 mb-2 wrap-break-word">{guardianError}</p>}
               <button
                 onClick={() => void handleGuardianSave()}

@@ -30,8 +30,9 @@ Edit `.env.local` before starting the app:
 
 ```dotenv
 NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://your-guardian.example
-NEXT_PUBLIC_MIDEN_RPC_URL=devnet
-NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
+NEXT_PUBLIC_MIDEN_NETWORK=testnet
+NEXT_PUBLIC_MIDEN_RPC_URL=https://rpc.testnet.miden.io
+NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=https://transport.miden.io
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 ```
 
@@ -276,13 +277,16 @@ make docker-stop-frontend
 
 ### Frontend Environment Variables
 
-The frontend is configured via `NEXT_PUBLIC_*` environment variables, set at build time. Docker Compose passes them as build arguments from `bin/coordinator-frontend/.env.local`. Rebuild the image after changing them.
+The frontend is configured via `NEXT_PUBLIC_*` environment variables, set at build time. Docker Compose passes them as build arguments from `bin/coordinator-frontend/.env.local`. Rebuild the image after changing them. There are no built-in network endpoints: RPC and note transport must be full `http(s)` URLs, and a missing or invalid value stops the app at start-up.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Guardian service URL for proposal coordination | _(required)_ |
-| `NEXT_PUBLIC_MIDEN_RPC_URL` | Miden node RPC URL or SDK network shorthand | `devnet` |
-| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Note transport URL or SDK network shorthand | `devnet` |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINTS` | Other Guardians users may switch to at runtime (full URLs, comma-separated); the only other Guardians the app can reach | _(empty)_ |
+| `NEXT_PUBLIC_MIDEN_NETWORK` | Network name: `devnet`, `testnet`, `mainnet`, `local` or `custom` | _(required)_ |
+| `NEXT_PUBLIC_MIDEN_RPC_URL` | Full Miden node RPC URL, e.g. `https://rpc.testnet.miden.io` | _(required)_ |
+| `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Full note transport URL, e.g. `https://transport.miden.io` | _(required)_ |
+| `NEXT_PUBLIC_MIDEN_PROVER_URL` | Full remote prover URL, or `local` to prove in the browser | `local` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | [Para](https://getpara.com) wallet API key (enables Para wallet support) | _(empty — Para disabled)_ |
 | `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
@@ -321,8 +325,9 @@ Create a `.env.local` file for local development:
 
 ```bash
 NEXT_PUBLIC_GUARDIAN_ENDPOINT=https://your-guardian.example
-NEXT_PUBLIC_MIDEN_RPC_URL=devnet
-NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=devnet
+NEXT_PUBLIC_MIDEN_NETWORK=testnet
+NEXT_PUBLIC_MIDEN_RPC_URL=https://rpc.testnet.miden.io
+NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL=https://transport.miden.io
 NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 NEXT_PUBLIC_PARA_API_KEY=<your-para-api-key>
 NEXT_PUBLIC_PARA_ENVIRONMENT=development

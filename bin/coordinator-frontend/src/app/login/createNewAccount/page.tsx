@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useWalletForm } from "../../../hooks/useWalletForm";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { toast } from "sonner";
+import { MIDEN_NETWORK, MIDEN_REGISTRATION_CODE } from "@/config/psm";
+import { defaultInvitationCode, invitationCodeRequired } from "@/lib/midenNetwork";
 
 // Force dynamic rendering to avoid WASM loading issues during build
 export const dynamic = 'force-dynamic';
@@ -24,6 +26,11 @@ const CreateNewAccount = () => {
   } = useWalletForm();
 
   const [isCreating, setIsCreating] = useState(false);
+  // Node-registration invitation code, pre-filled with the network default and
+  // editable; required where the network has no default (mainnet). Never stored
+  // with the form data.
+  const invitationRequired = invitationCodeRequired(MIDEN_NETWORK);
+  const [invitationCode, setInvitationCode] = useState(() => defaultInvitationCode(MIDEN_NETWORK, MIDEN_REGISTRATION_CODE));
   const [creationError, setCreationError] = useState<string | null>(null);
   const [thresholdError, setThresholdError] = useState<string | null>(null);
 
@@ -203,7 +210,7 @@ const CreateNewAccount = () => {
         .filter((k: string) => k.trim() !== '');
       const threshold = parseInt(formData.signatureThreshold, 10);
 
-      await handleCreate(otherCommitments, threshold, undefined, activeScheme);
+      await handleCreate(otherCommitments, threshold, undefined, activeScheme, { invitationCode });
 
       toast.success("Multisig account created successfully!");
       router.push("/dashboard/home");
@@ -419,6 +426,27 @@ const CreateNewAccount = () => {
                     disabled
                     className="bg-[rgba(245,245,245,1)] w-full lg:h-[56px] md:h-[52px] sm:h-[48px] px-3 h-[40px] rounded-[6px] text-[rgba(0,0,0,0.48)] font-[400] text-[13px] cursor-not-allowed"
                   />
+                </div>
+
+                <div className="w-full flex flex-col lg:space-y-2 md:space-y-1.5 sm:space-y-1 space-y-0.5">
+                  <label htmlFor="invitation-code" className="lg:text-[14px] md:text-[13px] sm:text-[12px] text-[12px] font-[500] text-[#111]">
+                    Invitation Code
+                  </label>
+                  <input
+                    id="invitation-code"
+                    type="text"
+                    autoComplete="off"
+                    spellCheck={false}
+                    value={invitationCode}
+                    onChange={(e) => setInvitationCode(e.target.value)}
+                    placeholder={invitationRequired ? "Enter your invitation code" : "Invitation code"}
+                    className="w-full lg:h-[56px] md:h-[52px] sm:h-[48px] px-3 h-[40px] rounded-[6px] border border-[rgba(0,0,0,0.12)] text-[13px] focus:outline-hidden focus:border-[#FF5500]"
+                  />
+                  <span className="text-[11px] text-[rgba(0,0,0,0.5)]">
+                    {invitationRequired
+                      ? "Required to register the account on this network."
+                      : "Used to register the account on the network. Pre-filled for this network; change it if you were given one."}
+                  </span>
                 </div>
               </motion.div>
             )}
@@ -807,7 +835,8 @@ const CreateNewAccount = () => {
                   (!formData.walletName ||
                     !formData.signatureThreshold ||
                     !formData.totalSigners ||
-                    thresholdError !== null)) ||
+                    thresholdError !== null ||
+                    (invitationRequired && !invitationCode.trim()))) ||
                 (currentStep === 2 &&
                   (Number.isNaN(totalSignersNum) ||
                     filledSignersCount < totalSignersNum ||

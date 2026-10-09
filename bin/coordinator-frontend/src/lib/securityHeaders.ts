@@ -5,7 +5,8 @@
 export interface CspConfig {
   nonce: string;
   dev: boolean;
-  guardianEndpoint: string;
+  /** The default Guardian and every other one a user may switch to (NEXT_PUBLIC_GUARDIAN_ENDPOINTS). */
+  guardianEndpoints: readonly string[];
   midenRpcUrl: string;
   noteTransportUrl: string;
   proverUrl: string;
@@ -15,11 +16,6 @@ export interface CspConfig {
   /** Extra connect-src origins, space- or comma-separated (NEXT_PUBLIC_CSP_CONNECT_SRC). */
   extraConnectSrc: string;
 }
-
-// Miden SDK shorthands (`devnet`, `testnet`) resolve to *.miden.io services.
-const MIDEN_SERVICES = 'https://*.miden.io';
-// Guardian deployments run by OpenZeppelin; the Guardian URL can be changed at runtime.
-export const OPENZEPPELIN_GUARDIANS = 'https://*.openzeppelin.com';
 
 /** Origin of an absolute http(s) URL, or null for shorthands and invalid input. */
 export function originOf(value: string | undefined): string | null {
@@ -46,9 +42,8 @@ export function buildContentSecurityPolicy(config: CspConfig): string {
     : ['http://localhost:8080', 'http://localhost:3003', 'ws://localhost:3000'];
   const connectSrc = new Set<string>([
     "'self'",
-    MIDEN_SERVICES,
-    OPENZEPPELIN_GUARDIANS,
-    ...[config.guardianEndpoint, config.midenRpcUrl, config.noteTransportUrl, config.proverUrl, config.chatEndpoint]
+    // Only the configured services: no wildcard for Miden or Guardian hosts.
+    ...[...config.guardianEndpoints, config.midenRpcUrl, config.noteTransportUrl, config.proverUrl, config.chatEndpoint]
       .map(originOf)
       .filter((origin): origin is string => origin !== null),
     ...para,
