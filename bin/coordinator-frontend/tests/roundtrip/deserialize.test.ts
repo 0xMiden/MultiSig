@@ -16,6 +16,9 @@ import {
   build_pause,
   build_rbac_grant,
   build_rbac_revoke,
+  build_rbac_set_admin,
+  build_rbac_renounce,
+  is_paused,
   build_set_attester,
   build_set_max_supply,
   build_set_min_burn,
@@ -121,6 +124,18 @@ describe('every admin note deserializes under @miden-sdk 0.17', () => {
     );
     expect(() => Note.deserialize(bytes)).not.toThrow();
   });
+
+  test('build_rbac_set_admin', () => {
+    const bytes = build_rbac_set_admin(FAUCET_HEX, SENDER_HEX, 'PAUSER', 'FEE_MNGR', nextSerial());
+    expect(() => Note.deserialize(bytes)).not.toThrow();
+    const reverted = build_rbac_set_admin(FAUCET_HEX, SENDER_HEX, 'PAUSER', undefined, nextSerial());
+    expect(() => Note.deserialize(reverted)).not.toThrow();
+  });
+
+  test('build_rbac_renounce', () => {
+    const bytes = build_rbac_renounce(FAUCET_HEX, SENDER_HEX, 'PAUSER', nextSerial());
+    expect(() => Note.deserialize(bytes)).not.toThrow();
+  });
 });
 
 // Export-survival smoke check (Task 2 of the usdcx-admin-console-frontend plan): `rbac_role_members`
@@ -138,4 +153,8 @@ test('current-value readers survive vendoring', () => {
   expect(typeof current_min_burn).toBe('function');
   expect(typeof current_max_supply).toBe('function');
   expect(typeof note_fee).toBe('function');
+});
+
+test('is_paused survives vendoring', () => {
+  expect(typeof is_paused).toBe('function');
 });

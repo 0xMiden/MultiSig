@@ -38,9 +38,19 @@ export function build_pause(faucet_hex: string, sender_hex: string, unpause: boo
 export function build_rbac_grant(faucet_hex: string, sender_hex: string, role: string, account_hex: string, serial: Uint8Array): Uint8Array;
 
 /**
+ * Build an RBAC renounce note (the sender gives up `role`).
+ */
+export function build_rbac_renounce(target_hex: string, sender_hex: string, role: string, serial: Uint8Array): Uint8Array;
+
+/**
  * Build an RBAC revoke note.
  */
 export function build_rbac_revoke(faucet_hex: string, sender_hex: string, role: string, account_hex: string, serial: Uint8Array): Uint8Array;
+
+/**
+ * Build an RBAC set-role-admin note. `admin_role = None` reverts the role to `ADMIN` management.
+ */
+export function build_rbac_set_admin(target_hex: string, sender_hex: string, role: string, admin_role: string | null | undefined, serial: Uint8Array): Uint8Array;
 
 /**
  * Build a `set_attester` note (faucet-owned). `commitment` is serialized `Word` bytes.
@@ -86,6 +96,11 @@ export function current_token_supply(faucet_account: Uint8Array): bigint;
 export function enabled_attesters(faucet_account: Uint8Array): string[];
 
 /**
+ * Whether the contract (faucet or bridge) is paused, from its serialized `Account` bytes.
+ */
+export function is_paused(account: Uint8Array): boolean;
+
+/**
  * The current fee (base units) scheduled for `note_script_root`, or `undefined` when no explicit
  * fee is set for that script. Script root crosses as serialized `NoteScriptRoot` bytes.
  */
@@ -119,7 +134,9 @@ export interface InitOutput {
   readonly build_blocklist: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
   readonly build_pause: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
   readonly build_rbac_grant: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+  readonly build_rbac_renounce: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
   readonly build_rbac_revoke: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+  readonly build_rbac_set_admin: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
   readonly build_set_attester: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number, number];
   readonly build_set_max_supply: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
   readonly build_set_min_burn: (a: number, b: number, c: number, d: number, e: bigint, f: number, g: number) => [number, number, number, number];
@@ -128,6 +145,7 @@ export interface InitOutput {
   readonly current_min_burn: (a: number, b: number) => [bigint, number, number];
   readonly current_token_supply: (a: number, b: number) => [bigint, number, number];
   readonly enabled_attesters: (a: number, b: number) => [number, number, number, number];
+  readonly is_paused: (a: number, b: number) => [number, number, number];
   readonly note_fee: (a: number, b: number, c: number, d: number) => [number, bigint, number, number];
   readonly note_id_from_header: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
   readonly rbac_role_members: (a: number, b: number, c: number, d: number) => [number, number, number, number];

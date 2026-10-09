@@ -45,6 +45,10 @@ function getUint8ArrayMemory0() {
     return cachedUint8ArrayMemory0;
 }
 
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
 function passArray32ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 4, 4) >>> 0;
     getUint32ArrayMemory0().set(arg, ptr / 4);
@@ -265,6 +269,32 @@ export function build_rbac_grant(faucet_hex, sender_hex, role, account_hex, seri
 }
 
 /**
+ * Build an RBAC renounce note (the sender gives up `role`).
+ * @param {string} target_hex
+ * @param {string} sender_hex
+ * @param {string} role
+ * @param {Uint8Array} serial
+ * @returns {Uint8Array}
+ */
+export function build_rbac_renounce(target_hex, sender_hex, role, serial) {
+    const ptr0 = passStringToWasm0(target_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(sender_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(role, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passArray8ToWasm0(serial, wasm.__wbindgen_malloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.build_rbac_renounce(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v5 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v5;
+}
+
+/**
  * Build an RBAC revoke note.
  * @param {string} faucet_hex
  * @param {string} sender_hex
@@ -285,6 +315,35 @@ export function build_rbac_revoke(faucet_hex, sender_hex, role, account_hex, ser
     const ptr4 = passArray8ToWasm0(serial, wasm.__wbindgen_malloc);
     const len4 = WASM_VECTOR_LEN;
     const ret = wasm.build_rbac_revoke(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v6 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v6;
+}
+
+/**
+ * Build an RBAC set-role-admin note. `admin_role = None` reverts the role to `ADMIN` management.
+ * @param {string} target_hex
+ * @param {string} sender_hex
+ * @param {string} role
+ * @param {string | null | undefined} admin_role
+ * @param {Uint8Array} serial
+ * @returns {Uint8Array}
+ */
+export function build_rbac_set_admin(target_hex, sender_hex, role, admin_role, serial) {
+    const ptr0 = passStringToWasm0(target_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(sender_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(role, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    var ptr3 = isLikeNone(admin_role) ? 0 : passStringToWasm0(admin_role, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len3 = WASM_VECTOR_LEN;
+    const ptr4 = passArray8ToWasm0(serial, wasm.__wbindgen_malloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ret = wasm.build_rbac_set_admin(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
@@ -461,6 +520,21 @@ export function enabled_attesters(faucet_account) {
     var v2 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
     return v2;
+}
+
+/**
+ * Whether the contract (faucet or bridge) is paused, from its serialized `Account` bytes.
+ * @param {Uint8Array} account
+ * @returns {boolean}
+ */
+export function is_paused(account) {
+    const ptr0 = passArray8ToWasm0(account, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.is_paused(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return ret[0] !== 0;
 }
 
 /**
