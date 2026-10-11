@@ -1,5 +1,6 @@
 "use client";
 import { LOCAL_KEYS_ENABLED } from "@/config/psm";
+import { GuardianChoices } from "@/components/GuardianChoices";
 import React, { useState, useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { truncateHex, copyToClipboard } from "@/lib/helpers";
@@ -181,6 +182,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   onChange={(e) => setGuardianUrlDraft(e.target.value)}
                   className="w-full text-[11px] border border-gray-200 rounded-sm px-2 py-1 mb-2 focus:outline-hidden focus:ring-1 focus:ring-[#FF5500]"
                 />
+                <GuardianChoices current={guardianUrlDraft} onPick={setGuardianUrlDraft} />
                 {guardianEditorError && (
                   <p role="alert" className="text-[10px] text-red-600 mb-2 wrap-break-word">{guardianEditorError}</p>
                 )}

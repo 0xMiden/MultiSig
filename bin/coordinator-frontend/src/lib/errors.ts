@@ -47,6 +47,11 @@ export function describeExecutionError(err: unknown, prefix: string): string {
   if (lower.includes('failed to submit proven transaction')) {
     return `${prefix}: the Miden node rejected the transaction. Sync and try again.`;
   }
+  // Before the network check: "failed to fetch account snapshot" is a local
+  // IndexedDB failure, not a network one.
+  if (lower.includes('database-related') || lower.includes('prematurecommiterror')) {
+    return `${prefix}: this browser's local Miden data could not be read. Reload the page and try again.`;
+  }
   if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
     return `${prefix}: could not reach the network. Check your connection and try again.`;
   }

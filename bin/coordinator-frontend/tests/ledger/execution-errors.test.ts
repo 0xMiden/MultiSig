@@ -18,6 +18,17 @@ describe('describeExecutionError', () => {
     );
   });
 
+  it('reports a local database failure as such, not as a network problem', () => {
+    quiet();
+    const store = new Error('failed to execute transaction: storage error: database-related non-query error: failed to fetch account snapshot: JsValue(Object({"name":"PrematureCommitError","message":"Transaction committed too early. See http://bit.ly/2kdckMn","inner":null}))');
+    expect(describeExecutionError(store, 'Failed to create the receive proposal')).toBe(
+      "Failed to create the receive proposal: this browser's local Miden data could not be read. Reload the page and try again.",
+    );
+    expect(describeExecutionError(new TypeError('Failed to fetch'), 'Execute failed')).toBe(
+      'Execute failed: could not reach the network. Check your connection and try again.',
+    );
+  });
+
   it("uses Guardian's user-safe message rather than raw bodies", () => {
     quiet();
     const err = new GuardianHttpError(403, 'Forbidden', JSON.stringify({ code: 'signer_not_authorized', message: 'This signer cannot act on the account', meta: { retryable: false } }));

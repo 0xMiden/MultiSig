@@ -38,6 +38,7 @@ const AccountStatusBanner = () => {
     handleLoad,
     undeliveredNotes,
     retryPrivateDeliveries,
+    privateNoteGuard,
   } = useMultisig();
 
   const fundingBusy = accountFunding.phase === "registering" || accountFunding.phase === "waiting-for-note";
@@ -50,8 +51,11 @@ const AccountStatusBanner = () => {
   // An executed private send whose note has not reached the recipient yet:
   // the funds are committed, so delivery must not be forgotten.
   const undelivered = undeliveredNotes ?? [];
+  // No operation runs until earlier private notes have reached their recipients.
+  const notesBlocked = privateNoteGuard?.phase === "blocked";
+  const notesChecking = privateNoteGuard?.phase === "checking";
 
-  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && accountFunding.phase === "idle") return null;
+  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && !notesBlocked && !notesChecking && accountFunding.phase === "idle") return null;
 
   const retry = () => {
     const operation = guardianRegistrationRequired ? retryGuardianRegistration : handleSync;
@@ -62,12 +66,25 @@ const AccountStatusBanner = () => {
 
   return (
     <div className="w-full flex flex-col gap-2 mb-4">
-      {undelivered.length > 0 && (
+      {notesChecking && (
+        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <span className="text-[12px] font-[500] text-amber-800">
+            Checking that earlier private notes reached their recipients…
+          </span>
+        </div>
+      )}
+
+      {(undelivered.length > 0 || notesBlocked) && (
         <div role="alert" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-amber-800">
-              Private note not delivered yet
+              {notesBlocked ? "Account locked until a private note reaches its recipient" : "Private note not delivered yet"}
             </span>
+            {notesBlocked && undelivered.length === 0 && (
+              <span className="text-[12px] text-amber-700 wrap-break-word">
+                {privateNoteGuard.error} No operation is allowed until it is delivered, so the recipient&apos;s funds cannot be lost.
+              </span>
+            )}
             {undelivered.map((note) => (
               <span key={note.proposalId} className="text-[12px] text-amber-700 wrap-break-word">
                 Transfer to {note.recipientId.slice(0, 10)}…: {note.error} The recipient cannot use the funds until it is delivered.
@@ -96,13 +113,13 @@ const AccountStatusBanner = () => {
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-[#C2410C]">
               {accountFunding.phase === "registering" && "Registering account on the network"}
-              {accountFunding.phase === "waiting-for-note" && "Waiting for devnet funding"}
+              {accountFunding.phase === "waiting-for-note" && "Waiting for funding"}
               {accountFunding.phase === "funding-available" && "Funding note ready"}
               {accountFunding.phase === "error" && "Account funding needs attention"}
             </span>
             <span className="text-[12px] font-[400] text-[#9A3412] wrap-break-word">
               {accountFunding.phase === "registering" && "The node is registering this account and preparing its initial funding note."}
-              {accountFunding.phase === "waiting-for-note" && "The account is registered. Waiting for its funding note to appear in Receive Funds."}
+              {accountFunding.phase === "waiting-for-note" && "The account is registered. Its funding note can take a few minutes to arrive; it will appear in Receive Funds."}
               {accountFunding.phase === "funding-available" && "Open Receive Funds, create a proposal for this note, then collect signatures to deploy and fund the account."}
               {accountFunding.phase === "error" && accountFunding.message}
             </span>

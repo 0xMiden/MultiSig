@@ -1,8 +1,8 @@
-import { extraOrigins, OPENZEPPELIN_GUARDIANS, originOf } from '@/lib/securityHeaders';
+import { extraOrigins, originOf } from '@/lib/securityHeaders';
 
 export interface GuardianUrlPolicy {
-  /** The Guardian endpoint the app was built with (NEXT_PUBLIC_GUARDIAN_ENDPOINT). */
-  configured: string;
+  /** The default Guardian plus NEXT_PUBLIC_GUARDIAN_ENDPOINTS. */
+  guardians: readonly string[];
   /** NEXT_PUBLIC_CSP_CONNECT_SRC. */
   extra: string;
   /** The app's own origin ('self'). */
@@ -20,14 +20,10 @@ export function guardianUrlProblem(value: string, policy: GuardianUrlPolicy): st
   const origin = originOf(value);
   if (!origin) return 'Enter a full http(s) URL, e.g. https://guardian.example.com.';
 
-  const allowed = new Set([policy.self, originOf(policy.configured), ...extraOrigins(policy.extra)]);
+  const guardians = policy.guardians.map(originOf).filter((o): o is string => o !== null);
+  const allowed = new Set([policy.self, ...guardians, ...extraOrigins(policy.extra)]);
   if (allowed.has(origin)) return null;
-  const url = new URL(origin);
-  // `https://*.openzeppelin.com`: any subdomain, https, default port.
-  const suffix = OPENZEPPELIN_GUARDIANS.slice('https://*'.length);
-  if (url.protocol === 'https:' && url.port === '' && url.hostname.endsWith(suffix)) return null;
 
-  const listed = [originOf(policy.configured), OPENZEPPELIN_GUARDIANS, ...extraOrigins(policy.extra)].filter(Boolean);
-  return `This app's security policy only lets it connect to Guardians at ${listed.join(', ')}. ` +
-    `To use ${origin}, add it to NEXT_PUBLIC_CSP_CONNECT_SRC and redeploy.`;
+  return `This app can only connect to the Guardians it was deployed with: ${guardians.join(', ') || 'none'}. ` +
+    `To use ${origin}, add it to NEXT_PUBLIC_GUARDIAN_ENDPOINTS and redeploy.`;
 }

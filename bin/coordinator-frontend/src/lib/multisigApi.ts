@@ -13,10 +13,11 @@ import {
   MidenWalletSigner,
   type SignatureScheme,
 } from '@openzeppelin/miden-multisig-client';
-import type { Signer } from '@openzeppelin/guardian-client';
+import type { GuardianHttpClient, Signer } from '@openzeppelin/guardian-client';
 import {
   AccountId,
   Endpoint,
+  NoteScript,
   NoteTag,
   NoteType,
   RpcClient,
@@ -29,10 +30,11 @@ import {
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
-import { LOCAL_KEYS_ENABLED, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { LOCAL_KEYS_ENABLED, MIDEN_NETWORK, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
 import { base64ToBytes } from './base64';
 import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
-import { registerDevnetAccount } from './devnetRegistration';
+import { registerNodeAccount } from './nodeRegistration';
+import { registrationInvitationCode } from './midenNetwork';
 import { configureProverWorkflow } from './proverFallback';
 import { markExecutionPushed } from './pendingCandidate';
 import { retryProposalSubmission } from './proposalSubmission';
@@ -41,37 +43,42 @@ import { toast } from 'sonner';
 const registrationRequests = new Map<string, Promise<void>>();
 
 /**
- * Devnet funding requires the direct RPC: the high-level SDK short-circuits
- * when the network allows every account, without requesting a funding note.
+ * Registers a new account with the Miden node, on every network. The direct
+ * RPC (nodeRegistration.ts) is used because the SDK's own path skips the call
+ * when the node already allows the account. Registration funds a new account
+ * (devnet and testnet). The invitation code is the one the creator confirmed on
+ * the create page, else the network default (see defaultInvitationCode).
  */
 export function registerAccountOnNode(
   midenClient: MidenClient,
   accountId: string,
-  invitationCode = MIDEN_REGISTRATION_CODE,
+  userInvitationCode?: string,
 ): Promise<void> {
   const key = `${MIDEN_RPC_URL}:${accountId.toLowerCase()}`;
   const existing = registrationRequests.get(key);
   if (existing) return existing;
 
+  let code: string;
+  try {
+    code = registrationInvitationCode(MIDEN_NETWORK, MIDEN_REGISTRATION_CODE, userInvitationCode);
+  } catch (error) {
+    return Promise.reject(error);
+  }
   const request = (async () => {
-    const devnet = /^https:\/\/rpc\.devnet\.miden\.io(?::443)?\/?$/.test(MIDEN_RPC_URL);
-    diagnosticLog('registration.START', { accountId, mode: devnet ? 'devnet-direct-rpc' : 'sdk' });
+    diagnosticLog('registration.START', { accountId, network: MIDEN_NETWORK, withInvitation: Boolean(code) });
     try {
-      if (devnet) {
-        await registerDevnetAccount(accountId, invitationCode, (identity) => {
-          diagnosticLog('registration.NETWORK_IDENTITY', { accountId, ...identity });
-        });
-      } else if (!(await midenClient.accounts.isAllowed(accountId))) {
-        await midenClient.accounts.register({ account: accountId, invitationCode });
-      }
+      await registerNodeAccount(MIDEN_RPC_URL, accountId, code, (identity) => {
+        diagnosticLog('registration.NETWORK_IDENTITY', { accountId, ...identity });
+      });
       diagnosticLog('registration.OK', { accountId });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const duplicate = /\bALREADY_REGISTERED\b|\balready registered\b/i.test(message);
       const allowed = /\bACCOUNT_ALREADY_ALLOWED\b|\balready allowed on the network\b/i.test(message);
-      // Confirm the node accepts this account; never swallow unrelated failures.
-      if ((duplicate || (!devnet && allowed)) && await midenClient.accounts.isAllowed(accountId)) {
-        diagnosticLog('registration.ALREADY_ALLOWED', { accountId, fundingConfirmed: false });
+      // Already registered is fine once the node confirms it accepts the
+      // account; never swallow unrelated failures.
+      if ((duplicate || allowed) && await midenClient.accounts.isAllowed(accountId)) {
+        diagnosticLog('registration.ALREADY_ALLOWED', { accountId });
         return;
       }
       diagnosticLog('registration.FAIL', { accountId, error: diagnosticError(error) });
@@ -167,9 +174,61 @@ export async function fetchNoteInclusionProof(
 }
 
 /**
- * Inclusion-proof lookups over one RPC connection, for a delivery round:
- * fetched notes are freed right after reading the proof. `free()` releases
- * the connection.
+ * The recipient account of a P2ID note, read from the note's storage (the
+ * target account's suffix, then prefix); undefined for any other note script.
+ */
+export function p2idRecipient(note: Note): string | undefined {
+  const recipient = note.recipient();
+  if (recipient.script().root().toHex() !== NoteScript.p2id().root().toHex()) return undefined;
+  const [suffix, prefix] = recipient.storage().items().map((felt) => felt.asInt().toString(16).padStart(16, '0'));
+  if (!suffix || !prefix) return undefined;
+  // The suffix felt carries the ID's last 7 bytes followed by a zero byte.
+  return `0x${prefix}${suffix.slice(0, 14)}`;
+}
+
+/**
+ * The Guardian client a Multisig signs its requests with. The class keeps it
+ * private and exposes only `deltaHistory`; `MultisigClient.guardianClient` is
+ * not a substitute: the app replaces it on a Guardian reconnect, and it has no
+ * signer after an auto-load ("No signer configured").
+ */
+function multisigGuardian(multisig: Multisig): Pick<GuardianHttpClient, 'getDelta'> {
+  return (multisig as unknown as { guardian: GuardianHttpClient }).guardian;
+}
+
+export interface LatestPrivateNote {
+  id: string;
+  recipientId: string | undefined;
+  note: Note;
+}
+
+/**
+ * The private notes of the account's latest canonical transaction, rebuilt
+ * from the transaction summary Guardian keeps with the delta. Guardian
+ * acknowledges every execution before it reaches the chain, so any signer can
+ * read these notes from any device.
+ */
+export async function latestCanonicalPrivateNotes(
+  multisig: Multisig,
+  guardian: Pick<GuardianHttpClient, 'getDelta'> = multisigGuardian(multisig),
+): Promise<LatestPrivateNote[]> {
+  const { entries } = await multisig.deltaHistory({ limit: 1 });
+  const latest = entries[0];
+  if (!latest) return [];
+  const delta = await guardian.getDelta(multisig.accountId, latest.nonce);
+  const txSummary = (delta.deltaPayload as { txSummary?: { data?: unknown } } | undefined)?.txSummary?.data;
+  if (typeof txSummary !== 'string') return [];
+  return getOutputNotesFromTxSummary(txSummary).map((note) => ({
+    id: note.id().toString(),
+    recipientId: p2idRecipient(note),
+    note,
+  }));
+}
+
+/**
+ * Node-side checks for private notes, over one RPC connection: where a note
+ * was committed, whether it has been consumed, and its inclusion proof.
+ * `free()` releases the connection.
  */
 export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
   const rpc = new RpcClient(new Endpoint(rpcUrl));
@@ -181,7 +240,24 @@ export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
       for (const entry of fetched) entry.free();
     }
   };
-  return { fetchProofById, free: () => rpc.free() };
+  const fetchProof = (note: Note) => fetchProofById(note.id());
+  return {
+    fetchProof,
+    fetchProofById,
+    async committedAt(note: Note): Promise<number | undefined> {
+      const proof = await fetchProof(note);
+      if (!proof) return undefined;
+      try {
+        return proof.location().blockNum();
+      } finally {
+        proof.free();
+      }
+    },
+    async isConsumed(note: Note, fromBlock: number): Promise<boolean> {
+      return (await rpc.getNullifierCommitHeight(note.nullifier(), fromBlock)) !== undefined;
+    },
+    free: () => rpc.free(),
+  };
 }
 
 export async function registerAccountNoteTag(
