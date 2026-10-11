@@ -1,15 +1,19 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import { staticSecurityHeaders } from './security-headers.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// The installed Miden SDK version: the local store records which version wrote it.
+const midenSdkVersion = createRequire(import.meta.url)('@miden-sdk/miden-sdk/package.json').version;
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
   env: {
     // Expose VITE_PARA_API_KEY as NEXT_PUBLIC_PARA_API_KEY for browser access
     NEXT_PUBLIC_PARA_API_KEY: process.env.VITE_PARA_API_KEY || process.env.NEXT_PUBLIC_PARA_API_KEY || '',
+    NEXT_PUBLIC_MIDEN_SDK_VERSION: midenSdkVersion,
   },
   experimental: {},
   generateBuildId: async () => {

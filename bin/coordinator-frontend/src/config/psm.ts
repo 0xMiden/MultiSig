@@ -23,6 +23,8 @@ export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANS
 export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim() || 'local';
 export const MIDEN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE || 'guardian';
 export const MIDEN_DB_NAME = 'MidenClientDB';
+/** The Miden SDK this build runs (next.config.mjs); the local store records which version wrote it. */
+export const MIDEN_SDK_VERSION = process.env.NEXT_PUBLIC_MIDEN_SDK_VERSION || 'unknown';
 
 // "Local keys" keep a signing key in this browser's IndexedDB, unencrypted.
 // Development builds only: production signs with Ledger, Para or the Miden

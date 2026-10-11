@@ -30,6 +30,7 @@ import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
 import { LOCAL_KEYS_ENABLED, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { base64ToBytes } from './base64';
 import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
 import { registerDevnetAccount } from './devnetRegistration';
 import { configureProverWorkflow } from './proverFallback';
@@ -122,13 +123,6 @@ export function createSigner(
     : new FalconSigner(activeSigner.secretKey);
 }
 
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
 /**
  * Extracts the full output notes a proposal's transaction will create, by
  * deserializing its own `txSummary` — no Guardian call, no chain sync, no
@@ -170,6 +164,24 @@ export async function fetchNoteInclusionProof(
   } finally {
     rpc.free();
   }
+}
+
+/**
+ * Inclusion-proof lookups over one RPC connection, for a delivery round:
+ * fetched notes are freed right after reading the proof. `free()` releases
+ * the connection.
+ */
+export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
+  const rpc = new RpcClient(new Endpoint(rpcUrl));
+  const fetchProofById = async (noteId: NoteId): Promise<NoteInclusionProof | undefined> => {
+    const fetched = await rpc.getNotesById([noteId]);
+    try {
+      return fetched[0]?.inclusionProof;
+    } finally {
+      for (const entry of fetched) entry.free();
+    }
+  };
+  return { fetchProofById, free: () => rpc.free() };
 }
 
 export async function registerAccountNoteTag(

@@ -1,4 +1,5 @@
 import type { MidenClient, Note, NoteId, NoteInclusionProof } from '@miden-sdk/miden-sdk';
+import { base64ToBytes, bytesToBase64 } from './base64';
 
 /**
  * Private notes reach their recipient through the note transport, which only
@@ -57,13 +58,11 @@ export function removePendingDelivery(proposalId: string): void {
 }
 
 export function encodeNote(note: Note): string {
-  let binary = '';
-  for (const byte of note.serialize()) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return bytesToBase64(note.serialize());
 }
 
 export function decodeNote(encoded: string, deserialize: (bytes: Uint8Array) => Note): Note {
-  return deserialize(Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0)));
+  return deserialize(base64ToBytes(encoded));
 }
 
 export interface DeliveryOptions {

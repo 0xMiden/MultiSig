@@ -11,7 +11,24 @@ try {
 } catch (error) {
   report = error.stdout; // npm audit exits non-zero when it finds anything
 }
-const { vulnerabilities = {} } = JSON.parse(report);
+// A failed audit (registry unreachable, bad response) is not a clean one: its
+// JSON carries an error and no report, and must fail the gate.
+let parsed;
+try {
+  parsed = JSON.parse(report);
+} catch {
+  console.error(`npm audit returned no JSON report:\n${String(report).slice(0, 2000)}`);
+  process.exit(1);
+}
+// npm always reports `vulnerabilities`, as {} when there is nothing to report.
+const { vulnerabilities } = parsed;
+if (
+  parsed.error || parsed.message || !parsed.auditReportVersion || !parsed.metadata ||
+  typeof vulnerabilities !== 'object' || vulnerabilities === null
+) {
+  console.error(`npm audit did not run: ${parsed.error?.summary || parsed.message || 'no complete audit report in its output'}`);
+  process.exit(1);
+}
 
 // Advisories appear as objects in `via`; string entries just point at another package.
 const advisories = new Map();
