@@ -14,7 +14,13 @@ import { LedgerPanel } from './LedgerPanel';
 
 
 const queryClient = new QueryClient();
-const paraEnv = PARA_ENVIRONMENT === 'production' ? Environment.PROD : Environment.DEV;
+// development is Para's local stack (localhost); the rest are hosted by Para.
+const paraEnv = {
+  development: Environment.DEV,
+  sandbox: Environment.SANDBOX,
+  beta: Environment.BETA,
+  production: Environment.PROD,
+}[PARA_ENVIRONMENT];
 
 function LedgerPanelWrapper() {
   const { ledger } = useMultisig();

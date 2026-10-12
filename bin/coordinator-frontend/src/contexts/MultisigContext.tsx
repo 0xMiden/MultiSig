@@ -15,6 +15,7 @@ import {
   type Multisig,
   type MultisigClient,
   type AccountState,
+  type SyncStateResult,
   type DetectedMultisigConfig,
   type Proposal,
   type SignatureScheme,
@@ -24,7 +25,7 @@ import {
   isProposalActionable,
 } from "@openzeppelin/miden-multisig-client";
 import { GuardianHttpError } from "@openzeppelin/guardian-client";
-import { NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
+import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
 import { formatError, classifyWalletError, describeExecutionError } from "@/lib/errors";
@@ -41,11 +42,20 @@ import {
   loadPendingMultisigAccount,
   createSigner,
   registerAccountNoteTag,
-  relayProposalNotes,
+  getOutputNotesFromTxSummary,
   registerAccountOnNode,
+  noteChainChecks,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
-import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED } from "@/config/psm";
+import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK, MIDEN_SDK_VERSION } from "@/config/psm";
+import {
+  deriveStartupState,
+  holdStoreLock,
+  resetStoreExclusively,
+  startWithStoreCheck,
+  waitForClientParts,
+  type StartupState,
+} from "@/lib/clientStartup";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
@@ -53,6 +63,14 @@ import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { guardianUrlProblem } from "@/lib/guardianUrl";
 import { runRegistrationRetry } from "@/lib/registrationRetry";
+import {
+  decodeNote,
+  deliverCommittedNotes,
+  encodeNote,
+  pendingDeliveries,
+  recordPendingDelivery,
+  removePendingDelivery,
+} from "@/lib/privateDelivery";
 import { setWalletCookie } from "@/lib/walletCookie";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
@@ -114,6 +132,8 @@ async function fetchPrivateNotes(midenClient: MidenClient): Promise<void> {
     toast.warning(`Could not fetch private notes: ${formatError(err)}. Private deposits may be missing until the next sync.`, { id: "private-fetch" });
   }
 }
+
+export interface UndeliveredNote { proposalId: string; recipientId: string; error: string }
 
 export type GuardianConnectResult = { ok: true } | { ok: false; error: string };
 
@@ -218,6 +238,14 @@ export interface MultisigContextValue {
   handleImportProposal: (json: string) => Promise<void>;
   handleDisconnect: () => void;
   setWalletSource: (source: WalletSource) => void;
+  /** Private notes of executed sends not yet delivered to their recipient. */
+  undeliveredNotes: UndeliveredNote[];
+  /** Try again to deliver this account's undelivered private notes. */
+  retryPrivateDeliveries: () => Promise<void>;
+  /** Start-up of the in-browser Miden client (downloads and compiles the SDK). */
+  clientStartup: StartupState;
+  /** Start the Miden client again after a failed start-up. */
+  retryClientStartup: () => Promise<void>;
   /** True while any account operation runs; wallet and Guardian changes wait for it. */
   accountOperationBusy: boolean;
   setGuardianUrl: (url: string) => void;
@@ -275,6 +303,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     "connected" | "connecting" | "error"
   >("connecting");
   const [guardianCommitment, setGuardianCommitment] = useState("");
+  // Start-up: only whether a build is running and why the last one failed are
+  // tracked; the phase is derived from the client parts (see deriveStartupState).
+  const [startupBuilding, setStartupBuilding] = useState(true);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [undeliveredNotes, setUndeliveredNotes] = useState<UndeliveredNote[]>([]);
   const [guardianPublicKey, setGuardianPublicKey] = useState<
     string | undefined
   >(undefined);
@@ -317,12 +350,48 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const disconnectLedger = ledger.disconnect;
   const latestLedgerSigner = useRef(ledger.signer);
   latestLedgerSigner.current = ledger.signer;
+  // Latest client parts and start-up state, for handlers that wait for start-up:
+  // a click during start-up must use the clients that exist once it finishes,
+  // not the empty values captured when it was clicked.
+  const clientPartsRef = useRef<{ midenClient: MidenClient; multisigClient: MultisigClient; guardianCommitment: string } | null>(null);
+  clientPartsRef.current = midenClient && multisigClient && guardianCommitment
+    ? { midenClient, multisigClient, guardianCommitment }
+    : null;
+  const clientStartup = useMemo(
+    () => deriveStartupState({
+      ready: Boolean(midenClient && multisigClient && guardianCommitment),
+      building: startupBuilding,
+      error: startupError,
+      guardianFailed: guardianStatus === "error",
+    }),
+    [midenClient, multisigClient, guardianCommitment, startupBuilding, startupError, guardianStatus],
+  );
+  const clientStartupRef = useRef<StartupState>(clientStartup);
+  clientStartupRef.current = clientStartup;
+  const midenClientRef = useRef(midenClient);
+  midenClientRef.current = midenClient;
+  const signerRef = useRef(signer);
+  signerRef.current = signer;
+  const guardianStateRef = useRef(guardianState);
+  guardianStateRef.current = guardianState;
+  const waitForClient = useCallback(
+    () => waitForClientParts(
+      () => (clientStartupRef.current.phase === "ready" ? clientPartsRef.current : null),
+      () => clientStartupRef.current,
+    ),
+    [],
+  );
+
   // Pull Guardian state (unless the caller already has it), proposals and notes
   // for a multisig, and publish them with the account's config.
-  const refreshAccount = useCallback(async (ms: Multisig, knownState?: AccountState) => {
-    const state = knownState ?? await ms.syncState();
+  const refreshAccount = useCallback(async (ms: Multisig, knownSync?: SyncStateResult) => {
+    const sync = knownSync ?? await ms.syncState();
     const [synced, notes] = await Promise.all([ms.syncProposals(), ms.getConsumableNotes()]);
-    setGuardianState(state);
+    // syncState skips the download when Guardian has nothing newer than the
+    // local account (source 'local'); keep the state already known then, and
+    // fetch it once if there is none yet.
+    if (sync.source === "guardian") setGuardianState(sync.state);
+    else if (!guardianStateRef.current) setGuardianState(await ms.fetchState());
     setDetectedConfig(AccountInspector.fromAccount(ms.account));
     setProposals(synced);
     setConsumableNotes(notes);
@@ -518,7 +587,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       };
       if (!url.trim()) {
         setGuardianStatus("error");
-        return fail("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.");
+        return fail("Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network.");
       }
       // A URL the CSP blocks would only fail as an opaque network error; keep
       // the current Guardian and say why instead.
@@ -554,6 +623,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setGuardianPublicKey(pubkey);
         setMultisigClient(msClient);
         setGuardianStatus("connected");
+        // A start-up error from an earlier failed connection no longer applies.
+        setStartupError(null);
         // The app now talks to this Guardian, whatever happens to the account below.
         setGuardianUrl(url);
 
@@ -620,38 +691,66 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [midenClient, multisig, multisigClient, guardianUrl, signer, guardianState, buildExternalParams, walletSource, activeScheme, refreshAccount],
   );
 
-  // Initialization
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const client = await createMidenClient();
+  // Initialization. Starting the in-browser Miden client downloads and compiles
+  // the SDK (tens of MB of WASM), so it can take a while on a first visit;
+  // Create/Load wait for it (waitForClient) instead of failing.
+  const connectToGuardianRef = useRef(connectToGuardian);
+  connectToGuardianRef.current = connectToGuardian;
+  const startClient = useCallback(async () => {
+    setStartupBuilding(true);
+    setStartupError(null);
+    try {
+      // A retry after a Guardian failure keeps the client it already built: a
+      // second client on the same store would leak the first, and a failed
+      // second build could reset the store under it.
+      let client = midenClientRef.current;
+      if (!client) {
+        client = await startWithStoreCheck({
+          create: () => createMidenClient(),
+          reset: () => resetStoreExclusively(MIDEN_DB_NAME),
+          sdkVersion: MIDEN_SDK_VERSION,
+          onReset: (reason) => console.warn(`Resetting the Miden client's local data: ${reason}.`),
+        });
+        holdStoreLock();
         setMidenClient(client);
-
-        await connectToGuardian(guardianUrl, client);
-
-        if (LOCAL_KEYS_ENABLED) {
-          setGeneratingSigner(true);
-          let signerInfo = await loadSignerKeys();
-          if (!signerInfo) {
-            signerInfo = initSigner();
-            await saveSignerKeys(signerInfo);
-          }
-          setSigner(signerInfo);
-        }
-      } catch (err) {
-        setError(formatError(err, "Initialization failed"));
-      } finally {
-        setGeneratingSigner(false);
       }
-    };
-    init();
+
+      // Local keys need no Guardian: set them up first, so a Guardian failure
+      // does not leave the app without a signer once it reconnects.
+      if (LOCAL_KEYS_ENABLED && !signerRef.current) {
+        setGeneratingSigner(true);
+        let signerInfo = await loadSignerKeys();
+        if (!signerInfo) {
+          signerInfo = initSigner();
+          await saveSignerKeys(signerInfo);
+        }
+        setSigner(signerInfo);
+      }
+
+      const connected = await connectToGuardianRef.current(guardianUrl, client);
+      if (!connected.ok) setStartupError(connected.error);
+    } catch (err) {
+      const message = formatError(err, "Initialization failed");
+      setStartupError(message);
+      setError(message);
+    } finally {
+      setGeneratingSigner(false);
+      setStartupBuilding(false);
+    }
+  }, [guardianUrl]);
+
+  useEffect(() => {
+    void startClient();
+    // Start once on mount; retryClientStartup starts it again on demand.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requestAccountFunding = useCallback(
     async (targetMultisig?: Multisig): Promise<void> => {
       const account = targetMultisig ?? multisig;
-      if (!account || !midenClient) {
+      // The latest client: this may run from a click made during start-up.
+      const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+      if (!account || !liveClient) {
         throw new Error("The Miden client and multisig account must be ready before funding.");
       }
 
@@ -662,16 +761,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         multisigRef.current?.accountId === account.accountId;
       setAccountFunding({ phase: "registering" });
       try {
-        await registerAccountOnNode(midenClient, account.accountId);
+        await registerAccountOnNode(liveClient, account.accountId);
         if (!stillCurrent()) return;
+        // Only devnet sends a funding note on registration; elsewhere the account
+        // is funded like any other (e.g. from the network's faucet).
+        if (MIDEN_NETWORK !== "devnet") {
+          setAccountFunding({ phase: "idle" });
+          return;
+        }
 
         setAccountFunding({ phase: "waiting-for-note" });
         for (let attempt = 0; attempt < 8; attempt += 1) {
-          await midenClient.sync();
+          await liveClient.sync();
           const notes = await account.getConsumableNotes();
           if (!stillCurrent()) return;
           setConsumableNotes(notes);
-          const feeFaucet = await midenClient.feeFaucetId();
+          const feeFaucet = await liveClient.feeFaucetId();
           const feeFaucetHex = feeFaucet.toString().toLowerCase();
           feeFaucet.free();
           if (notes.some(note => note.assets.some(asset =>
@@ -712,17 +817,23 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon",
     ) => {
       if (!guardianUrl.trim()) {
-        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network.";
         setError(msg);
         throw new Error(msg);
       }
-      if (!multisigClient || !guardianCommitment) {
-        const msg = "Client not initialized. Try reconnecting to Guardian.";
-        setError(msg);
-        throw new Error(msg);
-      }
-
+      // Wait for start-up rather than failing a click that came in during it.
       setCreating(true);
+      let ready;
+      try {
+        ready = await waitForClient();
+      } catch (startupErr) {
+        setCreating(false);
+        const msg = formatError(startupErr);
+        setError(msg);
+        throw startupErr;
+      }
+      const { multisigClient, guardianCommitment, midenClient } = ready;
+
       setGuardianRegistrationRequired(false);
       setError(null);
       try {
@@ -744,7 +855,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
         const externalParams = buildExternalParams();
         const clientSigner = createSigner(
-          signer,
+          signerRef.current,
           signatureScheme,
           externalParams,
         );
@@ -817,15 +928,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [
+      waitForClient,
       refreshAccount,
-      multisigClient,
-      signer,
       guardianUrl,
-      guardianCommitment,
       guardianPublicKey,
       walletSource,
       buildExternalParams,
-      midenClient,
       requestAccountFunding,
     ],
   );
@@ -833,21 +941,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const handleLoad = useCallback(
     async (accountId: string, signatureScheme: SignatureScheme = walletSource === "ledger" ? "ecdsa" : "falcon") => {
       if (!guardianUrl.trim()) {
-        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 RC devnet endpoint.";
+        const msg = "Set NEXT_PUBLIC_GUARDIAN_ENDPOINT to a Guardian 0.18 endpoint on the same Miden network.";
         setError(msg);
         throw new Error(msg);
       }
-      if (!multisigClient) {
-        setError("Client not initialized. Try reconnecting to Guardian.");
-        return;
+      // Wait for start-up rather than failing a click that came in during it.
+      setLoadingAccount(true);
+      let ready;
+      try {
+        ready = await waitForClient();
+      } catch (startupErr) {
+        setLoadingAccount(false);
+        const msg = formatError(startupErr);
+        setError(msg);
+        throw startupErr;
       }
-      if (!guardianCommitment) {
-        setGuardianStatus("error");
-        setError(
-          "Not connected to Guardian. Check the endpoint and try again.",
-        );
-        return;
-      }
+      const { multisigClient, midenClient } = ready;
 
       let normalizedId = accountId;
       if (!normalizedId.startsWith("0x")) {
@@ -866,7 +975,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
         const externalParams = buildExternalParams();
         const clientSigner = createSigner(
-          signer,
+          signerRef.current,
           signatureScheme,
           externalParams,
         );
@@ -926,14 +1035,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
     },
     [
+      waitForClient,
       refreshAccount,
-      multisigClient,
-      signer,
       guardianUrl,
-      guardianCommitment,
       walletSource,
       buildExternalParams,
-      midenClient,
     ],
   );
 
@@ -1206,10 +1312,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation],
   );
 
-  // Creates the private send proposal only. The note is relayed to the
-  // recipient right before execution (see handleExecuteProposal), by whichever
-  // signer executes, so a proposal that is never executed relays nothing and
-  // an execution never starts without its note delivered.
+  // Creates the private send proposal only. The note is delivered after the
+  // transaction lands (the note transport needs its inclusion proof): see
+  // handleExecuteProposal and the private-note guard (privateNoteGuard.ts),
+  // which blocks the account until it is delivered or consumed.
   const handleSendPrivateNote = useCallback(
     async (recipientId: string, faucetId: string, amount: bigint) => {
       setPrivateSendProgress({ step: "creating-proposal", totalNotes: 0, relayedNotes: 0 });
@@ -1277,11 +1383,57 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     setLockedCandidate(null);
     setPendingCandidateWarning(null);
     setReleasingCandidate(false);
+    setUndeliveredNotes([]);
     if (fundingAccountId.current && fundingAccountId.current !== loadedAccountId) {
       fundingAccountId.current = null;
       setAccountFunding({ phase: "idle" });
     }
   }, [loadedAccountId]);
+
+  // Deliver this account's pending private notes (see privateDelivery.ts):
+  // right after execute with a long wait for the commit, and on load or retry
+  // with a short one. A note stays pending until the transport accepts it.
+  const deliveringNotes = useRef(new Set<string>());
+  const deliverPendingNotes = useCallback(async (accountId: string, timeoutMs: number) => {
+    // Delivery needs only the Miden client (node and note transport), not
+    // Guardian: read it directly, so it also works while Guardian is down.
+    const client = midenClientRef.current;
+    if (!client) return;
+    // One node connection for every proof lookup of this round.
+    const checks = noteChainChecks();
+    try {
+      for (const pending of pendingDeliveries(accountId)) {
+        if (deliveringNotes.current.has(pending.proposalId)) continue;
+        deliveringNotes.current.add(pending.proposalId);
+        try {
+          const notes = pending.notes.map((encoded) => decodeNote(encoded, (bytes) => Note.deserialize(bytes)));
+          await deliverCommittedNotes(client, notes, pending.recipientId, { fetchProof: checks.fetchProofById, timeoutMs });
+          removePendingDelivery(pending.proposalId);
+          setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== pending.proposalId));
+          toast.success("Private note delivered to the recipient");
+        } catch (err) {
+          if (multisigRef.current?.accountId !== accountId) return;
+          const error = formatError(err);
+          setUndeliveredNotes((all) => [
+            ...all.filter((n) => n.proposalId !== pending.proposalId),
+            { proposalId: pending.proposalId, recipientId: pending.recipientId, error },
+          ]);
+        } finally {
+          deliveringNotes.current.delete(pending.proposalId);
+        }
+      }
+    } finally {
+      checks.free();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loadedAccountId && clientStartup.phase === "ready") void deliverPendingNotes(loadedAccountId, 15_000);
+  }, [loadedAccountId, clientStartup.phase, deliverPendingNotes]);
+
+  const retryPrivateDeliveries = useCallback(async () => {
+    if (multisigRef.current) await deliverPendingNotes(multisigRef.current.accountId, 60_000);
+  }, [deliverPendingNotes]);
 
   /**
    * Asks Guardian to abandon the candidate at `nonce` and reports the outcome.
@@ -1311,6 +1463,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           case "abandoned": {
             // Guardian confirmed the transaction did not land and discarded it.
             setLockedCandidate(null);
+            // So its private note will never exist: drop the pending delivery,
+            // which would otherwise keep asking to deliver it until it expires.
+            removePendingDelivery(candidate.proposalId);
+            setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== candidate.proposalId));
             let proposalSurvived: boolean;
             try {
               const synced = await ms.syncProposals();
@@ -1401,25 +1557,30 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
         executing = { id: fresh.id, nonce: fresh.nonce };
 
-        // A private note must reach its recipient before the transaction that
-        // commits it runs; otherwise the funds land in a note nobody can use.
-        // Nothing has been sent to Guardian yet, so a failure here locks nothing.
+        // A private note is delivered after the transaction commits (the note
+        // transport needs its inclusion proof). Record it first, so a committed
+        // note is never left undelivered, and refuse a private send whose
+        // summary holds no note: nobody could reconstruct it.
+        let privateDelivery = false;
         if (fresh.metadata.proposalType === "p2id" && fresh.metadata.noteType === "private") {
-          if (!midenClient) throw new Error("The Miden client is not ready to deliver the private note.");
-          try {
-            await relayProposalNotes(midenClient, fresh.txSummary, fresh.metadata.recipientId);
-          } catch (relayError) {
-            throw new Error(
-              `Could not deliver the private note to the recipient, so the transfer was not executed. ` +
-                `Try again. (${relayError instanceof Error ? relayError.message : String(relayError)})`,
-            );
+          const notes = getOutputNotesFromTxSummary(fresh.txSummary);
+          if (notes.length === 0) {
+            throw new Error("This private send has no private note to deliver, so it cannot be executed safely.");
           }
+          recordPendingDelivery({
+            accountId: ms.accountId,
+            proposalId: fresh.id,
+            recipientId: fresh.metadata.recipientId,
+            notes: notes.map(encodeNote),
+            createdAt: Date.now(),
+          });
+          privateDelivery = true;
         }
-
 
         await multisig.executeProposal(proposalId);
         setProposals(multisig.listProposals());
         toast.success("Proposal executed successfully");
+        if (privateDelivery) void deliverPendingNotes(ms.accountId, 180_000);
 
         // Sync after execution
         if (midenClient) {
@@ -1442,6 +1603,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         const message = describeExecutionError(err, "Execute failed");
+        // Never reached Guardian, so it cannot land: nothing to deliver.
+        if (executing && !executionWasPushed(ms.accountId)) removePendingDelivery(executing.id);
         if (isPendingCandidateError(err)) {
           // Another execution already holds the account's Guardian lock.
           await inspectAccountLock(ms);
@@ -1463,7 +1626,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         if (accountOpInFlight.current === ms.accountId) accountOpInFlight.current = null;
       }
     },
-    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead],
+    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead, deliverPendingNotes],
   );
 
   /** Lets any signer release a lock that has outlived every live execution. */
@@ -1631,6 +1794,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleImportProposal,
       handleDisconnect,
       setWalletSource,
+      clientStartup,
+      retryClientStartup: startClient,
+      undeliveredNotes,
+      retryPrivateDeliveries,
       accountOperationBusy,
       setGuardianUrl,
       connectToGuardian,
@@ -1645,6 +1812,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
     }),
     [
+      undeliveredNotes,
+      retryPrivateDeliveries,
+      clientStartup,
+      startClient,
       accountOperationBusy,
       ledger,
       setWalletSource,

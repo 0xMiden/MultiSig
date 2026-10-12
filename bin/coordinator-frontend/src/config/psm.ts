@@ -1,4 +1,5 @@
 import { resolveMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
+import { parseParaEnvironment, type ParaEnvironment } from '@/lib/paraEnvironment';
 
 export const GUARDIAN_ENDPOINT = process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT || '';
 // Guardian's raw WASM client does not resolve SDK network shorthands.
@@ -22,6 +23,8 @@ export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANS
 export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim() || 'local';
 export const MIDEN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE || 'guardian';
 export const MIDEN_DB_NAME = 'MidenClientDB';
+/** The Miden SDK this build runs (next.config.mjs); the local store records which version wrote it. */
+export const MIDEN_SDK_VERSION = process.env.NEXT_PUBLIC_MIDEN_SDK_VERSION || 'unknown';
 
 // "Local keys" keep a signing key in this browser's IndexedDB, unencrypted.
 // Development builds only: production signs with Ledger, Para or the Miden
@@ -29,6 +32,5 @@ export const MIDEN_DB_NAME = 'MidenClientDB';
 export const LOCAL_KEYS_ENABLED = process.env.NODE_ENV !== 'production';
 
 export const PARA_API_KEY = process.env.NEXT_PUBLIC_PARA_API_KEY || '';
-export const PARA_ENVIRONMENT = (process.env.NEXT_PUBLIC_PARA_ENVIRONMENT || 'development') as
-  | 'development'
-  | 'production';
+// Must match the API key's environment: a `beta_…` key needs `beta`.
+export const PARA_ENVIRONMENT: ParaEnvironment = parseParaEnvironment(process.env.NEXT_PUBLIC_PARA_ENVIRONMENT);

@@ -16,16 +16,21 @@ import {
 import type { Signer } from '@openzeppelin/guardian-client';
 import {
   AccountId,
+  Endpoint,
   NoteTag,
   NoteType,
+  RpcClient,
   TransactionSummary,
   type Note,
+  type NoteId,
+  type NoteInclusionProof,
   type MidenClient,
 } from '@miden-sdk/miden-sdk';
 import type { SignerInfo } from '@/types/psm';
 import type { WalletSource } from '@/wallets/types';
 import { normalizeCommitment } from '@/lib/helpers';
 import { LOCAL_KEYS_ENABLED, MIDEN_REGISTRATION_CODE, MIDEN_RPC_URL } from '@/config/psm';
+import { base64ToBytes } from './base64';
 import { diagnosticError, diagnosticLog, instrumentMultisig } from './midenDiagnostics';
 import { registerDevnetAccount } from './devnetRegistration';
 import { configureProverWorkflow } from './proverFallback';
@@ -118,13 +123,6 @@ export function createSigner(
     : new FalconSigner(activeSigner.secretKey);
 }
 
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
 /**
  * Extracts the full output notes a proposal's transaction will create, by
  * deserializing its own `txSummary` — no Guardian call, no chain sync, no
@@ -151,41 +149,39 @@ export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
 }
 
 /**
- * Relays a private note's contents to its recipient via the note transport
- * service. Call this before execution, never after, so the block hint
- * (`scanAfterBlockNum`, the client's current sync height) is at or before the
- * note's on-chain commitment.
+ * The inclusion proof of a committed note, read from the node; undefined
+ * while the note is not committed yet. Works for any cosigner, not only the
+ * one whose client executed the transaction.
  */
-export async function relayPrivateNote(
-  midenClient: MidenClient,
-  note: Note,
-  recipientId: string,
-  scanAfterBlockNum: number,
-): Promise<void> {
-  await midenClient.notes.sendPrivate({ note, to: recipientId, scanAfterBlockNum });
+export async function fetchNoteInclusionProof(
+  noteId: NoteId,
+  rpcUrl: string = MIDEN_RPC_URL,
+): Promise<NoteInclusionProof | undefined> {
+  const rpc = new RpcClient(new Endpoint(rpcUrl));
+  try {
+    const [fetched] = await rpc.getNotesById([noteId]);
+    return fetched?.inclusionProof;
+  } finally {
+    rpc.free();
+  }
 }
 
 /**
- * Delivers every private note a proposal will create to its recipient, from
- * the proposal's own transaction summary, so any cosigner can run it right
- * before executing. Throws if the summary holds no private note: executing
- * then would commit a note nobody can reconstruct.
+ * Inclusion-proof lookups over one RPC connection, for a delivery round:
+ * fetched notes are freed right after reading the proof. `free()` releases
+ * the connection.
  */
-export async function relayProposalNotes(
-  midenClient: MidenClient,
-  txSummaryBase64: string,
-  recipientId: string,
-  extractNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
-): Promise<number> {
-  const notes = extractNotes(txSummaryBase64);
-  if (notes.length === 0) {
-    throw new Error('This private send has no private note to deliver, so it cannot be executed safely.');
-  }
-  const scanAfterBlockNum = await midenClient.getSyncHeight();
-  for (const note of notes) {
-    await relayPrivateNote(midenClient, note, recipientId, scanAfterBlockNum);
-  }
-  return notes.length;
+export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
+  const rpc = new RpcClient(new Endpoint(rpcUrl));
+  const fetchProofById = async (noteId: NoteId): Promise<NoteInclusionProof | undefined> => {
+    const fetched = await rpc.getNotesById([noteId]);
+    try {
+      return fetched[0]?.inclusionProof;
+    } finally {
+      for (const entry of fetched) entry.free();
+    }
+  };
+  return { fetchProofById, free: () => rpc.free() };
 }
 
 export async function registerAccountNoteTag(
