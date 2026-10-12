@@ -53,9 +53,12 @@ const AccountStatusBanner = () => {
   const undelivered = undeliveredNotes ?? [];
   // No operation runs until earlier private notes have reached their recipients.
   const notesBlocked = privateNoteGuard?.phase === "blocked";
+  // The check could not run: nothing is known to be undelivered, but the
+  // account waits until it can confirm that.
+  const notesUnverified = privateNoteGuard?.phase === "unverified";
   const notesChecking = privateNoteGuard?.phase === "checking";
 
-  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && !notesBlocked && !notesChecking && accountFunding.phase === "idle") return null;
+  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && !notesBlocked && !notesUnverified && !notesChecking && accountFunding.phase === "idle") return null;
 
   const retry = () => {
     const operation = guardianRegistrationRequired ? retryGuardianRegistration : handleSync;
@@ -71,6 +74,26 @@ const AccountStatusBanner = () => {
           <span className="text-[12px] font-[500] text-amber-800">
             Checking that earlier private notes reached their recipients…
           </span>
+        </div>
+      )}
+
+      {notesUnverified && undelivered.length === 0 && (
+        <div role="alert" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-start justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12px] font-[600] text-amber-800">
+              Account paused: earlier private notes could not be checked
+            </span>
+            <span className="text-[12px] text-amber-700 wrap-break-word">
+              {privateNoteGuard.error} Operations wait until the app can confirm that every private note from the last transaction reached its recipient.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void retryPrivateDeliveries()}
+            className="min-h-8 shrink-0 rounded-[6px] bg-amber-600 px-3 text-[12px] font-[500] text-white hover:bg-amber-700"
+          >
+            Check again
+          </button>
         </div>
       )}
 

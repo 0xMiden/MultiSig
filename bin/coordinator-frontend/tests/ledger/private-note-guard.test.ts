@@ -7,8 +7,16 @@ import {
   NoteAttachment,
   NoteType,
 } from '@miden-sdk/miden-sdk';
-import { ensureLatestPrivateNotesDelivered, type GuardNote } from '../../src/lib/privateNoteGuard';
-import { p2idRecipient } from '../../src/lib/multisigApi';
+import {
+  BLOCKED_UNDELIVERED,
+  BLOCKED_UNVERIFIED,
+  ensureLatestPrivateNotesDelivered,
+  isPrivateNoteBlockedMessage,
+  PrivateNoteBlockedError,
+  UndeliveredPrivateNoteError,
+  type GuardNote,
+} from '../../src/lib/privateNoteGuard';
+import { latestCanonicalPrivateNotes, p2idRecipient } from '../../src/lib/multisigApi';
 
 const SENDER = '0x7678d3cca43430813172a4b980bd6a';
 const RECIPIENT = '0x6193fede3d413581448dbceed2be2b';
@@ -100,5 +108,72 @@ describe('p2idRecipient', () => {
       AccountId.fromHex(SENDER), AccountId.fromHex(RECIPIENT), assets(), 100, null, NoteType.Private, new NoteAttachment(),
     );
     expect(p2idRecipient(note)).toBeUndefined();
+  });
+});
+
+describe('what blocks the account (review of 0xMiden/MultiSig#33)', () => {
+  it('a note that cannot be delivered is "undelivered"; a check that cannot run is not', async () => {
+    const undelivered = guard([{ id: 'n', recipientId: RECIPIENT, block: 10 }], { failDeliver: new Set(['n']) }).run;
+    await expect(undelivered).rejects.toBeInstanceOf(UndeliveredPrivateNoteError);
+    const unreachable = ensureLatestPrivateNotesDelivered<Fake>({
+      latestPrivateNotes: async () => { throw new Error('GUARDIAN HTTP error 503'); },
+      committedAt: async () => 1, isConsumed: async () => false, deliver: async () => {},
+    });
+    await expect(unreachable).rejects.toThrow('503');
+    await expect(unreachable).rejects.not.toBeInstanceOf(UndeliveredPrivateNoteError);
+  });
+
+  it('refusals carry their own message, recognisable once the account is clear again', () => {
+    const blocked = new PrivateNoteBlockedError('Private note 0xda80…18fd could not be delivered', true);
+    const paused = new PrivateNoteBlockedError('GUARDIAN HTTP error 503', false);
+    expect(blocked.message).toBe(`${BLOCKED_UNDELIVERED} Private note 0xda80…18fd could not be delivered`);
+    expect(paused.message).toBe(`${BLOCKED_UNVERIFIED} GUARDIAN HTTP error 503`);
+    expect(isPrivateNoteBlockedMessage(blocked.message)).toBe(true);
+    expect(isPrivateNoteBlockedMessage(paused.message)).toBe(true);
+    expect(isPrivateNoteBlockedMessage('Wallet is not connected')).toBe(false);
+  });
+});
+
+describe('latestCanonicalPrivateNotes', () => {
+  const entry = (outputNotes: Array<{ noteType: 'public' | 'private' }>, decodeWarnings: unknown[] = []) =>
+    ({ nonce: 7, status: 'canonical', timestamp: '', inputNotes: [], outputNotes, decodeWarnings });
+  const multisig = (entries: unknown[]) =>
+    ({ accountId: SENDER, deltaHistory: async () => ({ entries }) }) as never;
+  const guardianWith = (deltaPayload: unknown) => {
+    const calls: number[] = [];
+    return { calls, guardian: { getDelta: async (_a: string, nonce: number) => { calls.push(nonce); return { deltaPayload } as never; } } };
+  };
+  const privateNote = () => Note.createP2IDNote(
+    AccountId.fromHex(SENDER), AccountId.fromHex(RECIPIENT),
+    new NoteAssets([new FungibleAsset(AccountId.fromHex(FAUCET), 50_000n)]), NoteType.Private, new NoteAttachment(),
+  );
+
+  it('has nothing to check for an account without history', async () => {
+    const { guardian, calls } = guardianWith({});
+    await expect(latestCanonicalPrivateNotes(multisig([]), guardian)).resolves.toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('skips the second (signed) request when Guardian lists no private note', async () => {
+    const { guardian, calls } = guardianWith({});
+    await expect(latestCanonicalPrivateNotes(multisig([entry([{ noteType: 'public' }])]), guardian)).resolves.toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it('reads the notes when Guardian lists a private note or could not decode one', async () => {
+    const { guardian, calls } = guardianWith({ txSummary: { data: 'c3VtbWFyeQ==' } });
+    const notes = await latestCanonicalPrivateNotes(multisig([entry([{ noteType: 'private' }])]), guardian, () => [privateNote()]);
+    expect(calls).toEqual([7]);
+    expect(notes.map((n) => n.recipientId)).toEqual([RECIPIENT]);
+    await latestCanonicalPrivateNotes(multisig([entry([], [{ section: 'output_notes', reason: 'drift' }])]), guardian, () => []);
+    expect(calls).toEqual([7, 7]);
+  });
+
+  it('never reports clear on fewer notes than Guardian lists, or without a summary', async () => {
+    const listed = multisig([entry([{ noteType: 'private' }, { noteType: 'private' }])]);
+    const { guardian } = guardianWith({ txSummary: { data: 'c3VtbWFyeQ==' } });
+    await expect(latestCanonicalPrivateNotes(listed, guardian, () => [privateNote()])).rejects.toThrow(/lists 2 private note\(s\).*only 1 could be read/);
+    const { guardian: noSummary } = guardianWith({});
+    await expect(latestCanonicalPrivateNotes(listed, noSummary)).rejects.toThrow(/no transaction summary/);
   });
 });

@@ -7,10 +7,13 @@ import { base64ToBytes, bytesToBase64 } from './base64';
  * committed on-chain (Miden SDK 0.17). So a private send is delivered AFTER
  * the transaction that creates it lands, not before.
  *
- * To make sure a committed note is never left undelivered (its funds would be
- * unusable for the recipient), the note is recorded locally before execution
- * and removed only once delivered. A pending record is retried on the next
- * attempt (after a reload, on sync, or by the user).
+ * The note is kept in memory from just before execution until it is delivered,
+ * so it can be relayed as soon as the transaction lands. It is dropped when the
+ * execution fails, and it does not survive a reload: from then on Guardian is
+ * the only source. Guardian keeps every canonical transaction's full summary,
+ * and the private-note guard (privateNoteGuard.ts) re-delivers the private
+ * notes of the latest one before the account can be used. A stale local copy
+ * can therefore never block an account.
  */
 export interface PendingDelivery {
   accountId: string;
@@ -22,39 +25,28 @@ export interface PendingDelivery {
   createdAt: number;
 }
 
-const STORAGE_KEY = 'pendingPrivateDeliveries';
-/** A note that never appears on-chain within this window was not committed; stop retrying it. */
-export const DELIVERY_GIVE_UP_MS = 24 * 60 * 60 * 1000;
+const pending = new Map<string, PendingDelivery>();
 
-function readAll(): PendingDelivery[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeAll(records: PendingDelivery[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  } catch {
-    /* storage unavailable: delivery still runs now, it just can't be resumed later */
-  }
+// Earlier versions kept these records in localStorage, where a transaction that
+// never landed left the account blocked until the record expired. Drop them.
+try {
+  globalThis.localStorage?.removeItem('pendingPrivateDeliveries');
+} catch {
+  /* storage unavailable */
 }
 
 const sameAccount = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-export function pendingDeliveries(accountId: string, now = Date.now()): PendingDelivery[] {
-  return readAll().filter((r) => sameAccount(r.accountId, accountId) && now - r.createdAt < DELIVERY_GIVE_UP_MS);
+export function pendingDeliveries(accountId: string): PendingDelivery[] {
+  return [...pending.values()].filter((r) => sameAccount(r.accountId, accountId));
 }
 
 export function recordPendingDelivery(record: PendingDelivery): void {
-  writeAll([...readAll().filter((r) => r.proposalId !== record.proposalId), record]);
+  pending.set(record.proposalId, record);
 }
 
 export function removePendingDelivery(proposalId: string): void {
-  writeAll(readAll().filter((r) => r.proposalId !== proposalId));
+  pending.delete(proposalId);
 }
 
 export function encodeNote(note: Note): string {

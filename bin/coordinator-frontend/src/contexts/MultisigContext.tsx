@@ -77,7 +77,12 @@ import {
 } from "@/lib/privateDelivery";
 import { setWalletCookie } from "@/lib/walletCookie";
 import { waitForFundingNote } from "@/lib/fundingWait";
-import { ensureLatestPrivateNotesDelivered } from "@/lib/privateNoteGuard";
+import {
+  ensureLatestPrivateNotesDelivered,
+  isPrivateNoteBlockedMessage,
+  PrivateNoteBlockedError,
+  UndeliveredPrivateNoteError,
+} from "@/lib/privateNoteGuard";
 import { useMidenWallet } from "@/hooks/useMidenWallet";
 import { MidenWalletAdapter } from "@miden-sdk/miden-wallet-adapter-miden";
 import { diagnosticError, diagnosticLog, logReceiveFunding } from '@/lib/midenDiagnostics';
@@ -145,13 +150,19 @@ export interface UndeliveredNote { proposalId: string; recipientId: string; erro
  * Whether the account may be used: no operation runs while a private note of
  * its latest transaction is neither delivered nor consumed (privateNoteGuard.ts).
  */
-const BLOCKED_BY_PRIVATE_NOTE = "Blocked until an earlier private note reaches its recipient.";
-
 export type PrivateNoteGuardState =
   | { phase: "idle" }
   | { phase: "checking" }
   | { phase: "clear" }
-  | { phase: "blocked"; error: string };
+  /** A private note exists and could not be delivered. */
+  | { phase: "blocked"; error: string }
+  /** The check could not run (Guardian or node unreachable); the account waits for it. */
+  | { phase: "unverified"; error: string };
+
+/** The message to show for an operation's error: a guard refusal as it is, anything else via `describe`. */
+function operationErrorMessage(err: unknown, describe: (err: unknown) => string): string {
+  return err instanceof PrivateNoteBlockedError ? err.message : describe(err);
+}
 
 export type GuardianConnectResult = { ok: true } | { ok: false; error: string };
 
@@ -1300,7 +1311,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           if (isPendingCandidateError(err)) {
             await inspectAccountLock(ms);
           } else {
-            setError(describeExecutionError(err, `Failed to create the ${label.toLowerCase()} proposal`));
+            setError(operationErrorMessage(err, (e) => describeExecutionError(e, `Failed to create the ${label.toLowerCase()} proposal`)));
           }
         }
         throw err;
@@ -1423,10 +1434,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         await multisig.signProposal(proposalId);
         setProposals(multisig.listProposals());
       } catch (err) {
-        const message =
+        const message = operationErrorMessage(err, (e) =>
           walletSource !== "local"
-            ? classifyWalletError(err)
-            : `Failed to sign: ${err instanceof Error ? err.message : "Unknown"}`;
+            ? classifyWalletError(e)
+            : `Failed to sign: ${e instanceof Error ? e.message : "Unknown"}`);
         setError(message);
         throw err;
       } finally {
@@ -1489,40 +1500,45 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // The guard (see privateNoteGuard.ts). One check per account at a time;
-  // callers that arrive while it runs share its result. Resolves with the
-  // reason the account is blocked, or null when it may be used.
-  const privateNoteCheck = useRef<{ accountId: string; run: Promise<string | null> } | null>(null);
+  // The guard (see privateNoteGuard.ts). One check per account object at a
+  // time; callers that arrive while it runs share its result. Resolves with
+  // the refusal for operations, or null when the account may be used.
+  const privateNoteCheck = useRef<{ ms: Multisig; run: Promise<PrivateNoteBlockedError | null> } | null>(null);
   const checkPrivateNotes = useCallback(
-    (ms: Multisig, localWaitMs = 60_000, { fresh = false } = {}): Promise<string | null> => {
+    (ms: Multisig, localWaitMs = 60_000, { fresh = false } = {}): Promise<PrivateNoteBlockedError | null> => {
       const inFlight = privateNoteCheck.current;
       // A caller that needs the current state (after an execution) must not
       // join a check that started before it: run a new one after it instead.
-      if (inFlight?.accountId === ms.accountId && !fresh) return inFlight.run;
-      const previous = inFlight?.accountId === ms.accountId ? inFlight.run.catch(() => null) : Promise.resolve(null);
-      const run = previous.then(async (): Promise<string | null> => {
-        const stillCurrent = () => multisigRef.current?.accountId === ms.accountId;
-        const report = (error: string | null) => {
-          if (!stillCurrent()) return error;
-          setPrivateNoteGuard(error === null ? { phase: "clear" } : { phase: "blocked", error });
+      if (inFlight?.ms === ms && !fresh) return inFlight.run;
+      const previous = inFlight?.ms === ms ? inFlight.run.catch(() => null) : Promise.resolve(null);
+      const run = previous.then(async (): Promise<PrivateNoteBlockedError | null> => {
+        const stillCurrent = () => multisigRef.current === ms;
+        const report = (blocked: PrivateNoteBlockedError | null) => {
+          if (!stillCurrent()) return blocked;
+          setPrivateNoteGuard(
+            blocked === null
+              ? { phase: "clear" }
+              : { phase: blocked.undelivered ? "blocked" : "unverified", error: blocked.reason },
+          );
           // An operation refused while blocked left its error up; unlocking clears it.
-          if (error === null) setError((current) => (current?.includes(BLOCKED_BY_PRIVATE_NOTE) ? null : current));
-          return error;
+          if (blocked === null) setError((current) => (isPrivateNoteBlockedMessage(current) ? null : current));
+          return blocked;
         };
         // Once clear, stay shown as clear while re-checking (it runs before
         // every operation); only a failed check changes what the user sees.
         if (stillCurrent()) setPrivateNoteGuard((g) => (g.phase === "clear" ? g : { phase: "checking" }));
-        const parts = clientPartsRef.current;
-        if (!parts) return report("Not connected to Guardian, so earlier private notes cannot be checked.");
-        // A private send executed in this browser that may not be canonical yet.
-        await deliverPendingNotes(ms.accountId, localWaitMs);
-        if (pendingDeliveries(ms.accountId).length > 0) {
-          return report("A private note from the last send has not reached its recipient yet.");
-        }
-        // The latest canonical transaction, as Guardian keeps it: covers sends
-        // executed by another signer or on another device.
         const checks = noteChainChecks();
         try {
+          // A private send executed in this tab, possibly not canonical yet.
+          // Needs only the Miden client, so it runs even while Guardian is down.
+          await deliverPendingNotes(ms.accountId, localWaitMs);
+          if (pendingDeliveries(ms.accountId).length > 0) {
+            return report(new PrivateNoteBlockedError("A private note from the last send has not reached its recipient yet.", true));
+          }
+          const client = midenClientRef.current;
+          if (!client) return report(new PrivateNoteBlockedError("The Miden client is not running.", false));
+          // The latest canonical transaction, as Guardian keeps it: covers sends
+          // executed by another signer, on another device, or before a reload.
           await ensureLatestPrivateNotesDelivered<LatestPrivateNote>({
             latestPrivateNotes: () => latestCanonicalPrivateNotes(ms),
             committedAt: (n) => checks.committedAt(n.note),
@@ -1530,17 +1546,17 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             deliver: async (n, to) => {
               const inclusionProof = await checks.fetchProof(n.note);
               if (!inclusionProof) throw new Error("its inclusion proof is not available yet");
-              await parts.midenClient.notes.sendPrivate({ note: n.note, to, inclusionProof });
+              await client.notes.sendPrivate({ note: n.note, to, inclusionProof });
             },
           });
           return report(null);
         } catch (err) {
-          return report(formatError(err));
+          return report(new PrivateNoteBlockedError(formatError(err), err instanceof UndeliveredPrivateNoteError));
         } finally {
           checks.free();
         }
       });
-      privateNoteCheck.current = { accountId: ms.accountId, run };
+      privateNoteCheck.current = { ms, run };
       void run.finally(() => {
         if (privateNoteCheck.current?.run === run) privateNoteCheck.current = null;
       });
@@ -1552,17 +1568,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   // executed a private send from another device meanwhile.
   ensurePrivateNotesClearRef.current = async (ms: Multisig) => {
     const blocked = await checkPrivateNotes(ms);
-    if (blocked !== null) {
-      throw new Error(`${BLOCKED_BY_PRIVATE_NOTE} ${blocked}`);
-    }
+    if (blocked !== null) throw blocked;
   };
 
+  // On load, and again once a pending Guardian registration completes: an
+  // account Guardian does not know yet has no history to check (it answers 404).
+  const accountOnGuardian = !guardianRegistrationRequired && !registeringOnGuardian;
   useEffect(() => {
     const ms = multisigRef.current;
-    if (loadedAccountId && clientStartup.phase === "ready" && ms?.accountId === loadedAccountId) {
+    if (loadedAccountId && clientStartup.phase === "ready" && accountOnGuardian && ms?.accountId === loadedAccountId) {
       void checkPrivateNotes(ms, 15_000);
     }
-  }, [loadedAccountId, clientStartup.phase, checkPrivateNotes]);
+  }, [loadedAccountId, clientStartup.phase, accountOnGuardian, checkPrivateNotes]);
 
   const retryPrivateDeliveries = useCallback(async () => {
     if (multisigRef.current) await checkPrivateNotes(multisigRef.current, 60_000);
@@ -1694,9 +1711,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         executing = { id: fresh.id, nonce: fresh.nonce };
 
         // A private note is delivered after the transaction commits (the note
-        // transport needs its inclusion proof). Record it first, so a committed
-        // note is never left undelivered, and refuse a private send whose
-        // summary holds no note: nobody could reconstruct it.
+        // transport needs its inclusion proof). Keep it in memory so it can be
+        // relayed as soon as it lands; after a failure or a reload, Guardian's
+        // copy is used instead (privateNoteGuard.ts). Refuse a private send
+        // whose summary holds no note: nobody could reconstruct it.
         let privateDelivery = false;
         if (fresh.metadata.proposalType === "p2id" && fresh.metadata.noteType === "private") {
           const notes = getOutputNotesFromTxSummary(fresh.txSummary);
@@ -1739,9 +1757,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (err) {
-        const message = describeExecutionError(err, "Execute failed");
-        // Never reached Guardian, so it cannot land: nothing to deliver.
-        if (executing && !executionWasPushed(ms.accountId)) removePendingDelivery(executing.id);
+        const message = operationErrorMessage(err, (e) => describeExecutionError(e, "Execute failed"));
+        // Drop the in-memory note whatever the failure. If the transaction
+        // landed after all (an unclear submit), Guardian records it as
+        // canonical and the private-note guard delivers it from there.
+        if (executing) {
+          removePendingDelivery(executing.id);
+          setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== executing?.id));
+        }
         if (isPendingCandidateError(err)) {
           // Another execution already holds the account's Guardian lock.
           await inspectAccountLock(ms);
@@ -1810,9 +1833,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setProposals(multisig.listProposals());
         toast.success("Signed! Updated proposal JSON copied to clipboard");
       } catch (err) {
-        setError(
-          `Failed to sign offline: ${err instanceof Error ? err.message : "Unknown"}`,
-        );
+        setError(operationErrorMessage(err, (e) => `Failed to sign offline: ${e instanceof Error ? e.message : "Unknown"}`));
       }
     },
     [multisig],
@@ -1828,9 +1849,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setProposals(multisig.listProposals());
         toast.success(`Proposal imported: ${proposal.id.slice(0, 12)}...`);
       } catch (err) {
-        setError(
-          `Failed to import: ${err instanceof Error ? err.message : "Unknown"}`,
-        );
+        setError(operationErrorMessage(err, (e) => `Failed to import: ${e instanceof Error ? e.message : "Unknown"}`));
       }
     },
     [multisig],

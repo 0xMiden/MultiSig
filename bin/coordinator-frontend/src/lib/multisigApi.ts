@@ -209,20 +209,35 @@ export interface LatestPrivateNote {
  * read these notes from any device.
  */
 export async function latestCanonicalPrivateNotes(
-  multisig: Multisig,
-  guardian: Pick<GuardianHttpClient, 'getDelta'> = multisigGuardian(multisig),
+  multisig: Pick<Multisig, 'accountId' | 'deltaHistory'>,
+  guardian: Pick<GuardianHttpClient, 'getDelta'> = multisigGuardian(multisig as Multisig),
+  readNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
 ): Promise<LatestPrivateNote[]> {
   const { entries } = await multisig.deltaHistory({ limit: 1 });
   const latest = entries[0];
   if (!latest) return [];
+  // Guardian's history already says which output notes are private. Without
+  // any (and nothing it failed to decode) there is nothing to deliver, so skip
+  // the second request: each one is a signature, a device approval on Ledger.
+  const listedPrivate = latest.outputNotes.filter((n) => n.noteType === 'private').length;
+  if (listedPrivate === 0 && latest.decodeWarnings.length === 0) return [];
   const delta = await guardian.getDelta(multisig.accountId, latest.nonce);
   const txSummary = (delta.deltaPayload as { txSummary?: { data?: unknown } } | undefined)?.txSummary?.data;
-  if (typeof txSummary !== 'string') return [];
-  return getOutputNotesFromTxSummary(txSummary).map((note) => ({
+  if (typeof txSummary !== 'string') {
+    throw new Error("Guardian's record of the latest transaction has no transaction summary, so its private notes cannot be checked.");
+  }
+  const notes = readNotes(txSummary).map((note) => ({
     id: note.id().toString(),
     recipientId: p2idRecipient(note),
     note,
   }));
+  // Never report "clear" on fewer notes than Guardian lists.
+  if (notes.length < listedPrivate) {
+    throw new Error(
+      `Guardian lists ${listedPrivate} private note(s) in the latest transaction, but only ${notes.length} could be read, so they cannot be checked.`,
+    );
+  }
+  return notes;
 }
 
 /**
@@ -231,9 +246,11 @@ export async function latestCanonicalPrivateNotes(
  * `free()` releases the connection.
  */
 export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
-  const rpc = new RpcClient(new Endpoint(rpcUrl));
+  // Built on the first lookup: most checks have nothing to look up.
+  let client: RpcClient | undefined;
+  const rpc = () => (client ??= new RpcClient(new Endpoint(rpcUrl)));
   const fetchProofById = async (noteId: NoteId): Promise<NoteInclusionProof | undefined> => {
-    const fetched = await rpc.getNotesById([noteId]);
+    const fetched = await rpc().getNotesById([noteId]);
     try {
       return fetched[0]?.inclusionProof;
     } finally {
@@ -254,9 +271,12 @@ export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
       }
     },
     async isConsumed(note: Note, fromBlock: number): Promise<boolean> {
-      return (await rpc.getNullifierCommitHeight(note.nullifier(), fromBlock)) !== undefined;
+      return (await rpc().getNullifierCommitHeight(note.nullifier(), fromBlock)) !== undefined;
     },
-    free: () => rpc.free(),
+    free: () => {
+      client?.free();
+      client = undefined;
+    },
   };
 }
 

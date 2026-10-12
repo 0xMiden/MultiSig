@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Note, NoteId, NoteInclusionProof } from '@miden-sdk/miden-sdk';
 import {
-  DELIVERY_GIVE_UP_MS,
   deliverCommittedNotes,
   pendingDeliveries,
   recordPendingDelivery,
@@ -48,18 +47,15 @@ describe('deliverCommittedNotes', () => {
   });
 });
 
-describe('pending delivery records', () => {
-  beforeEach(() => {
-    const store = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => { store.set(k, v); },
-    });
+describe('pending delivery records (in memory only)', () => {
+  afterEach(() => {
+    for (const id of ['p1', 'p2']) removePendingDelivery(id);
+    vi.unstubAllGlobals();
+    vi.resetModules();
   });
-  afterEach(() => { vi.unstubAllGlobals(); });
 
-  const record = (proposalId: string, accountId = '0xAbC', createdAt = Date.now()) =>
-    ({ accountId, proposalId, recipientId: '0xr', notes: ['bm90ZQ=='], createdAt });
+  const record = (proposalId: string, accountId = '0xAbC') =>
+    ({ accountId, proposalId, recipientId: '0xr', notes: ['bm90ZQ=='], createdAt: Date.now() });
 
   it('keeps a note pending until it is removed after delivery', () => {
     recordPendingDelivery(record('p1'));
@@ -75,8 +71,16 @@ describe('pending delivery records', () => {
     expect(pendingDeliveries('0xabc')).toHaveLength(1);
   });
 
-  it('stops retrying a note that never appeared on-chain', () => {
-    recordPendingDelivery(record('old', '0xabc', Date.now() - DELIVERY_GIVE_UP_MS - 1));
-    expect(pendingDeliveries('0xabc')).toEqual([]);
+  it('does not survive a reload, and drops records older versions left in localStorage', async () => {
+    const store = new Map([['pendingPrivateDeliveries', JSON.stringify([record('stale')])]]);
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+    });
+    vi.resetModules();
+    const fresh = await import('../../src/lib/privateDelivery');
+    expect(fresh.pendingDeliveries('0xabc')).toEqual([]);
+    expect(store.has('pendingPrivateDeliveries')).toBe(false);
   });
 });
