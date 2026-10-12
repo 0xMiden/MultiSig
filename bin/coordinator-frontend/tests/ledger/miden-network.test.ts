@@ -30,3 +30,22 @@ describe('registration invitation code per network', () => {
     expect(() => registrationInvitationCode('mainnet', 'guardian', '  ')).toThrow(/invitation code is required/);
   });
 });
+
+describe('funding and invitation codes (review of 0xMiden/MultiSig#33)', () => {
+  it('waits for a funding note only on testnet', async () => {
+    const { fundsOnRegistration } = await import('../../src/lib/midenNetwork');
+    expect(fundsOnRegistration('testnet')).toBe(true);
+    for (const network of ['devnet', 'mainnet', 'local', 'custom'] as const) expect(fundsOnRegistration(network)).toBe(false);
+  });
+
+  it('checks a required invitation code with the node first, passing on its error', async () => {
+    const { assertInvitationCodeValid } = await import('../../src/lib/midenNetwork');
+    const { UserFacingError } = await import('../../src/lib/errors');
+    await expect(assertInvitationCodeValid({ isInvitationCodeValid: async () => true }, 'INVITE-1')).resolves.toBeUndefined();
+    const rejected = assertInvitationCodeValid({ isInvitationCodeValid: async () => false }, 'TYPO');
+    await expect(rejected).rejects.toThrow(/node rejected this invitation code.*nothing was created/);
+    await expect(rejected).rejects.toBeInstanceOf(UserFacingError);
+    await expect(assertInvitationCodeValid({ isInvitationCodeValid: async () => { throw new Error('INVITATION_NOT_FOUND'); } }, 'X'))
+      .rejects.toThrow('The node could not check the invitation code: INVITATION_NOT_FOUND');
+  });
+});

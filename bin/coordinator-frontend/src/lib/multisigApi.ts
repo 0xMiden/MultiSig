@@ -77,7 +77,8 @@ export function registerAccountOnNode(
       const allowed = /\bACCOUNT_ALREADY_ALLOWED\b|\balready allowed on the network\b/i.test(message);
       // Already registered is fine once the node confirms it accepts the
       // account; never swallow unrelated failures.
-      if ((duplicate || allowed) && await midenClient.accounts.isAllowed(accountId)) {
+      // A failing isAllowed must not replace the original error.
+      if ((duplicate || allowed) && await midenClient.accounts.isAllowed(accountId).catch(() => false)) {
         diagnosticLog('registration.ALREADY_ALLOWED', { accountId });
         return;
       }
@@ -153,24 +154,6 @@ export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
       (note): note is Note =>
         note !== undefined && note.metadata().noteType() === NoteType.Private,
     );
-}
-
-/**
- * The inclusion proof of a committed note, read from the node; undefined
- * while the note is not committed yet. Works for any cosigner, not only the
- * one whose client executed the transaction.
- */
-export async function fetchNoteInclusionProof(
-  noteId: NoteId,
-  rpcUrl: string = MIDEN_RPC_URL,
-): Promise<NoteInclusionProof | undefined> {
-  const rpc = new RpcClient(new Endpoint(rpcUrl));
-  try {
-    const [fetched] = await rpc.getNotesById([noteId]);
-    return fetched?.inclusionProof;
-  } finally {
-    rpc.free();
-  }
 }
 
 /**

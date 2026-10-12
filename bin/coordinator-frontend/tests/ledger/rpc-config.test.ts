@@ -21,13 +21,40 @@ afterEach(() => {
 });
 
 describe('network configuration from env', () => {
-  it('uses the full URLs and network exactly as configured', async () => {
-    const c = await config({ ...FULL, NEXT_PUBLIC_MIDEN_RPC_URL: ' https://custom.example:443/rpc ' });
+  it('uses the configured URLs as plain origins', async () => {
+    const c = await config({ ...FULL, NEXT_PUBLIC_MIDEN_RPC_URL: ' https://custom.example:443/ ' });
     expect(c.CONFIG_ERRORS).toEqual([]);
     expect(c.MIDEN_NETWORK).toBe('testnet');
-    expect(c.MIDEN_RPC_URL).toBe('https://custom.example:443/rpc');
+    expect(c.MIDEN_RPC_URL).toBe('https://custom.example');
     expect(c.MIDEN_NOTE_TRANSPORT_URL).toBe('https://transport.example.org');
     expect(c.MIDEN_PROVER_URL).toBe('https://prover.example.org');
+  });
+
+  it.each([
+    ['https://rpc.example.org/rpc', /plain origin/],
+    ['https://custom.example:443/rpc', /plain origin/],
+    ['https://rpc.example.org?x=1', /query or fragment/],
+    ['https://user:pw@rpc.example.org', /credentials/],
+    ['https://rpc.testnet.miden.io;', /invalid host name/],
+    ['https://a.example;https://b.example', /invalid host name/],
+    ['http://[::1]:57291', /invalid host name/],
+  ])('rejects %j for a Miden service (what the SDK or a CSP source cannot take)', async (value, problem) => {
+    const c = await config({ ...FULL, NEXT_PUBLIC_MIDEN_RPC_URL: value });
+    expect(c.MIDEN_RPC_URL).toBe('');
+    expect(c.CONFIG_ERRORS).toEqual([expect.stringMatching(problem)]);
+  });
+
+  it('lets a Guardian keep a path prefix, normalised, but validates the default too', async () => {
+    const c = await config({
+      ...FULL,
+      NEXT_PUBLIC_GUARDIAN_ENDPOINT: 'https://proxy.example/guardian/',
+      NEXT_PUBLIC_GUARDIAN_ENDPOINTS: 'https://proxy.example/guardian, https://g2.example',
+    });
+    expect(c.CONFIG_ERRORS).toEqual([]);
+    expect(c.GUARDIAN_ENDPOINTS).toEqual(['https://proxy.example/guardian', 'https://g2.example']);
+    const bad = await config({ ...FULL, NEXT_PUBLIC_GUARDIAN_ENDPOINT: 'guardian.example.com' });
+    expect(bad.GUARDIAN_ENDPOINT).toBe('');
+    expect(bad.CONFIG_ERRORS).toEqual([expect.stringMatching(/^NEXT_PUBLIC_GUARDIAN_ENDPOINT must be a full http/)]);
   });
 
   it('proves in the browser when the prover is unset or "local"', async () => {

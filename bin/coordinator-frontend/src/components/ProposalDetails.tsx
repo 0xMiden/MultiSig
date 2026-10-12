@@ -4,6 +4,7 @@ import type { Proposal } from '@openzeppelin/miden-multisig-client';
 import { useMultisig } from '@/contexts/MultisigContext';
 import { TokenAmount } from '@/components/TokenAmount';
 import { describeSignerChange, shortHex } from '@/lib/proposalDescription';
+import { switchGuardianProblem } from '@/lib/guardianUrl';
 
 /**
  * What a proposal does, from its metadata. The SDK checks the metadata against
@@ -67,14 +68,17 @@ export function ProposalDetails({ proposal }: { proposal: Proposal }) {
     case 'update_procedure_threshold':
       body = <>Set the {md.targetProcedure.replaceAll('_', ' ')} threshold to <span className="font-[600]">{md.targetThreshold}</span></>;
       break;
-    case 'switch_guardian':
+    case 'switch_guardian': {
+      const unreachable = switchGuardianProblem(proposal);
       body = (
         <>
           Switch Guardian to <span className="font-mono">{md.newGuardianEndpoint ?? 'an unknown endpoint'}</span>{' '}
           (key <span className="font-mono" title={md.newGuardianPubkey}>{shortHex(md.newGuardianPubkey)}</span>)
+          {unreachable && <span role="alert" className="block text-red-700">{unreachable}</span>}
         </>
       );
       break;
+    }
     default:
       body = <>Custom transaction: no decoded details are available for this type</>;
   }

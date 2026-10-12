@@ -1,3 +1,5 @@
+import { UserFacingError } from './errors';
+
 /**
  * Private notes must reach their recipient: a private note nobody delivered is
  * money the recipient can never see or spend. The note transport only takes a
@@ -101,7 +103,7 @@ function shortId(id: string): string {
  * Thrown by an operation the guard refused. Its message is shown as it is:
  * it must never be reworded into a wallet or network error.
  */
-export class PrivateNoteBlockedError extends Error {
+export class PrivateNoteBlockedError extends UserFacingError {
   override name = 'PrivateNoteBlockedError';
   constructor(readonly reason: string, readonly undelivered: boolean) {
     super(`${undelivered ? BLOCKED_UNDELIVERED : BLOCKED_UNVERIFIED} ${reason}`);

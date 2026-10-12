@@ -41,7 +41,9 @@ const AccountStatusBanner = () => {
     privateNoteGuard,
   } = useMultisig();
 
-  const fundingBusy = accountFunding.phase === "registering" || accountFunding.phase === "waiting-for-note";
+  // Waiting for the funding note runs in the background and does not conflict
+  // with anything else, so it must not disable unrelated Retry/Unlock buttons.
+  const fundingBusy = accountFunding.phase === "registering";
   const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy || releasingCandidate || Boolean(executingProposal);
   const configMissing = Boolean(multisig) && !detectedConfig && !busy;
   // Auto-load skips Ledger and an unplug unloads the account, so a Ledger user

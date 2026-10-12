@@ -4,6 +4,7 @@ import {
   STORE_VERSION_KEY,
   deleteDatabase,
   deriveStartupState,
+  holdStoreLock,
   resetStoreExclusively,
   startWithStoreCheck,
   waitForClientParts,
@@ -134,5 +135,40 @@ describe('waitForClientParts', () => {
   it('gives up after the timeout with a clear message', async () => {
     await expect(waitForClientParts(() => null, () => ({ phase: 'starting' }), { sleep, timeoutMs: 1_000, pollMs: 200 }))
       .rejects.toThrow('still starting');
+  });
+});
+
+describe('holdStoreLock (review of #31: take the shared lock before opening the store)', () => {
+  // A minimal Web Locks model: shared holders block an exclusive ifAvailable request.
+  function fakeLocks() {
+    let shared = 0;
+    const locks = {
+      request: (_name: string, options: LockOptions, callback: (lock: Lock | null) => Promise<unknown> | unknown) => {
+        if (options.mode === 'exclusive') {
+          return Promise.resolve(callback(options.ifAvailable && shared > 0 ? null : ({ mode: 'exclusive' } as Lock)));
+        }
+        shared += 1;
+        return Promise.resolve(callback({ mode: 'shared' } as Lock)).finally(() => { shared -= 1; });
+      },
+    } as unknown as LockManager;
+    return { locks, held: () => shared };
+  }
+
+  it('is held once it resolves, and released only when asked', async () => {
+    const { locks, held } = fakeLocks();
+    const lock = await holdStoreLock(locks);
+    expect(held()).toBe(1);
+    await lock.release();
+    expect(held()).toBe(0);
+  });
+
+  it("blocks another tab's reset while held, and lets this tab reset after releasing it", async () => {
+    const { locks } = fakeLocks();
+    const remove = vi.fn(async () => {});
+    const lock = await holdStoreLock(locks);
+    await expect(resetStoreExclusively('MidenClientDB', { locks, remove })).rejects.toThrow(/open in another tab/);
+    await lock.release();
+    await resetStoreExclusively('MidenClientDB', { locks, remove });
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });

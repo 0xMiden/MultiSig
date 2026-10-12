@@ -4,6 +4,10 @@ test('production app loads the real USB SDK and opens the Ledger dialog',async({
   page.on('request',request=>{if(new URL(request.url()).hostname.endsWith('ledger.com'))ledgerRequests.push(request.url());});
   const cspViolations:string[]=[];
   page.on('console',message=>{if(/Content Security Policy/i.test(message.text()))cspViolations.push(message.text());});
+  // The Miden SDK's WASM: proves the client started under the production CSP
+  // (a misconfigured build stops before loading it).
+  const midenWasm:string[]=[];
+  page.on('request',request=>{if(/miden_client_web[^/]*\.wasm$/.test(new URL(request.url()).pathname))midenWasm.push(request.url());});
   await page.goto('/login');
   // The wallet button names the source and whether it is connected.
   await page.getByRole('button',{name:/^MIDEN WALLET( · NOT CONNECTED)?$/}).click();
@@ -15,6 +19,8 @@ test('production app loads the real USB SDK and opens the Ledger dialog',async({
   // The USB SDK and WASM must load under the production Content-Security-Policy.
   const response=await page.request.get('/login');
   expect(response.headers()['content-security-policy']).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic' 'wasm-unsafe-eval';/);
+  await expect.poll(()=>midenWasm.length,{timeout:30000}).toBeGreaterThan(0);
+  await expect(page.getByText(/This deployment is misconfigured/)).toHaveCount(0);
   expect(cspViolations).toEqual([]);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();

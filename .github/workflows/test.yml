@@ -60,8 +60,15 @@ jobs:
       # Fake-device Ledger session suite: no external services needed.
       - name: Ledger session suite
         run: npm run test:ledger:ui
+      # NEXT_PUBLIC_* values are inlined at build time. Without them the app stops
+      # at "misconfigured" and the suite below would never load the Miden SDK.
       - name: Build
         run: npm run build
+        env:
+          NEXT_PUBLIC_MIDEN_NETWORK: testnet
+          NEXT_PUBLIC_MIDEN_RPC_URL: https://rpc.testnet.miden.io
+          NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL: https://transport.miden.io
+          NEXT_PUBLIC_GUARDIAN_ENDPOINT: https://guardian-testnet.openzeppelin.com
       # Production build: loads the real USB SDK and opens the Ledger dialog.
       - name: Production app suite
         run: npm run test:ledger:app

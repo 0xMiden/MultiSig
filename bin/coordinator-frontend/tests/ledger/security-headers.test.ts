@@ -62,6 +62,20 @@ describe('buildContentSecurityPolicy', () => {
     expect(connect.filter((source) => /miden\.io|openzeppelin\.com/.test(source) && source.includes('*'))).toEqual([]);
   });
 
+  it('drops any source that could split the policy (a ";" in a configured URL)', () => {
+    const policy = buildContentSecurityPolicy({
+      ...base,
+      guardianEndpoints: ['https://guardian-b.example;https://guardian-c.example'],
+      chatEndpoint: 'https://chat.example;frame-src',
+      extraConnectSrc: 'https://ok.example, https://x.example;script-src',
+    });
+    const connect = directives(policy).get('connect-src')!;
+    expect(connect).toContain('https://ok.example');
+    expect(connect.join(' ')).not.toMatch(/guardian-b|chat\.example|x\.example/);
+    expect(policy.split('; ').filter((d) => d.startsWith('connect-src'))).toHaveLength(1);
+    expect(policy).not.toMatch(/; https |frame-src https:\/\/chat/);
+  });
+
   it("follows Para's environment and relaxes only what React's dev build needs", () => {
     const dev = directives(buildContentSecurityPolicy({ ...base, dev: true, paraHosted: false }));
     expect(dev.get('script-src')).toContain("'unsafe-eval'");

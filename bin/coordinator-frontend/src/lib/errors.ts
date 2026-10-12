@@ -1,3 +1,11 @@
+/**
+ * An error whose message is written for the user: handlers show it as it is,
+ * never reworded into a wallet or network error.
+ */
+export class UserFacingError extends Error {
+  override name = 'UserFacingError';
+}
+
 export function formatError(err: unknown, prefix?: string): string {
   const message =
     err instanceof Error
@@ -52,7 +60,11 @@ export function describeExecutionError(err: unknown, prefix: string): string {
   if (lower.includes('database-related') || lower.includes('prematurecommiterror')) {
     return `${prefix}: this browser's local Miden data could not be read. Reload the page and try again.`;
   }
-  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+  // The browser's own network failure ("TypeError: Failed to fetch" in
+  // Chromium, "NetworkError when attempting to fetch resource" in Firefox),
+  // not SDK messages such as "failed to fetch transaction inputs from the data
+  // store", which are lower-case.
+  if (raw.includes('Failed to fetch') || raw.includes('NetworkError')) {
     return `${prefix}: could not reach the network. Check your connection and try again.`;
   }
 

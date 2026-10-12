@@ -92,7 +92,10 @@ const OTHER_TAB_OPEN = 'This app is open in another tab, which is using its loca
 
 /**
  * Resets the store only while no other tab holds it (see STORE_LOCK). Without
- * Web Locks it falls back to the plain delete, which still fails when blocked.
+ * Web Locks (none of the browsers this app supports: Chrome 69+, Edge 79+,
+ * Firefox 96+, Safari 15.4+) it falls back to the plain delete. Do not rely on
+ * that fallback: a blocked delete fails here, but IndexedDB still runs it once
+ * the other tab closes its connection.
  */
 export async function resetStoreExclusively(
   name: string,
@@ -107,9 +110,37 @@ export async function resetStoreExclusively(
   if (!done) throw new Error(OTHER_TAB_OPEN);
 }
 
-/** Holds STORE_LOCK in shared mode for the life of this tab. */
-export function holdStoreLock(locks: LockManager | undefined = globalThis.navigator?.locks): void {
-  void locks?.request(STORE_LOCK, { mode: 'shared' }, () => new Promise<void>(() => {}));
+export interface StoreLock {
+  /**
+   * Gives the lock up, e.g. so this tab can take it exclusively for its own
+   * reset. Resolves once the browser has actually released it.
+   */
+  release(): Promise<void>;
+}
+
+/**
+ * Takes STORE_LOCK in shared mode and holds it until released (or the tab
+ * closes). Resolves once granted, so it can be taken before the client opens
+ * the store: another tab's reset then cannot run while this one starts.
+ */
+export async function holdStoreLock(locks: LockManager | undefined = globalThis.navigator?.locks): Promise<StoreLock> {
+  if (!locks) return { release: async () => {} };
+  let unhold!: () => void;
+  const held = new Promise<void>((resolve) => { unhold = resolve; });
+  let released!: Promise<unknown>;
+  await new Promise<void>((granted) => {
+    // request() settles only after the callback's promise does and the lock is freed.
+    released = locks.request(STORE_LOCK, { mode: 'shared' }, () => {
+      granted();
+      return held;
+    });
+  });
+  return {
+    release: async () => {
+      unhold();
+      await released;
+    },
+  };
 }
 
 export interface ClientParts<M, C> {

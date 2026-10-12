@@ -29,6 +29,14 @@ describe('describeExecutionError', () => {
     );
   });
 
+  it("treats only the browser's own fetch failure as a network problem", () => {
+    quiet();
+    expect(describeExecutionError(new Error('JS API error: TypeError: Failed to fetch'), 'Execute failed')).toMatch(/could not reach the network/);
+    expect(describeExecutionError(new Error('NetworkError when attempting to fetch resource.'), 'Execute failed')).toMatch(/could not reach the network/);
+    expect(describeExecutionError(new Error('failed to fetch transaction inputs from the data store: x'), 'Execute failed'))
+      .not.toMatch(/could not reach the network/);
+  });
+
   it("uses Guardian's user-safe message rather than raw bodies", () => {
     quiet();
     const err = new GuardianHttpError(403, 'Forbidden', JSON.stringify({ code: 'signer_not_authorized', message: 'This signer cannot act on the account', meta: { retryable: false } }));

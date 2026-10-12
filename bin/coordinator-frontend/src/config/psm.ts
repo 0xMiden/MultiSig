@@ -1,27 +1,52 @@
 import { parseMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
 import { parseParaEnvironment, type ParaEnvironment } from '@/lib/paraEnvironment';
-
-export const GUARDIAN_ENDPOINT = process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT || '';
+import { originOf } from '@/lib/securityHeaders';
 
 // Every network endpoint comes from env as a full URL: the code holds no
 // devnet/testnet addresses. Missing or invalid values are collected in
 // CONFIG_ERRORS and reported when the client starts.
 const configErrors: string[] = [];
 
-function endpoint(name: string, value: string | undefined, { allowLocal = false } = {}): string {
+/**
+ * A configured endpoint, normalised. Miden services (RPC, note transport,
+ * prover) must be a plain origin such as https://rpc.example.org: the SDK's
+ * endpoint parser rejects a path ("invalid digit found in string"). A Guardian
+ * may sit under a path prefix. Never credentials, a query or a fragment.
+ */
+function endpoint(
+  name: string,
+  value: string | undefined,
+  { allowLocal = false, allowPath = false, required = true } = {},
+): string {
   const raw = value?.trim() ?? '';
   if (allowLocal && raw.toLowerCase() === 'local') return 'local';
   if (!raw) {
-    configErrors.push(`${name} is not set.`);
+    if (required) configErrors.push(`${name} is not set.`);
     return '';
   }
+  let url: URL | undefined;
   try {
-    const url = new URL(raw);
-    if (url.protocol === 'https:' || url.protocol === 'http:') return raw;
+    url = new URL(raw);
   } catch { /* reported below */ }
-  configErrors.push(`${name} must be a full http(s) URL${allowLocal ? ' or "local"' : ''}; got "${raw}".`);
-  return '';
+  const problem =
+    !url || (url.protocol !== 'https:' && url.protocol !== 'http:') ? `must be a full http(s) URL${allowLocal ? ' or "local"' : ''}`
+    : !originOf(raw) ? 'has an invalid host name'
+    : url.username || url.password ? 'must not contain credentials'
+    : url.search || url.hash ? 'must not contain a query or fragment'
+    : !allowPath && url.pathname !== '/' ? 'must be a plain origin such as https://rpc.example.org (no path)'
+    : null;
+  if (problem || !url) {
+    configErrors.push(`${name} ${problem}; got "${raw}".`);
+    return '';
+  }
+  return allowPath ? url.origin + url.pathname.replace(/\/+$/, '') : url.origin;
 }
+
+// The default Guardian. Unset is reported when connecting (with how to set it).
+export const GUARDIAN_ENDPOINT = endpoint('NEXT_PUBLIC_GUARDIAN_ENDPOINT', process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT, {
+  allowPath: true,
+  required: false,
+});
 
 // The network identity: the Miden Wallet's network, the Bech32 address prefix
 // and the invitation-code rule follow it.
@@ -51,9 +76,9 @@ export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim()
 // default one: full URLs, comma- or space-separated. Only these (and the
 // default) are reachable under the page's Content-Security-Policy.
 export const GUARDIAN_ENDPOINTS: readonly string[] = (() => {
-  const urls = [GUARDIAN_ENDPOINT.trim()].filter(Boolean);
+  const urls = [GUARDIAN_ENDPOINT].filter(Boolean);
   for (const entry of (process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINTS ?? '').split(/[\s,]+/).filter(Boolean)) {
-    const url = endpoint('NEXT_PUBLIC_GUARDIAN_ENDPOINTS entry', entry);
+    const url = endpoint('NEXT_PUBLIC_GUARDIAN_ENDPOINTS entry', entry, { allowPath: true });
     if (url && !urls.includes(url)) urls.push(url);
   }
   return urls;

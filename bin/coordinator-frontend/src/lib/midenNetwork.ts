@@ -1,7 +1,10 @@
+import { UserFacingError } from './errors';
+
 /**
- * The one Miden network this deployment talks to. Every network-specific
- * choice (RPC, the Miden Wallet's network, the Bech32 address prefix) derives
- * from it, so they cannot disagree.
+ * The one Miden network this deployment talks to (NEXT_PUBLIC_MIDEN_NETWORK).
+ * The Miden Wallet's network, the Bech32 address prefix and the invitation and
+ * funding rules follow it. The RPC, note transport and prover URLs are set
+ * separately and nothing cross-checks them: they must point at this network.
  */
 export type MidenNetwork = 'devnet' | 'testnet' | 'mainnet' | 'local' | 'custom';
 
@@ -42,6 +45,15 @@ export function defaultInvitationCode(network: MidenNetwork, configured: string)
   return configured;
 }
 
+/**
+ * Whether the node funds a newly registered account. Testnet sends 1 USDCX;
+ * devnet stopped (2026-10-08) and mainnet, local and custom nodes never did,
+ * so there is no funding note to wait for there.
+ */
+export function fundsOnRegistration(network: MidenNetwork): boolean {
+  return network === 'testnet';
+}
+
 export function invitationCodeRequired(network: MidenNetwork): boolean {
   return network === 'mainnet';
 }
@@ -53,4 +65,24 @@ export function registrationInvitationCode(network: MidenNetwork, configured: st
     throw new Error('An invitation code is required to register an account on this network.');
   }
   return code;
+}
+
+/**
+ * Checks a creator's invitation code with the node before anything is
+ * created, so a mistyped code can be corrected instead of stranding a new
+ * account that cannot register. The node's own error is passed on.
+ */
+export async function assertInvitationCodeValid(
+  accounts: { isInvitationCodeValid(code: string): Promise<boolean> },
+  code: string,
+): Promise<void> {
+  let valid: boolean;
+  try {
+    valid = await accounts.isInvitationCodeValid(code);
+  } catch (err) {
+    throw new UserFacingError(`The node could not check the invitation code: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!valid) {
+    throw new UserFacingError('The node rejected this invitation code. Check it and try again; nothing was created.');
+  }
 }

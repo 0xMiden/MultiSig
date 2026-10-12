@@ -17,12 +17,18 @@ export interface CspConfig {
   extraConnectSrc: string;
 }
 
-/** Origin of an absolute http(s) URL, or null for shorthands and invalid input. */
+// A DNS name or IPv4 address. WHATWG URLs accept far more in a host (e.g.
+// "a.com;https"), which would split a CSP directive; IPv6 literals cannot be
+// expressed as a CSP source at all.
+const HOSTNAME = /^(?:[a-z0-9-]+\.)*[a-z0-9-]+$/i;
+
+/** Origin of an absolute http(s) URL with a plain host, or null for anything else. */
 export function originOf(value: string | undefined): string | null {
   if (!value?.trim()) return null;
   try {
     const url = new URL(value.trim());
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null;
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return HOSTNAME.test(url.hostname) ? url.origin : null;
   } catch {
     return null;
   }

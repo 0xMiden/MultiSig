@@ -4,8 +4,9 @@
 // not set ("accept header validation failed"). So: read both from Status, then
 // call RegisterAccount with them. Mirrors Guardian's register-account script.
 //
-// 0.17 nodes serve the RPC as miden.node.v1.NodeService; older ones as rpc.Api.
-const SERVICES = ['miden.node.v1.NodeService', 'rpc.Api'] as const;
+// 0.17 nodes serve the RPC as miden.node.v1.NodeService (the version check
+// below rejects any other generation anyway).
+const SERVICE = 'miden.node.v1.NodeService';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -53,13 +54,8 @@ function fields(bytes: Uint8Array): Map<number, Uint8Array> {
   return result;
 }
 
-class RpcStatusError extends Error {
-  constructor(readonly grpcStatus: string, message: string) { super(message); }
-}
-
 async function call(
   rpcUrl: string,
-  service: string,
   method: 'Status' | 'RegisterAccount',
   payload: Uint8Array,
   accept?: string,
@@ -67,7 +63,7 @@ async function call(
   const frame = new Uint8Array(5 + payload.length);
   new DataView(frame.buffer).setUint32(1, payload.length);
   frame.set(payload, 5);
-  const response = await fetch(`${rpcUrl.replace(/\/+$/, '')}/${service}/${method}`, {
+  const response = await fetch(`${rpcUrl.replace(/\/+$/, '')}/${SERVICE}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/grpc-web+proto', 'x-grpc-web': '1', ...(accept ? { accept } : {}) },
     body: frame,
@@ -101,35 +97,25 @@ async function call(
   }
   if (status !== '0') {
     try { message = decodeURIComponent(message); } catch { /* Keep the original message. */ }
-    throw new RpcStatusError(status ?? 'missing', `${method} RPC failed (${status ?? 'missing status'}): ${message}`);
+    throw new Error(`${method} RPC failed (${status ?? 'missing status'}): ${message}`);
   }
   if (data === undefined) throw new Error(`Missing ${method} response message`);
   return data;
 }
 
-export interface NodeIdentity { version: string; genesis: string; service: string }
+export interface NodeIdentity { version: string; genesis: string }
 
-/** The node's version and genesis, and which RPC service name it answers on. */
+/** The node's version and genesis commitment, from its Status. */
 export async function readNodeIdentity(rpcUrl: string): Promise<NodeIdentity> {
-  let lastError: unknown;
-  for (const service of SERVICES) {
-    try {
-      const status = fields(await call(rpcUrl, service, 'Status', new Uint8Array()));
-      const version = decoder.decode(status.get(1));
-      const genesis = fields(status.get(2) ?? new Uint8Array()).get(1);
-      // Do not silently claim compatibility with a different protocol generation.
-      if (!/^0\.17\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
-        throw new Error(`Unsupported node version: ${version || 'missing'}`);
-      }
-      if (genesis?.length !== 32) throw new Error('Node Status is missing a valid genesis commitment');
-      return { version, service, genesis: `0x${Array.from(genesis, b => b.toString(16).padStart(2, '0')).join('')}` };
-    } catch (error) {
-      // UNIMPLEMENTED (12): this node uses the other service name.
-      if (error instanceof RpcStatusError && error.grpcStatus === '12') { lastError = error; continue; }
-      throw error;
-    }
+  const status = fields(await call(rpcUrl, 'Status', new Uint8Array()));
+  const version = decoder.decode(status.get(1));
+  const genesis = fields(status.get(2) ?? new Uint8Array()).get(1);
+  // Do not silently claim compatibility with a different protocol generation.
+  if (!/^0\.17\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error(`Unsupported node version: ${version || 'missing'}`);
   }
-  throw lastError;
+  if (genesis?.length !== 32) throw new Error('Node Status is missing a valid genesis commitment');
+  return { version, genesis: `0x${Array.from(genesis, b => b.toString(16).padStart(2, '0')).join('')}` };
 }
 
 export async function registerNodeAccount(
@@ -150,8 +136,9 @@ export async function registerNodeAccount(
   const id = field(1, concat(field(1, felt(`${accountId.slice(18)}00`)), field(2, felt(accountId.slice(2, 18)))));
   const identity = await readNodeIdentity(rpcUrl);
   onIdentity(identity);
-  // Networks without invitations (testnet) take the request without field 1.
+  // An empty code is sent without field 1 (the app always passes one on
+  // testnet, "00000" by default; see defaultInvitationCode).
   const invitation = invitationCode ? field(1, encoder.encode(invitationCode)) : new Uint8Array();
-  await call(rpcUrl, identity.service, 'RegisterAccount', concat(invitation, field(2, id)),
+  await call(rpcUrl, 'RegisterAccount', concat(invitation, field(2, id)),
     `application/vnd.miden; version=${identity.version}; genesis=${identity.genesis}`);
 }

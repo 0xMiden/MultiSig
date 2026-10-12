@@ -37,7 +37,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 describe('registerNodeAccount', () => {
   it('queries Status first, sends the discovered identity, and encodes the account ID as v1', async () => {
     const calls = stubFetch([response(status()), response(Buffer.alloc(0))]);
-    let identity: { genesis: string; service: string } | undefined;
+    let identity: { genesis: string } | undefined;
     await registerNodeAccount(RPC, id, 'guardian', (value) => { identity = value; });
     expect(calls[0].url).toBe(`${RPC}/miden.node.v1.NodeService/Status`);
     expect(calls[1].url).toBe(`${RPC}/miden.node.v1.NodeService/RegisterAccount`);
@@ -91,20 +91,10 @@ describe('registerNodeAccount', () => {
     expect(payload.toString('hex')).toBe('12180a160a090900b9206ec1d3741712090941603db4e7148510');
   });
 
-  it('falls back to the pre-0.17 rpc.Api service when the node does not implement NodeService', async () => {
-    const calls = stubFetch([
-      response(Buffer.alloc(0), '12', 'unimplemented'),
-      response(status()),
-      response(Buffer.alloc(0)),
-    ]);
-    let service = '';
-    await registerNodeAccount(RPC, id, 'guardian', (identity) => { service = identity.service; });
-    expect(calls.map((c) => c.url.replace(RPC, ''))).toEqual([
-      '/miden.node.v1.NodeService/Status',
-      '/rpc.Api/Status',
-      '/rpc.Api/RegisterAccount',
-    ]);
-    expect(service).toBe('rpc.Api');
+  it('reports an UNIMPLEMENTED Status as an error instead of trying another service', async () => {
+    const calls = stubFetch([response(Buffer.alloc(0), '12', 'unimplemented')]);
+    await expect(registerNodeAccount(RPC, id, 'guardian', () => {})).rejects.toThrow(/Status RPC failed \(12\): unimplemented/);
+    expect(calls.map((c) => c.url.replace(RPC, ''))).toEqual(['/miden.node.v1.NodeService/Status']);
   });
 
   it('propagates HTTP failures without attempting registration', async () => {

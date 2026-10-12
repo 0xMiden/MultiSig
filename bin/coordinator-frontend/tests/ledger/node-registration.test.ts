@@ -37,7 +37,7 @@ describe('registerAccountOnNode', () => {
       const first = run();
       expect(run()).toBe(first);
       await first;
-      expect(calls.register).toEqual([{ url: rpc, code: 'guardian' }]);
+      expect(calls.register).toEqual([{ url: new URL(rpc).origin, code: 'guardian' }]);
       expect(calls.isAllowed).toBe(0);
     },
   );

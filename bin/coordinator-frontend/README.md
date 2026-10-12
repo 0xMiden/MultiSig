@@ -45,11 +45,11 @@ NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Full Miden RPC URL, e.g. `https://rpc.testnet.miden.io` | none (required) |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Full note transport URL, e.g. `https://transport.miden.io` | none (required) |
 | `NEXT_PUBLIC_MIDEN_PROVER_URL` | Full remote prover URL, or `local` to prove in the browser | `local` |
-| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Devnet account-registration invitation code | `guardian` |
+| `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Default registration invitation code on devnet, local and custom networks (testnet pre-fills `00000`; mainnet requires the creator's code) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | Enables Para signing | none |
 | `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
 
-The app has no built-in network endpoints: RPC, note transport and prover come from these variables as full `http(s)` URLs (SDK shorthands such as `testnet` are rejected), and a missing or invalid value stops the app at start-up with a message naming the variable. Likewise there is no fallback Guardian URL. This prevents an RC/devnet browser client from silently connecting to the previous public deployment.
+The app has no built-in network endpoints: RPC, note transport and prover come from these variables as plain `http(s)` origins such as `https://rpc.testnet.miden.io`, with no path, query or credentials (SDK shorthands such as `testnet` are rejected), and a missing or invalid value stops the app at start-up with a message naming the variable. Likewise there is no fallback Guardian URL. This prevents an RC/devnet browser client from silently connecting to the previous public deployment.
 
 ## Install and run
 

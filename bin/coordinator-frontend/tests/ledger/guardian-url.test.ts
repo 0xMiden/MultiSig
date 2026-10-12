@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { guardianUrlProblem } from '../../src/lib/guardianUrl';
 
 const policy = {
@@ -25,5 +25,21 @@ describe('guardianUrlProblem', () => {
   it('rejects empty and malformed input', () => {
     expect(guardianUrlProblem('  ', policy)).toMatch(/Enter a Guardian URL/);
     expect(guardianUrlProblem('guardian.example.org', policy)).toMatch(/full http/);
+  });
+});
+
+describe('switchGuardianProblem', () => {
+  it('flags a switch to a Guardian this deployment cannot reach, and nothing else', async () => {
+    vi.resetModules();
+    vi.stubEnv('NEXT_PUBLIC_GUARDIAN_ENDPOINT', 'https://guardian-testnet.example');
+    vi.stubEnv('NEXT_PUBLIC_GUARDIAN_ENDPOINTS', 'https://guardian-devnet.example');
+    const { switchGuardianProblem } = await import('../../src/lib/guardianUrl');
+    const proposal = (newGuardianEndpoint?: string) => ({ metadata: { proposalType: 'switch_guardian', newGuardianEndpoint } });
+    expect(switchGuardianProblem(proposal('https://guardian-devnet.example'))).toBeNull();
+    expect(switchGuardianProblem(proposal('https://guardian.openzeppelin.com')))
+      .toMatch(/switches to https:\/\/guardian\.openzeppelin\.com, which this app cannot reach\. .*NEXT_PUBLIC_GUARDIAN_ENDPOINTS/);
+    expect(switchGuardianProblem(proposal())).toMatch(/does not name the new Guardian/);
+    expect(switchGuardianProblem({ metadata: { proposalType: 'p2id' } })).toBeNull();
+    vi.unstubAllEnvs();
   });
 });
