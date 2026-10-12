@@ -6,7 +6,10 @@
 //
 // 0.17 nodes serve the RPC as miden.node.v1.NodeService (the version check
 // below rejects any other generation anyway).
+import { FUNDING_WAIT_MS } from './fundingWait';
+
 const SERVICE = 'miden.node.v1.NodeService';
+const REGISTER_TIMEOUT_MS = FUNDING_WAIT_MS;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -67,7 +70,10 @@ async function call(
     method: 'POST',
     headers: { 'content-type': 'application/grpc-web+proto', 'x-grpc-web': '1', ...(accept ? { accept } : {}) },
     body: frame,
-    signal: AbortSignal.timeout(method === 'Status' ? 30_000 : 60_000),
+    // A node with a funding service answers RegisterAccount only once the
+    // funding note is committed, which can take minutes; registration runs in
+    // the background, so give it as long as the funding wait.
+    signal: AbortSignal.timeout(method === 'Status' ? 30_000 : REGISTER_TIMEOUT_MS),
     credentials: 'omit',
     redirect: 'error',
   });

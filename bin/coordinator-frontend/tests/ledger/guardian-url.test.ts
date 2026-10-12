@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { guardianUrlProblem } from '../../src/lib/guardianUrl';
+import { guardianUrlProblem, normalizeGuardianUrl } from '../../src/lib/guardianUrl';
 
 const policy = {
   guardians: ['https://guardian.example.org/api', 'https://guardian-devnet.example.org'],
@@ -25,6 +25,22 @@ describe('guardianUrlProblem', () => {
   it('rejects empty and malformed input', () => {
     expect(guardianUrlProblem('  ', policy)).toMatch(/Enter a Guardian URL/);
     expect(guardianUrlProblem('guardian.example.org', policy)).toMatch(/full http/);
+    expect(guardianUrlProblem('https://guardian.example.org/?x=1', policy)).toMatch(/without credentials, a query or a fragment/);
+    expect(guardianUrlProblem('https://user:pw@guardian.example.org', policy)).toMatch(/without credentials/);
+  });
+});
+
+describe('normalizeGuardianUrl (re-review of #33: a typed URL is used like an env one)', () => {
+  it('drops trailing slashes, which would make the client request "//pubkey"', () => {
+    expect(normalizeGuardianUrl(' https://guardian.example.org/ ')).toBe('https://guardian.example.org');
+    expect(normalizeGuardianUrl('https://guardian.example.org/api//')).toBe('https://guardian.example.org/api');
+    expect(normalizeGuardianUrl('HTTPS://Guardian.Example.org:443')).toBe('https://guardian.example.org');
+  });
+
+  it('refuses what an env Guardian URL may not contain', () => {
+    for (const value of ['guardian.example.org', 'ftp://guardian.example.org', 'https://guardian.example.org/?q', 'https://a:b@guardian.example.org']) {
+      expect(normalizeGuardianUrl(value)).toBeNull();
+    }
   });
 });
 

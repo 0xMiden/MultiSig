@@ -71,6 +71,10 @@ export function registrationInvitationCode(network: MidenNetwork, configured: st
  * Checks a creator's invitation code with the node before anything is
  * created, so a mistyped code can be corrected instead of stranding a new
  * account that cannot register. The node's own error is passed on.
+ *
+ * Nodes that predate the check (testnet and devnet 0.17.1 answer
+ * UNIMPLEMENTED) cannot tell: creation then goes ahead as before, and a bad
+ * code shows up at registration.
  */
 export async function assertInvitationCodeValid(
   accounts: { isInvitationCodeValid(code: string): Promise<boolean> },
@@ -80,9 +84,14 @@ export async function assertInvitationCodeValid(
   try {
     valid = await accounts.isInvitationCodeValid(code);
   } catch (err) {
-    throw new UserFacingError(`The node could not check the invitation code: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    if (NODE_LACKS_METHOD.test(message)) return;
+    throw new UserFacingError(`The node could not check the invitation code: ${message}`);
   }
   if (!valid) {
     throw new UserFacingError('The node rejected this invitation code. Check it and try again; nothing was created.');
   }
 }
+
+/** The SDK's error for a gRPC UNIMPLEMENTED answer. */
+const NODE_LACKS_METHOD = /not implemented by this version of the Miden node/i;

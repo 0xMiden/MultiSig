@@ -69,6 +69,11 @@ jobs:
           NEXT_PUBLIC_MIDEN_RPC_URL: https://rpc.testnet.miden.io
           NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL: https://transport.miden.io
           NEXT_PUBLIC_GUARDIAN_ENDPOINT: https://guardian-testnet.openzeppelin.com
-      # Production build: loads the real USB SDK and opens the Ledger dialog.
+      # Production build: loads the real USB SDK and opens the Ledger dialog, and
+      # checks the security policy admits the endpoints above (same values).
       - name: Production app suite
         run: npm run test:ledger:app
+        env:
+          NEXT_PUBLIC_MIDEN_RPC_URL: https://rpc.testnet.miden.io
+          NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL: https://transport.miden.io
+          NEXT_PUBLIC_GUARDIAN_ENDPOINT: https://guardian-testnet.openzeppelin.com

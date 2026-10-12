@@ -45,8 +45,8 @@ const registrationRequests = new Map<string, Promise<void>>();
 /**
  * Registers a new account with the Miden node, on every network. The direct
  * RPC (nodeRegistration.ts) is used because the SDK's own path skips the call
- * when the node already allows the account. Registration funds a new account
- * (devnet and testnet). The invitation code is the one the creator confirmed on
+ * when the node already allows the account. On testnet, registration also
+ * funds a new account (see fundsOnRegistration). The invitation code is the one the creator confirmed on
  * the create page, else the network default (see defaultInvitationCode).
  */
 export function registerAccountOnNode(
@@ -228,6 +228,8 @@ export async function latestCanonicalPrivateNotes(
  * was committed, whether it has been consumed, and its inclusion proof.
  * `free()` releases the connection.
  */
+export type NoteChainChecks = ReturnType<typeof noteChainChecks>;
+
 export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
   // Built on the first lookup: most checks have nothing to look up.
   let client: RpcClient | undefined;
@@ -240,23 +242,33 @@ export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
       for (const entry of fetched) entry.free();
     }
   };
-  const fetchProof = (note: Note) => fetchProofById(note.id());
+  // The proof committedAt read, kept for the delivery that follows it. Handed
+  // out once: sending a note consumes its proof.
+  const proofs = new Map<string, NoteInclusionProof>();
+  const fetchProof = async (note: Note): Promise<NoteInclusionProof | undefined> => {
+    const key = note.id().toString();
+    const kept = proofs.get(key);
+    if (!kept) return fetchProofById(note.id());
+    proofs.delete(key);
+    return kept;
+  };
   return {
     fetchProof,
     fetchProofById,
     async committedAt(note: Note): Promise<number | undefined> {
-      const proof = await fetchProof(note);
+      const proof = await fetchProofById(note.id());
       if (!proof) return undefined;
-      try {
-        return proof.location().blockNum();
-      } finally {
-        proof.free();
-      }
+      const key = note.id().toString();
+      proofs.get(key)?.free();
+      proofs.set(key, proof);
+      return proof.location().blockNum();
     },
     async isConsumed(note: Note, fromBlock: number): Promise<boolean> {
       return (await rpc().getNullifierCommitHeight(note.nullifier(), fromBlock)) !== undefined;
     },
     free: () => {
+      for (const proof of proofs.values()) proof.free();
+      proofs.clear();
       client?.free();
       client = undefined;
     },

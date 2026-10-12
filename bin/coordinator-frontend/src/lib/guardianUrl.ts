@@ -20,13 +20,32 @@ export function guardianUrlProblem(value: string, policy: GuardianUrlPolicy): st
   if (!value.trim()) return 'Enter a Guardian URL.';
   const origin = originOf(value);
   if (!origin) return 'Enter a full http(s) URL, e.g. https://guardian.example.com.';
+  if (!normalizeGuardianUrl(value)) return 'Enter the Guardian URL without credentials, a query or a fragment.';
 
   const guardians = policy.guardians.map(originOf).filter((o): o is string => o !== null);
   const allowed = new Set([policy.self, ...guardians, ...extraOrigins(policy.extra)]);
   if (allowed.has(origin)) return null;
 
-  return `This app can only connect to the Guardians it was deployed with: ${guardians.join(', ') || 'none'}. ` +
+  return `This app can only switch to the Guardians it was deployed with: ${guardians.join(', ') || 'none'}. ` +
     `To use ${origin}, add it to NEXT_PUBLIC_GUARDIAN_ENDPOINTS and redeploy.`;
+}
+
+/**
+ * A Guardian URL as the app uses it, like the env ones (config/psm.ts): origin
+ * plus any path prefix, without trailing slashes (the client appends
+ * "/pubkey", so "https://g.example/" would request "//pubkey"). Null when it
+ * is not a plain http(s) URL.
+ */
+export function normalizeGuardianUrl(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  if (url.username || url.password || url.search || url.hash) return null;
+  return url.origin + url.pathname.replace(/\/+$/, '');
 }
 
 /** guardianUrlProblem against this deployment's allowed Guardians. */

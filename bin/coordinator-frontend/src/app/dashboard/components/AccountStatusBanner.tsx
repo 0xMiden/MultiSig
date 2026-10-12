@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { msUntilUnlockable } from "@/lib/pendingCandidate";
 import { ledgerNotice } from "@/lib/ledgerNotice";
+import { fundsOnRegistration } from "@/lib/midenNetwork";
+import { MIDEN_NETWORK } from "@/config/psm";
 import type { AccountLock, MultisigContextValue } from "@/contexts/MultisigContext";
 import { useMultisig } from "@/contexts/MultisigContext";
 
@@ -41,10 +43,10 @@ const AccountStatusBanner = () => {
     privateNoteGuard,
   } = useMultisig();
 
-  // Waiting for the funding note runs in the background and does not conflict
-  // with anything else, so it must not disable unrelated Retry/Unlock buttons.
-  const fundingBusy = accountFunding.phase === "registering";
-  const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy || releasingCandidate || Boolean(executingProposal);
+  // Node registration and the funding wait run in the background and do not
+  // conflict with anything else, so they never disable unrelated Retry/Unlock buttons.
+  const busy = loadingAccount || registeringOnGuardian || syncingState || releasingCandidate || Boolean(executingProposal);
+  const funds = fundsOnRegistration(MIDEN_NETWORK);
   const configMissing = Boolean(multisig) && !detectedConfig && !busy;
   // Auto-load skips Ledger and an unplug unloads the account, so a Ledger user
   // can land here with nothing loaded: offer the way back from the dashboard.
@@ -140,10 +142,10 @@ const AccountStatusBanner = () => {
               {accountFunding.phase === "registering" && "Registering account on the network"}
               {accountFunding.phase === "waiting-for-note" && "Waiting for funding"}
               {accountFunding.phase === "funding-available" && "Funding note ready"}
-              {accountFunding.phase === "error" && "Account funding needs attention"}
+              {accountFunding.phase === "error" && (funds ? "Account funding needs attention" : "Node registration needs attention")}
             </span>
             <span className="text-[12px] font-[400] text-[#9A3412] wrap-break-word">
-              {accountFunding.phase === "registering" && "The node is registering this account and preparing its initial funding note."}
+              {accountFunding.phase === "registering" && (funds ? "The node is registering this account and preparing its initial funding note." : "The node is registering this account.")}
               {accountFunding.phase === "waiting-for-note" && "The account is registered. Its funding note can take a few minutes to arrive; it will appear in Receive Funds."}
               {accountFunding.phase === "funding-available" && "Open Receive Funds, create a proposal for this note, then collect signatures to deploy and fund the account."}
               {accountFunding.phase === "error" && accountFunding.message}
@@ -156,7 +158,7 @@ const AccountStatusBanner = () => {
               disabled={busy}
               className="min-h-8 shrink-0 text-[12px] font-[500] text-[#9A3412] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF5500] disabled:opacity-50"
             >
-              Retry funding
+              {funds ? "Retry funding" : "Retry registration"}
             </button>
           )}
         </div>

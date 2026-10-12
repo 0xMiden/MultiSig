@@ -6,6 +6,7 @@ import {
   deriveStartupState,
   holdStoreLock,
   resetStoreExclusively,
+  startHoldingStoreLock,
   startWithStoreCheck,
   waitForClientParts,
   type StartupState,
@@ -14,6 +15,21 @@ import {
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
   return { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), data };
+}
+
+// A minimal Web Locks model: shared holders block an exclusive ifAvailable request.
+function fakeLocks() {
+  let shared = 0;
+  const locks = {
+    request: (_name: string, options: LockOptions, callback: (lock: Lock | null) => Promise<unknown> | unknown) => {
+      if (options.mode === 'exclusive') {
+        return Promise.resolve(callback(options.ifAvailable && shared > 0 ? null : ({ mode: 'exclusive' } as Lock)));
+      }
+      shared += 1;
+      return Promise.resolve(callback({ mode: 'shared' } as Lock)).finally(() => { shared -= 1; });
+    },
+  } as unknown as LockManager;
+  return { locks, held: () => shared };
 }
 
 describe('startWithStoreCheck (review 10: reset only on an SDK version change)', () => {
@@ -139,20 +155,6 @@ describe('waitForClientParts', () => {
 });
 
 describe('holdStoreLock (review of #31: take the shared lock before opening the store)', () => {
-  // A minimal Web Locks model: shared holders block an exclusive ifAvailable request.
-  function fakeLocks() {
-    let shared = 0;
-    const locks = {
-      request: (_name: string, options: LockOptions, callback: (lock: Lock | null) => Promise<unknown> | unknown) => {
-        if (options.mode === 'exclusive') {
-          return Promise.resolve(callback(options.ifAvailable && shared > 0 ? null : ({ mode: 'exclusive' } as Lock)));
-        }
-        shared += 1;
-        return Promise.resolve(callback({ mode: 'shared' } as Lock)).finally(() => { shared -= 1; });
-      },
-    } as unknown as LockManager;
-    return { locks, held: () => shared };
-  }
 
   it('is held once it resolves, and released only when asked', async () => {
     const { locks, held } = fakeLocks();
@@ -170,5 +172,35 @@ describe('holdStoreLock (review of #31: take the shared lock before opening the 
     await lock.release();
     await resetStoreExclusively('MidenClientDB', { locks, remove });
     expect(remove).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('startHoldingStoreLock (re-review of #33: a failed start gives the lock up)', () => {
+  const start = (locks: LockManager, storage: ReturnType<typeof memoryStorage>, create: () => Promise<string>) =>
+    startHoldingStoreLock({
+      create,
+      reset: () => resetStoreExclusively('MidenClientDB', { locks, remove: async () => {} }),
+      sdkVersion: '0.17.3',
+      storage,
+    }, locks);
+
+  it('lets Retry reset once the other tab is closed', async () => {
+    const { locks, held } = fakeLocks();
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.1' });
+    const otherTab = await holdStoreLock(locks);
+    await expect(start(locks, storage, async () => 'client')).rejects.toThrow(/open in another tab/);
+    expect(held()).toBe(1); // only the other tab's
+    await otherTab.release();
+    await expect(start(locks, storage, async () => 'client')).resolves.toBe('client');
+    expect(held()).toBe(1); // ours, kept while the client runs
+  });
+
+  it('lets Retry reset again after a failed start in a single tab', async () => {
+    const { locks, held } = fakeLocks();
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.1' });
+    await expect(start(locks, storage, async () => { throw new Error('wasm download failed'); })).rejects.toThrow('wasm download failed');
+    expect(held()).toBe(0);
+    await expect(start(locks, storage, async () => 'client')).resolves.toBe('client');
+    expect(storage.data.get(STORE_VERSION_KEY)).toBe('0.17.3');
   });
 });

@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Note, NoteId, NoteInclusionProof } from '@miden-sdk/miden-sdk';
 import {
   deliverCommittedNotes,
+  NoteNotOnChainError,
   pendingDeliveries,
   recordPendingDelivery,
   removePendingDelivery,
@@ -18,7 +19,8 @@ describe('deliverCommittedNotes', () => {
     const sendPrivate = vi.fn(async () => {});
     let polls = 0;
     const fetchProof = vi.fn(async (id: NoteId) => (++polls >= 3 ? proof(String(id)) : undefined));
-    await deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xrecipient', { fetchProof, sleep });
+    await expect(deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xrecipient', { fetchProof, sleep }))
+      .resolves.toBe('delivered');
     expect(polls).toBe(3);
     expect(sendPrivate).toHaveBeenCalledWith({ note: expect.anything(), to: '0xrecipient', inclusionProof: proof('a') });
   });
@@ -35,7 +37,18 @@ describe('deliverCommittedNotes', () => {
     const sendPrivate = vi.fn(async () => {});
     await expect(deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xr', {
       fetchProof: async () => undefined, sleep, timeoutMs: 6_000, pollMs: 3_000,
-    })).rejects.toThrow(/not on-chain yet.*retried/);
+    })).rejects.toBeInstanceOf(NoteNotOnChainError);
+    expect(sendPrivate).not.toHaveBeenCalled();
+  });
+
+  it('stops waiting, without sending, once the note is dropped (its execution failed)', async () => {
+    const sendPrivate = vi.fn(async () => {});
+    let polls = 0;
+    const result = deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xr', {
+      fetchProof: async () => { polls++; return undefined; }, stillPending: () => polls < 2, sleep,
+    });
+    await expect(result).resolves.toBe('dropped');
+    expect(polls).toBe(2);
     expect(sendPrivate).not.toHaveBeenCalled();
   });
 

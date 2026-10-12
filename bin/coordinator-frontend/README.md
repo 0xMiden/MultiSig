@@ -40,14 +40,14 @@ NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 | Variable | Description | Default |
 | --- | --- | --- |
 | `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Required Guardian `0.18` base URL | none |
-| `NEXT_PUBLIC_GUARDIAN_ENDPOINTS` | Other Guardians users may switch to at runtime, full URLs, comma-separated. The app's security policy admits only these and the default | none |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINTS` | Other Guardians users may switch to at runtime, full URLs, comma-separated. With the default, the only Guardians users can switch to; the security policy also admits the app's own origin and any `NEXT_PUBLIC_CSP_CONNECT_SRC` origin | none |
 | `NEXT_PUBLIC_MIDEN_NETWORK` | Network name: `devnet`, `testnet`, `mainnet`, `local` or `custom` (wallet network, address prefix, invitation-code rule) | none (required) |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Full Miden RPC URL, e.g. `https://rpc.testnet.miden.io` | none (required) |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Full note transport URL, e.g. `https://transport.miden.io` | none (required) |
 | `NEXT_PUBLIC_MIDEN_PROVER_URL` | Full remote prover URL, or `local` to prove in the browser | `local` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Default registration invitation code on devnet, local and custom networks (testnet pre-fills `00000`; mainnet requires the creator's code) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | Enables Para signing | none |
-| `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
+| `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment matching the key: `sandbox`, `beta` (for `beta_…` keys), `production`, or `development` (Para's local stack) | `development` |
 
 The app has no built-in network endpoints: RPC, note transport and prover come from these variables as plain `http(s)` origins such as `https://rpc.testnet.miden.io`, with no path, query or credentials (SDK shorthands such as `testnet` are rejected), and a missing or invalid value stops the app at start-up with a message naming the variable. Likewise there is no fallback Guardian URL. This prevents an RC/devnet browser client from silently connecting to the previous public deployment.
 
@@ -197,7 +197,7 @@ When a new multisig account is created, the app:
 1. registers it with Guardian;
 2. registers its note tag locally;
 3. calls the node's account-registration endpoint with the invitation code from the create page;
-4. syncs until the initial funding note is available;
+4. on testnet, waits in the background for the initial funding note;
 5. exposes that note in **Receive Funds**, where the normal multisig proposal/sign/execute flow deploys and funds the account.
 
 Registration or funding-note discovery can be retried from the dashboard without recreating the account. The app never repeats proposal signing or execution automatically.
@@ -227,6 +227,6 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - **Guardian connection fails:** confirm `NEXT_PUBLIC_GUARDIAN_ENDPOINT` points to a Guardian `0.18` on the same network as `NEXT_PUBLIC_MIDEN_RPC_URL`. Restart Next.js after changing `.env.local`.
 - **Old account or decoding errors:** the app resets an incompatible local store on start-up; if it persists, clear this origin's site data and reload.
 - **Funding note does not arrive (testnet):** registration funds a new account with 1 USDCX, which can take a few minutes; the banner waits up to 10 minutes, then offers **Retry funding**. Accounts that already existed are not funded again; use the testnet faucet (https://faucet.testnet.miden.io) with the account's `mtst1…` address.
-- **Funding note does not appear (devnet):** use **Retry funding**. Confirm the invitation code is accepted by that node.
+- **Node registration fails (devnet, mainnet, custom):** use **Retry registration** in the banner, and confirm the invitation code is accepted by that node. Only testnet funds a new account.
 - **Miden Wallet does not connect:** confirm the extension is installed and unlocked, then reconnect using the app's wallet controls.
 - **Para does not appear:** set `NEXT_PUBLIC_PARA_API_KEY` and restart the development server.

@@ -9,8 +9,9 @@ import { base64ToBytes, bytesToBase64 } from './base64';
  *
  * The note is kept in memory from just before execution until it is delivered,
  * so it can be relayed as soon as the transaction lands. It is dropped when the
- * execution fails, and it does not survive a reload: from then on Guardian is
- * the only source. Guardian keeps every canonical transaction's full summary,
+ * execution fails, or when the transaction is still not on-chain after the
+ * wait once its execution is over (accepted by the node, never committed), and
+ * it does not survive a reload: from then on Guardian is the only source. Guardian keeps every canonical transaction's full summary,
  * and the private-note guard (privateNoteGuard.ts) re-delivers the private
  * notes of the latest one before the account can be used. A stale local copy
  * can therefore never block an account.
@@ -60,32 +61,49 @@ export function decodeNote(encoded: string, deserialize: (bytes: Uint8Array) => 
 export interface DeliveryOptions {
   /** The note's inclusion proof once it is committed, undefined before. */
   fetchProof: (noteId: NoteId) => Promise<NoteInclusionProof | undefined>;
+  /** False once the note no longer needs delivering (its execution failed): stop waiting. */
+  stillPending?: () => boolean;
   timeoutMs?: number;
   pollMs?: number;
   sleep?: (ms: number) => Promise<void>;
 }
 
+/** A note did not appear on-chain within the wait. */
+export class NoteNotOnChainError extends Error {
+  override name = 'NoteNotOnChainError';
+  constructor() {
+    super('The private note is not on-chain yet, so it cannot be delivered. It will be retried.');
+  }
+}
+
 /**
  * Waits until each note is committed, then relays it with its inclusion proof.
- * Throws if a note is not committed within `timeoutMs` or the transport
- * refuses it; already delivered notes are not re-sent within one call.
+ * Resolves 'dropped' without sending once `stillPending` turns false. Throws
+ * NoteNotOnChainError if a note is not committed within `timeoutMs`, or the
+ * transport's error; already delivered notes are not re-sent within one call.
  */
 export async function deliverCommittedNotes(
   midenClient: Pick<MidenClient, 'notes'>,
   notes: Note[],
   recipientId: string,
-  { fetchProof, timeoutMs = 180_000, pollMs = 3_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }: DeliveryOptions,
-): Promise<void> {
+  {
+    fetchProof,
+    stillPending = () => true,
+    timeoutMs = 180_000,
+    pollMs = 3_000,
+    sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  }: DeliveryOptions,
+): Promise<'delivered' | 'dropped'> {
   for (const note of notes) {
     let inclusionProof: NoteInclusionProof | undefined;
     for (let waited = 0; ; waited += pollMs) {
+      if (!stillPending()) return 'dropped';
       inclusionProof = await fetchProof(note.id());
       if (inclusionProof) break;
-      if (waited >= timeoutMs) {
-        throw new Error('The private note is not on-chain yet, so it cannot be delivered. It will be retried.');
-      }
+      if (waited >= timeoutMs) throw new NoteNotOnChainError();
       await sleep(pollMs);
     }
     await midenClient.notes.sendPrivate({ note, to: recipientId, inclusionProof });
   }
+  return 'delivered';
 }

@@ -46,6 +46,7 @@ import {
   registerAccountOnNode,
   latestCanonicalPrivateNotes,
   noteChainChecks,
+  type NoteChainChecks,
   type LatestPrivateNote,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
@@ -54,9 +55,8 @@ import { assertInvitationCodeValid, fundsOnRegistration, invitationCodeRequired 
 import {
   assertConfigured,
   deriveStartupState,
-  holdStoreLock,
   resetStoreExclusively,
-  startWithStoreCheck,
+  startHoldingStoreLock,
   waitForClientParts,
   type StartupState,
 } from "@/lib/clientStartup";
@@ -65,11 +65,12 @@ import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
-import { deployedGuardianUrlProblem, switchGuardianProblem } from "@/lib/guardianUrl";
+import { deployedGuardianUrlProblem, normalizeGuardianUrl, switchGuardianProblem } from "@/lib/guardianUrl";
 import { runRegistrationRetry } from "@/lib/registrationRetry";
 import {
   decodeNote,
   deliverCommittedNotes,
+  NoteNotOnChainError,
   encodeNote,
   pendingDeliveries,
   recordPendingDelivery,
@@ -331,6 +332,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const fundingAccountId = useRef<string | null>(null);
   // Each funding attempt's number: a newer attempt stops an older one's wait.
   const fundingRun = useRef(0);
+  // Background registration or funding failures, per account (lowercase ID),
+  // so Retry funding is offered again when that account is loaded.
+  const fundingFailures = useRef(new Map<string, string>());
   const [accountFunding, setAccountFunding] = useState<AccountFundingState>({
     phase: "idle",
   });
@@ -346,6 +350,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [undeliveredNotes, setUndeliveredNotes] = useState<UndeliveredNote[]>([]);
   const [privateNoteGuard, setPrivateNoteGuard] = useState<PrivateNoteGuardState>({ phase: "idle" });
+  const privateNoteGuardRef = useRef(privateNoteGuard);
+  privateNoteGuardRef.current = privateNoteGuard;
   // Action handlers are defined before the delivery code; they reach the guard
   // through this ref (assigned below, next to checkPrivateNotes).
   const ensurePrivateNotesClearRef = useRef<(ms: Multisig) => Promise<void>>(async () => {});
@@ -634,6 +640,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       // the current Guardian and say why instead.
       const blocked = deployedGuardianUrlProblem(url);
       if (blocked) return fail(blocked, !multisigClient);
+      url = normalizeGuardianUrl(url) ?? url;
       setGuardianStatus("connecting");
       setError(null);
       try {
@@ -743,19 +750,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       // second build could reset the store under it.
       let client = midenClientRef.current;
       if (!client) {
-        // Hold the store's shared lock before opening it, so another tab's reset
-        // cannot run while this one starts; give it up only for our own reset.
-        let storeLock = await holdStoreLock();
-        client = await startWithStoreCheck({
+        // Holds the store's shared lock from before it is opened, so another
+        // tab's reset cannot run while this one starts (see clientStartup.ts).
+        client = await startHoldingStoreLock({
           create: () => createMidenClient(),
-          reset: async () => {
-            await storeLock.release();
-            try {
-              await resetStoreExclusively(MIDEN_DB_NAME);
-            } finally {
-              storeLock = await holdStoreLock();
-            }
-          },
+          reset: () => resetStoreExclusively(MIDEN_DB_NAME),
           sdkVersion: MIDEN_SDK_VERSION,
           onReset: (reason) => console.warn(`Resetting the Miden client's local data: ${reason}.`),
         });
@@ -763,19 +762,28 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Local keys need no Guardian: set them up first, so a Guardian failure
-      // does not leave the app without a signer once it reconnects.
+      // does not leave the app without a signer once it reconnects. Unreadable
+      // keys are reported, but do not stop start-up: other signers still work.
+      let keyProblem: string | null = null;
       if (LOCAL_KEYS_ENABLED && !signerRef.current) {
         setGeneratingSigner(true);
-        let signerInfo = await loadSignerKeys();
-        if (!signerInfo) {
-          signerInfo = initSigner();
-          await saveSignerKeys(signerInfo);
+        try {
+          let signerInfo = await loadSignerKeys();
+          if (!signerInfo) {
+            signerInfo = initSigner();
+            await saveSignerKeys(signerInfo);
+          }
+          setSigner(signerInfo);
+        } catch (keyError) {
+          keyProblem = formatError(keyError, "Local keys unavailable");
+          toast.error(keyProblem);
         }
-        setSigner(signerInfo);
       }
 
       const connected = await connectToGuardianRef.current(guardianUrl, client);
       if (!connected.ok) setStartupError(connected.error);
+      // After connecting, which clears the account error.
+      else if (keyProblem) setError(keyProblem);
     } catch (err) {
       const message = formatError(err, "Initialization failed");
       setStartupError(message);
@@ -809,14 +817,26 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         fundingRun.current === run &&
         fundingAccountId.current === account.accountId &&
         multisigRef.current?.accountId === account.accountId;
+      const failureKey = account.accountId.toLowerCase();
+      const failurePrefix = fundsOnRegistration(MIDEN_NETWORK) ? "Account funding failed" : "Node registration failed";
+      // This runs in the background: a failure after the user switched away is
+      // kept, and shown (with Retry funding) when the account is loaded again.
+      const recordFailure = (message: string) => {
+        fundingFailures.current.set(failureKey, message);
+        if (multisigRef.current?.accountId !== account.accountId) {
+          toast.error(`Account ${account.accountId.slice(0, 10)}…: ${message}`);
+        }
+      };
       setAccountFunding({ phase: "registering" });
       try {
         await registerAccountOnNode(liveClient, account.accountId, invitationCodes.current.get(account.accountId));
+        fundingFailures.current.delete(failureKey);
         if (!stillCurrent()) return false;
         // Only testnet funds a new account on registration; elsewhere there is
         // no funding note to wait for.
         if (!fundsOnRegistration(MIDEN_NETWORK)) {
           setAccountFunding({ phase: "idle" });
+          toast.success("Account registered on the network");
           return false;
         }
         // The funding note can take a few minutes to arrive. Wait for it in the
@@ -825,13 +845,19 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         // own calls, so polling cannot overlap them.
         const waitForNote = async () => {
           setAccountFunding({ phase: "waiting-for-note" });
-          const feeFaucet = await liveClient.feeFaucetId();
-          const feeFaucetHex = feeFaucet.toString().toLowerCase();
-          feeFaucet.free();
+          let feeFaucetHex: string | undefined;
           const outcome = await waitForFundingNote({
             isCurrent: stillCurrent,
             check: async () => {
-              await liveClient.sync();
+              // The funding note is public: chain state is enough, without the
+              // note transport fetch that sync() adds (and fails on).
+              await liveClient.syncChain();
+              // Known only once the store has synced (SDK feeFaucetId).
+              if (!feeFaucetHex) {
+                const feeFaucet = await liveClient.feeFaucetId();
+                feeFaucetHex = feeFaucet.toString().toLowerCase();
+                feeFaucet.free();
+              }
               const notes = await account.getConsumableNotes();
               if (!stillCurrent()) return false;
               // Only when the list changed: a new array every second would
@@ -848,13 +874,15 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         };
         if (!waitInBackground) return await waitForNote();
         void waitForNote().catch((waitError) => {
-          if (!stillCurrent()) return;
-          setAccountFunding({ phase: "error", message: formatError(waitError, "Account funding failed") });
+          const message = formatError(waitError, failurePrefix);
+          recordFailure(message);
+          if (stillCurrent()) setAccountFunding({ phase: "error", message });
         });
         return false;
       } catch (fundingError) {
+        const message = formatError(fundingError, failurePrefix);
+        recordFailure(message);
         if (!stillCurrent()) return false;
-        const message = formatError(fundingError, "Account funding failed");
         setAccountFunding({ phase: "error", message });
         throw fundingError;
       }
@@ -1213,8 +1241,13 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         register: () => multisig.registerOnGuardian(),
         sessionUnchanged: () => walletSource !== "ledger" || signerAtStart === latestLedgerSigner.current,
         registerNoteTag: () => registerAccountNoteTag(midenClient, multisig.accountId),
-        // The funding note (if any) is awaited in the background, like at create.
-        requestFunding: async () => { await requestAccountFunding(multisig, { waitInBackground: true }); },
+        // Node registration and the funding note run in the background, like at
+        // create. An account already on chain was registered before: skip it.
+        requestFunding: async () => {
+          const account = await midenClient.accounts.get(multisig.accountId);
+          if (account && account.nonce().asInt() !== 0n) return;
+          void requestAccountFunding(multisig, { waitInBackground: true }).catch(() => {});
+        },
         sync: handleSync,
       });
       if (result.registered) setGuardianRegistrationRequired(false);
@@ -1431,11 +1464,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   const handleCreateSwitchGuardianProposal = useCallback(
     async (newEndpoint: string, newPubkey: string) => {
-      await runProposalCreation("Switch Guardian", (ms) => {
-        const problem = deployedGuardianUrlProblem(newEndpoint);
-        if (problem) throw new UserFacingError(problem);
-        return ms.createSwitchGuardianProposal(newEndpoint, newPubkey);
-      });
+      // Checked before the lock check and sync, which on Ledger cost approvals.
+      const problem = deployedGuardianUrlProblem(newEndpoint);
+      if (problem) {
+        setError(problem);
+        throw new UserFacingError(problem);
+      }
+      const endpoint = normalizeGuardianUrl(newEndpoint) ?? newEndpoint;
+      await runProposalCreation("Switch Guardian", (ms) => ms.createSwitchGuardianProposal(endpoint, newPubkey));
     },
     [runProposalCreation],
   );
@@ -1477,14 +1513,19 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const loadedAccountId = multisig?.accountId ?? null;
 
   // Switching account starts a fresh session: nothing from the previous
-  // account's lock, warnings or funding carries over.
+  // account's lock, warnings or funding carries over. A background
+  // registration that failed for the loaded account is offered again.
   useEffect(() => {
     setLockedCandidate(null);
     setPendingCandidateWarning(null);
     setReleasingCandidate(false);
     setUndeliveredNotes([]);
     setPrivateNoteGuard({ phase: "idle" });
-    if (fundingAccountId.current && fundingAccountId.current !== loadedAccountId) {
+    const fundingFailure = loadedAccountId ? fundingFailures.current.get(loadedAccountId.toLowerCase()) : undefined;
+    if (fundingFailure && fundingAccountId.current !== loadedAccountId) {
+      fundingAccountId.current = loadedAccountId;
+      setAccountFunding({ phase: "error", message: fundingFailure });
+    } else if (fundingAccountId.current && fundingAccountId.current !== loadedAccountId) {
       fundingAccountId.current = null;
       setAccountFunding({ phase: "idle" });
     }
@@ -1492,38 +1533,64 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
 
   // Deliver this account's pending private notes (see privateDelivery.ts):
   // right after execute with a long wait for the commit, and on load or retry
-  // with a short one. A note stays pending until the transport accepts it.
-  const deliveringNotes = useRef(new Set<string>());
-  const deliverPendingNotes = useCallback(async (accountId: string, timeoutMs: number) => {
+  // with a short one. A note stays pending until the transport accepts it, or
+  // until it is clear its transaction did not commit (Guardian is then the source).
+  // Deliveries in progress, by proposal: a later check, even one for a reloaded
+  // account object, waits for a running delivery instead of skipping it.
+  const deliveringNotes = useRef(new Map<string, Promise<void>>());
+  // Private sends whose execution is still running in this tab.
+  const executingSends = useRef(new Set<string>());
+  const deliverPendingNotes = useCallback(async (accountId: string, timeoutMs: number, checks: NoteChainChecks) => {
     // Delivery needs only the Miden client (node and note transport), not
     // Guardian: read it directly, so it also works while Guardian is down.
     const client = midenClientRef.current;
     if (!client) return;
-    // One node connection for every proof lookup of this round.
-    const checks = noteChainChecks();
-    try {
-      for (const pending of pendingDeliveries(accountId)) {
-        if (deliveringNotes.current.has(pending.proposalId)) continue;
-        deliveringNotes.current.add(pending.proposalId);
+    for (const pending of pendingDeliveries(accountId)) {
+      const running = deliveringNotes.current.get(pending.proposalId);
+      if (running) {
+        await running;
+        continue;
+      }
+      const stillPending = () => pendingDeliveries(accountId).some((p) => p.proposalId === pending.proposalId);
+      const forget = () => setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== pending.proposalId));
+      const delivery = (async () => {
         try {
           const notes = pending.notes.map((encoded) => decodeNote(encoded, (bytes) => Note.deserialize(bytes)));
-          await deliverCommittedNotes(client, notes, pending.recipientId, { fetchProof: checks.fetchProofById, timeoutMs });
+          const outcome = await deliverCommittedNotes(client, notes, pending.recipientId, {
+            fetchProof: checks.fetchProofById,
+            stillPending,
+            timeoutMs,
+          });
+          if (outcome === "dropped") return;
           removePendingDelivery(pending.proposalId);
-          setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== pending.proposalId));
+          forget();
           toast.success("Private note delivered to the recipient");
         } catch (err) {
+          // Its execute failed meanwhile and dropped the note: nothing was sent.
+          if (!stillPending()) return;
+          // Not on-chain although its execution is over: the node accepted the
+          // transaction but has not committed it. Drop the copy and let Guardian
+          // decide, as after a reload: its candidate lock holds the account (with
+          // Unlock) until the transaction lands, then its canonical delta is delivered.
+          if (err instanceof NoteNotOnChainError && !executingSends.current.has(pending.proposalId)) {
+            removePendingDelivery(pending.proposalId);
+            forget();
+            return;
+          }
           if (multisigRef.current?.accountId !== accountId) return;
           const error = formatError(err);
           setUndeliveredNotes((all) => [
             ...all.filter((n) => n.proposalId !== pending.proposalId),
             { proposalId: pending.proposalId, recipientId: pending.recipientId, error },
           ]);
-        } finally {
-          deliveringNotes.current.delete(pending.proposalId);
         }
+      })();
+      deliveringNotes.current.set(pending.proposalId, delivery);
+      try {
+        await delivery;
+      } finally {
+        deliveringNotes.current.delete(pending.proposalId);
       }
-    } finally {
-      checks.free();
     }
   }, []);
 
@@ -1552,24 +1619,38 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           return blocked;
         };
         // Once clear, stay shown as clear while re-checking (it runs before
-        // every operation); only a failed check changes what the user sees.
-        if (stillCurrent()) setPrivateNoteGuard((g) => (g.phase === "clear" ? g : { phase: "checking" }));
+        // every operation), unless a note from this tab is waiting to be
+        // delivered: that check can take a while, so say what it waits for.
+        if (stillCurrent()) {
+          const delivering = pendingDeliveries(ms.accountId).length > 0;
+          setPrivateNoteGuard((g) => (g.phase === "clear" && !delivering ? g : { phase: "checking" }));
+        }
+        // One node connection for every lookup of this check.
         const checks = noteChainChecks();
         try {
           // A private send executed in this tab, possibly not canonical yet.
           // Needs only the Miden client, so it runs even while Guardian is down.
-          await deliverPendingNotes(ms.accountId, localWaitMs);
+          await deliverPendingNotes(ms.accountId, localWaitMs, checks);
           if (pendingDeliveries(ms.accountId).length > 0) {
             return report(new PrivateNoteBlockedError("A private note from the last send has not reached its recipient yet.", true));
           }
+          // Reloaded meanwhile: the operation that asked belongs to the old
+          // account object (and on Ledger, Guardian would prompt for nothing).
+          if (!stillCurrent()) return new PrivateNoteBlockedError("The account was reloaded during the check. Try again.", false);
           const client = midenClientRef.current;
           if (!client) return report(new PrivateNoteBlockedError("The Miden client is not running.", false));
           // The latest canonical transaction, as Guardian keeps it: covers sends
           // executed by another signer, on another device, or before a reload.
           await ensureLatestPrivateNotesDelivered<LatestPrivateNote>({
-            latestPrivateNotes: () => latestCanonicalPrivateNotes(ms),
-            committedAt: (n) => checks.committedAt(n.note),
-            isConsumed: (n, block) => checks.isConsumed(n.note, block),
+            latestPrivateNotes: () => latestCanonicalPrivateNotes(ms).catch((err: unknown) => {
+              throw new Error(`Could not read the last transaction from Guardian: ${formatError(err)}`);
+            }),
+            committedAt: (n) => checks.committedAt(n.note).catch((err: unknown) => {
+              throw new Error(`Could not reach the Miden node: ${formatError(err)}`);
+            }),
+            isConsumed: (n, block) => checks.isConsumed(n.note, block).catch((err: unknown) => {
+              throw new Error(`Could not reach the Miden node: ${formatError(err)}`);
+            }),
             deliver: async (n, to) => {
               const inclusionProof = await checks.fetchProof(n.note);
               if (!inclusionProof) throw new Error("its inclusion proof is not available yet");
@@ -1592,15 +1673,21 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [deliverPendingNotes],
   );
   // Before every operation, not only on load: another signer may have
-  // executed a private send from another device meanwhile.
+  // executed a private send from another device meanwhile. An account Guardian
+  // does not know yet has no history to check: say what is missing instead.
   ensurePrivateNotesClearRef.current = async (ms: Multisig) => {
+    if (guardianRegistrationRequired && multisigRef.current === ms) {
+      throw new UserFacingError("This account is not registered on Guardian yet. Use Retry Guardian registration first.");
+    }
     const blocked = await checkPrivateNotes(ms);
     if (blocked !== null) throw blocked;
   };
 
   // On load, and again once a pending Guardian registration completes: an
   // account Guardian does not know yet has no history to check (it answers 404).
-  const accountOnGuardian = !guardianRegistrationRequired && !registeringOnGuardian;
+  // Not while the account is still loading: its own Guardian requests come
+  // first (on Ledger, each one is a device approval).
+  const accountOnGuardian = !guardianRegistrationRequired && !registeringOnGuardian && !loadingAccount;
   useEffect(() => {
     const ms = multisigRef.current;
     if (loadedAccountId && clientStartup.phase === "ready" && accountOnGuardian && ms?.accountId === loadedAccountId) {
@@ -1619,10 +1706,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const releaseLock = useCallback(
     async (ms: Multisig, candidate: { proposalId: string; nonce: number }) => {
       const stillCurrent = () => multisigRef.current === ms;
-      setReleasingCandidate(true);
-      setPendingCandidateWarning(
-        "Unlocking the account. Guardian first confirms the transaction did not land, which can take up to a minute.",
-      );
+      // Still released on Guardian, but the screen belongs to the account now
+      // shown: its finally would never reset these.
+      if (stillCurrent()) {
+        setReleasingCandidate(true);
+        setPendingCandidateWarning(
+          "Unlocking the account. Guardian first confirms the transaction did not land, which can take up to a minute.",
+        );
+      }
       try {
         let outcome;
         try {
@@ -1645,7 +1736,6 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             // the record expires, and re-check the account.
             removePendingDelivery(candidate.proposalId);
             setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== candidate.proposalId));
-            void checkPrivateNotes(ms, 15_000, { fresh: true });
             let proposalSurvived: boolean;
             try {
               const synced = await ms.syncProposals();
@@ -1658,6 +1748,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
                 "The account is unlocked, but proposals could not be refreshed. Sync before executing or re-creating anything.",
               );
               return;
+            } finally {
+              // After the refresh, not alongside it: on Ledger each is a device approval.
+              if (stillCurrent()) void checkPrivateNotes(ms, 15_000, { fresh: true });
             }
             toast.success("The account is unlocked.");
             setPendingCandidateWarning(
@@ -1673,6 +1766,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             setLockedCandidate(null);
             await handleSync().catch(() => {});
             if (!stillCurrent()) return;
+            void checkPrivateNotes(ms, 60_000, { fresh: true });
             setPendingCandidateWarning(
               "Guardian unlocked the account but could not confirm whether the earlier transaction landed. " +
                 "Do not re-create it yet: sync again in a few minutes and check balances and history first.",
@@ -1682,6 +1776,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             setLockedCandidate(null);
             setPendingCandidateWarning("The earlier transaction did land on-chain, so nothing was unlocked. Syncing…");
             await handleSync().catch(() => {});
+            // Its private note (if any) is delivered from Guardian's record of it.
+            if (stillCurrent()) void checkPrivateNotes(ms, 60_000, { fresh: true });
             return;
           case "timeout":
             setPendingCandidateWarning("Guardian has not finished unlocking yet. It is safe to try again in a moment.");
@@ -1757,12 +1853,22 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             notes: notes.map(encodeNote),
             createdAt: Date.now(),
           });
+          executingSends.current.add(fresh.id);
           privateDelivery = true;
         }
 
         await multisig.executeProposal(proposalId);
-        setProposals(multisig.listProposals());
+        executingSends.current.delete(proposalId);
         toast.success("Proposal executed successfully");
+        // The user may have switched or reloaded the account meanwhile: never
+        // show this account's results on another one. A reloaded account
+        // still gets its new note delivered.
+        if (multisigRef.current !== ms) {
+          const reloaded = multisigRef.current;
+          if (reloaded?.accountId === ms.accountId) void checkPrivateNotes(reloaded, privateDelivery ? 180_000 : 15_000, { fresh: true });
+          return;
+        }
+        setProposals(multisig.listProposals());
 
         // Sync after execution
         if (midenClient) {
@@ -1778,7 +1884,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           } catch (syncErr) {
             const message =
               syncErr instanceof Error ? syncErr.message : String(syncErr);
-            await handleLocalStateAhead(multisig, message);
+            if (multisigRef.current === ms) await handleLocalStateAhead(multisig, message);
           } finally {
             setSyncingState(false);
           }
@@ -1792,6 +1898,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         // Drop the in-memory note whatever the failure. If the transaction
         // landed after all (an unclear submit), Guardian records it as
         // canonical and the private-note guard delivers it from there.
+        const droppedNote = Boolean(executing)
+          && pendingDeliveries(ms.accountId).some((p) => p.proposalId === executing?.id);
         if (executing) {
           removePendingDelivery(executing.id);
           setUndeliveredNotes((all) => all.filter((n) => n.proposalId !== executing?.id));
@@ -1800,7 +1908,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           // Another execution already holds the account's Guardian lock.
           await inspectAccountLock(ms);
         } else {
-          setError(message);
+          if (multisigRef.current === ms) setError(message);
           toast.error(message);
           // Guardian accepted this execute's push before it failed, so the lock is
           // ours and can never land: release it right away instead of leaving the
@@ -1810,8 +1918,17 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             await releaseLock(ms, { proposalId: executing.id, nonce: executing.nonce });
           }
         }
+        // An operation tried while this send was proving was refused on its
+        // note, and left the account shown as locked. That note is gone now:
+        // check again so the lock lifts. Only then, since on Ledger each check
+        // is a device approval.
+        if (droppedNote && multisigRef.current === ms
+          && (privateNoteGuardRef.current.phase === "blocked" || privateNoteGuardRef.current.phase === "unverified")) {
+          void checkPrivateNotes(ms, 15_000, { fresh: true });
+        }
         throw err;
       } finally {
+        executingSends.current.delete(proposalId);
         clearExecutionPushed(ms.accountId);
         // Cleared even if the account changed meanwhile, or it stays "Executing…".
         setExecutingProposal((current) => (current === proposalId ? null : current));
@@ -1859,6 +1976,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       if (!multisig) return;
 
       try {
+        const proposal = multisig.listProposals().find((p) => p.id === proposalId);
+        const unreachable = proposal && switchGuardianProblem(proposal);
+        if (unreachable) throw new UserFacingError(unreachable);
         await ensurePrivateNotesClearRef.current(multisig);
         const json = await multisig.signProposalOffline(proposalId);
         navigator.clipboard.writeText(json);

@@ -5,6 +5,8 @@
  */
 export const FUNDING_POLL_MS = 1_000;
 export const FUNDING_WAIT_MS = 10 * 60_000;
+/** A check failing this many times in a row ends the wait; fewer are retried. */
+export const FUNDING_MAX_FAILURES = 5;
 
 export interface FundingWaitOptions {
   /** One sync-and-look: true once the funding note is consumable. */
@@ -13,25 +15,36 @@ export interface FundingWaitOptions {
   isCurrent: () => boolean;
   timeoutMs?: number;
   pollMs?: number;
+  maxFailures?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
 
 /**
  * Resolves 'found' when the note arrives, 'stopped' when superseded. Throws if
- * it has not arrived within `timeoutMs`, or if a check fails.
+ * it has not arrived within `timeoutMs`, or with the error of a check that
+ * failed `maxFailures` times in a row (one failed sync in ten minutes of
+ * polling must not end the wait).
  */
 export async function waitForFundingNote({
   check,
   isCurrent,
   timeoutMs = FUNDING_WAIT_MS,
   pollMs = FUNDING_POLL_MS,
+  maxFailures = FUNDING_MAX_FAILURES,
   now = Date.now,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 }: FundingWaitOptions): Promise<'found' | 'stopped'> {
   const deadline = now() + timeoutMs;
+  let failures = 0;
   for (;;) {
-    const found = await check();
+    let found = false;
+    try {
+      found = await check();
+      failures = 0;
+    } catch (error) {
+      if (++failures >= maxFailures) throw error;
+    }
     if (!isCurrent()) return 'stopped';
     if (found) return 'found';
     if (now() >= deadline) {

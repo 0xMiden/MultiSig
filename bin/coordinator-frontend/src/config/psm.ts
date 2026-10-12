@@ -10,8 +10,9 @@ const configErrors: string[] = [];
 /**
  * A configured endpoint, normalised. Miden services (RPC, note transport,
  * prover) must be a plain origin such as https://rpc.example.org: the SDK's
- * endpoint parser rejects a path ("invalid digit found in string"). A Guardian
- * may sit under a path prefix. Never credentials, a query or a fragment.
+ * endpoint parser rejects some paths (one after an explicit port fails with
+ * "invalid digit found in string"), so none is allowed. A Guardian may sit
+ * under a path prefix. Never credentials, a query or a fragment.
  */
 function endpoint(
   name: string,

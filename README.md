@@ -277,19 +277,19 @@ make docker-stop-frontend
 
 ### Frontend Environment Variables
 
-The frontend is configured via `NEXT_PUBLIC_*` environment variables, set at build time. Docker Compose passes them as build arguments from `bin/coordinator-frontend/.env.local`. Rebuild the image after changing them. There are no built-in network endpoints: RPC and note transport must be plain `http(s)` origins (no path, query or credentials), and a missing or invalid value stops the app at start-up.
+The frontend is configured via `NEXT_PUBLIC_*` environment variables, set at build time. Docker Compose passes them as build arguments from `bin/coordinator-frontend/.env.local`. Rebuild the image after changing them. There are no built-in network endpoints: RPC, note transport and a remote prover must be plain `http(s)` origins (no path, query or credentials), and a missing or invalid value stops the app at start-up.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `NEXT_PUBLIC_GUARDIAN_ENDPOINT` | Guardian service URL for proposal coordination | _(required)_ |
-| `NEXT_PUBLIC_GUARDIAN_ENDPOINTS` | Other Guardians users may switch to at runtime (full URLs, comma-separated); the only other Guardians the app can reach | _(empty)_ |
+| `NEXT_PUBLIC_GUARDIAN_ENDPOINTS` | Other Guardians users may switch to at runtime (full URLs, comma-separated). With the default, the only Guardians users can switch to; the security policy also admits the app's own origin and any `NEXT_PUBLIC_CSP_CONNECT_SRC` origin | _(empty)_ |
 | `NEXT_PUBLIC_MIDEN_NETWORK` | Network name: `devnet`, `testnet`, `mainnet`, `local` or `custom` | _(required)_ |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Full Miden node RPC URL, e.g. `https://rpc.testnet.miden.io` | _(required)_ |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Full note transport URL, e.g. `https://transport.miden.io` | _(required)_ |
-| `NEXT_PUBLIC_MIDEN_PROVER_URL` | Full remote prover URL, or `local` to prove in the browser | `local` |
+| `NEXT_PUBLIC_MIDEN_PROVER_URL` | Remote prover origin (no path), or `local` to prove in the browser | `local` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Default registration invitation code on devnet, local and custom networks (testnet pre-fills `00000`; mainnet requires the creator's code) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | [Para](https://getpara.com) wallet API key (enables Para wallet support) | _(empty — Para disabled)_ |
-| `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment (`development` or `production`) | `development` |
+| `NEXT_PUBLIC_PARA_ENVIRONMENT` | Para environment matching the key: `sandbox`, `beta` (for `beta_…` keys), `production`, or `development` (Para's local stack) | `development` |
 
 > `VITE_PARA_API_KEY` is also accepted as a compatibility alias for `NEXT_PUBLIC_PARA_API_KEY`.
 

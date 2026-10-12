@@ -143,6 +143,36 @@ export async function holdStoreLock(locks: LockManager | undefined = globalThis.
   };
 }
 
+/**
+ * Starts the client (startWithStoreCheck) holding STORE_LOCK in shared mode,
+ * taken before the store is opened and kept once started. This tab gives it up
+ * only for its own reset (`reset` takes the lock exclusively), and after a
+ * failed start: kept then, it would block this tab's own reset on every Retry
+ * as if another tab had the store open.
+ */
+export async function startHoldingStoreLock<T>(
+  options: StoreStartOptions<T>,
+  locks: LockManager | undefined = globalThis.navigator?.locks,
+): Promise<T> {
+  let lock = await holdStoreLock(locks);
+  try {
+    return await startWithStoreCheck({
+      ...options,
+      reset: async () => {
+        await lock.release();
+        try {
+          await options.reset();
+        } finally {
+          lock = await holdStoreLock(locks);
+        }
+      },
+    });
+  } catch (error) {
+    await lock.release();
+    throw error;
+  }
+}
+
 export interface ClientParts<M, C> {
   midenClient: M;
   multisigClient: C;

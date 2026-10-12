@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe('registerAccountOnNode', () => {
   it.each(['https://rpc.devnet.example', 'https://rpc.devnet.example:8443/'])(
-    'devnet (%s) registers with the invitation code (which funds the account), once for concurrent calls',
+    'devnet (%s) registers with the deployment\'s invitation code, once for concurrent calls',
     async (rpc) => {
       const { run, calls } = await setup({ network: 'devnet', rpc });
       const first = run();
@@ -74,6 +74,14 @@ describe('registerAccountOnNode', () => {
       await expect(rejected.run()).rejects.toThrow(message);
     },
   );
+
+  it('keeps the original error when the node cannot answer isAllowed', async () => {
+    const { calls } = await setup({ rpcError: new Error('ALREADY_REGISTERED') });
+    const client = { accounts: { isAllowed: async () => { throw new Error('isAllowed unavailable'); } } };
+    const { registerAccountOnNode } = await import('../../src/lib/multisigApi');
+    await expect(registerAccountOnNode(client as never, '0x5678')).rejects.toThrow('ALREADY_REGISTERED');
+    expect(calls.register).toHaveLength(1);
+  });
 
   it('propagates real RPC errors and lets a failed request be retried', async () => {
     const error = new Error('funding service rejected account funding request');

@@ -31,6 +31,7 @@ describe('Guardian registration recovery', () => {
     vi.resetAllMocks();
     context.guardianRegistrationRequired = false;
     context.registeringOnGuardian = false;
+    context.accountFunding = { phase: 'idle' };
     context.handleSync.mockResolvedValue(undefined);
     context.retryGuardianRegistration.mockResolvedValue(undefined);
   });
@@ -49,6 +50,13 @@ describe('Guardian registration recovery', () => {
     context.registeringOnGuardian = true;
     const [button] = buttons(AccountStatusBanner());
     expect(button.props.disabled).toBe(true);
+  });
+
+  it.each(['registering', 'waiting-for-note'])('keeps Retry usable while the background %s phase runs', (phase) => {
+    context.guardianRegistrationRequired = true;
+    context.accountFunding = { phase };
+    const retry = buttons(AccountStatusBanner()).find((b) => b.props.children === 'Retry Guardian registration');
+    expect(retry?.props.disabled).toBe(false);
   });
 
   it('handles a rejected retry instead of leaving an unhandled rejection', async () => {
