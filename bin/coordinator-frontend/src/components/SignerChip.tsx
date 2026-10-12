@@ -8,7 +8,7 @@ import { copyToClipboard, truncateHex } from "@/lib/helpers";
 const SOURCE_LABEL: Record<string, string> = {
   ledger: "Ledger",
   para: "Para",
-  "miden-wallet": "Miden Wallet",
+  "miden-wallet": "Bread",
   local: "Local key",
 };
 

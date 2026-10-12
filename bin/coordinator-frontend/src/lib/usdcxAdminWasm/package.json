@@ -1,0 +1,21 @@
+{
+  "name": "usdcx-admin-notes",
+  "type": "module",
+  "description": "Builders for miden-usdcx admin notes, produced by a multisig account",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0xMiden/MultiSig"
+  },
+  "files": [
+    "usdcx_admin_notes_bg.wasm",
+    "usdcx_admin_notes.js",
+    "usdcx_admin_notes.d.ts"
+  ],
+  "main": "usdcx_admin_notes.js",
+  "types": "usdcx_admin_notes.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

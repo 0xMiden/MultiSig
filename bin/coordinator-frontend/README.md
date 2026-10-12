@@ -1,6 +1,6 @@
 # Coordinator Frontend
 
-Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Miden Wallet extension, or a Ledger over direct USB.
+Next.js application for creating and operating Miden multisig accounts through OpenZeppelin Guardian. The browser runs the Miden client locally and can sign with a local development key, Para, the Bread extension, or a Ledger over direct USB.
 
 ## Compatibility baseline
 
@@ -23,7 +23,7 @@ This application runs on Miden **testnet** in production (devnet also works) and
 - Node.js 20.19 or newer
 - npm
 - A Guardian `0.18` endpoint on the same Miden network (testnet: `https://guardian-testnet.openzeppelin.com`)
-- Optional: Miden Wallet browser extension or a Para API key
+- Optional: Bread browser extension or a Para API key
 
 ## Environment setup
 
@@ -72,7 +72,7 @@ npm run build
 
 This is the **direct USB** integration: browser → WebHID → Ledger Ethereum app.
 There is no Wallet Provider login, Ledger API key, app ID, `dAppIdentifier` or
-`originToken` to configure. Para credentials and the Miden Wallet extension are
+`originToken` to configure. Para credentials and the Bread extension are
 not required for Ledger testing.
 
 ### Prepare and connect
@@ -221,7 +221,7 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - `src/lib/multisigApi.ts` — Guardian/Miden client setup, node registration, and private-note transport
 - `src/lib/proposalActions.ts` — centralized proposal action policy
 - `src/lib/initClient.ts` — browser Miden client and local signer-key initialization
-- `src/hooks/useMidenWallet.ts` — Miden Wallet extension adapter
+- `src/hooks/useMidenWallet.ts` — Bread extension adapter
 - `src/hooks/useParaSession.ts` — Para signer integration
 - `src/config/psm.ts` — runtime endpoint and network configuration
 

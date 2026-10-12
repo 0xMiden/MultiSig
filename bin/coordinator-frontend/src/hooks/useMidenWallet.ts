@@ -10,14 +10,14 @@ import { PublicKeyFormat } from '@openzeppelin/miden-multisig-client';
 import type { ExternalWalletState } from '@/wallets/types';
 import { MIDEN_NETWORK } from '@/config/psm';
 
-/** The Miden Wallet network matching this deployment's network. */
+/** The Bread network matching this deployment's network. */
 function walletNetwork(): WalletAdapterNetwork {
   switch (MIDEN_NETWORK) {
     case 'devnet': return WalletAdapterNetwork.Devnet;
     case 'testnet': return WalletAdapterNetwork.Testnet;
     case 'local': return WalletAdapterNetwork.Localnet;
     default:
-      throw new Error(`The Miden Wallet has no ${MIDEN_NETWORK} network; set NEXT_PUBLIC_MIDEN_NETWORK to devnet, testnet or local.`);
+      throw new Error(`Bread has no ${MIDEN_NETWORK} network; set NEXT_PUBLIC_MIDEN_NETWORK to devnet, testnet or local.`);
   }
 }
 
@@ -28,6 +28,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     publicKey: null,
     commitment: null,
     scheme: null,
+    address: null,
   });
   const [connectError, setConnectError] = useState<string | null>(null);
   const connectingRef = useRef(false);
@@ -36,14 +37,13 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
     if (!adapter) return;
 
     const handleConnect = (address: string) => {
-      void address;
       const pk = adapter.publicKey;
       if (!pk) {
-        setConnectError('Miden Wallet connected but did not provide a public key');
+        setConnectError('Bread connected but did not provide a public key');
         return;
       }
       const { publicKeyHex, commitment } = PublicKeyFormat.parse(pk);
-      // Miden Wallet keys are ECDSA; the length-based heuristic in PublicKeyFormat.parse
+      // Bread keys are ECDSA; the length-based heuristic in PublicKeyFormat.parse
       // mislabels 32-byte keys as falcon, so force the scheme it actually uses.
       const scheme = 'ecdsa' as const;
       if (!commitment) {
@@ -64,6 +64,8 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
         publicKey: isValidEcdsaPointLength ? publicKeyHex : null,
         commitment,
         scheme,
+        // Bread's current account, as a bech32 address. Direct admin actions are sent from it.
+        address: adapter.address ?? address ?? null,
       });
     };
 
@@ -75,6 +77,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
         publicKey: null,
         commitment: null,
         scheme: null,
+        address: null,
       }));
     };
 
@@ -117,7 +120,7 @@ export function useMidenWallet(adapter: MessageSignerWalletAdapter | null) {
 
   const signBytes = useCallback(
     async (data: Uint8Array, kind: 'word' | 'signingInputs'): Promise<Uint8Array> => {
-      if (!adapter) throw new Error('Miden Wallet not connected');
+      if (!adapter) throw new Error('Bread not connected');
       return adapter.signBytes(data, kind);
     },
     [adapter],

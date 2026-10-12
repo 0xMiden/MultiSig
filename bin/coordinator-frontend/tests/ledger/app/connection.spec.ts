@@ -13,7 +13,7 @@ test('production app loads the real USB SDK and opens the Ledger dialog',async({
   page.on('request',request=>{if(/miden_client_web[^/]*\.wasm$/.test(new URL(request.url()).pathname))midenWasm.push(request.url());});
   await page.goto('/login');
   // The wallet button names the source and whether it is connected.
-  await page.getByRole('button',{name:/^MIDEN WALLET( · NOT CONNECTED)?$/}).click();
+  await page.getByRole('button',{name:/^BREAD( · NOT CONNECTED)?$/}).click();
   await page.getByRole('button',{name:'CONNECT LEDGER (USB)',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'Connect Ledger'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Choose USB device'})).toBeEnabled({timeout:15000});

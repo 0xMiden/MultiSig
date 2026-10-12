@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWalletForm } from "../../../hooks/useWalletForm";
 import { useMultisig } from "@/contexts/MultisigContext";
+import { isAdminMode } from "@/config/appMode";
+import { adminProcedureThresholds } from "@/lib/admin/accountDefaults";
 import { toast } from "sonner";
 import { MIDEN_NETWORK, MIDEN_REGISTRATION_CODE } from "@/config/psm";
 import { defaultInvitationCode, invitationCodeRequired } from "@/lib/midenNetwork";
@@ -45,7 +47,7 @@ const CreateNewAccount = () => {
   const walletSourceLabel = walletSource === 'ledger' ? 'You (Ledger)' : walletSource === 'para'
     ? 'You (Para)'
     : walletSource === 'miden-wallet'
-      ? 'You (Miden Wallet)'
+      ? 'You (Bread)'
       : 'You (Local)';
 
   // Auto-populate Signer 1 with the active wallet commitment.
@@ -210,7 +212,8 @@ const CreateNewAccount = () => {
         .filter((k: string) => k.trim() !== '');
       const threshold = parseInt(formData.signatureThreshold, 10);
 
-      await handleCreate(otherCommitments, threshold, undefined, activeScheme, { invitationCode });
+      const procedureThresholds = isAdminMode ? adminProcedureThresholds(threshold) : undefined;
+      await handleCreate(otherCommitments, threshold, procedureThresholds, activeScheme, { invitationCode });
 
       toast.success("Multisig account created successfully!");
       router.push("/dashboard/home");
@@ -506,7 +509,7 @@ const CreateNewAccount = () => {
                               </div>
                               <div className="flex flex-col space-y-1.5">
                                 {[
-                                  'Open Miden Wallet extension',
+                                  'Open the Bread extension',
                                   'Click Settings icon',
                                   'Click Advanced settings',
                                   'Copy Account public key',

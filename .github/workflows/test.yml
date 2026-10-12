@@ -54,7 +54,9 @@ jobs:
       - name: Audit production dependencies
         run: node scripts/audit-gate.mjs
       - run: npm run typecheck
+      - run: npm run test:roundtrip
       - run: npm run test:ledger
+      - run: npm run test:admin
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       # Fake-device Ledger session suite: no external services needed.
@@ -62,7 +64,7 @@ jobs:
         run: npm run test:ledger:ui
       # NEXT_PUBLIC_* values are inlined at build time. Without them the app stops
       # at "misconfigured" and the suite below would never load the Miden SDK.
-      - name: Build
+      - name: Build (wallet mode)
         run: npm run build
         env:
           NEXT_PUBLIC_MIDEN_NETWORK: testnet
@@ -77,3 +79,17 @@ jobs:
           NEXT_PUBLIC_MIDEN_RPC_URL: https://rpc.testnet.miden.io
           NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL: https://transport.miden.io
           NEXT_PUBLIC_GUARDIAN_ENDPOINT: https://guardian-testnet.openzeppelin.com
+      # Compiles the USDCx admin console under `next build`, including the
+      # vendored admin wasm `?url` asset import — the ultimate compile gate
+      # for the admin app mode (see docs/DEPLOY_VERCEL.md).
+      - name: Build (admin mode)
+        env:
+          NEXT_PUBLIC_APP_MODE: admin
+          NEXT_PUBLIC_MIDEN_NETWORK: testnet
+          NEXT_PUBLIC_MIDEN_RPC_URL: https://rpc.testnet.miden.io
+          NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL: https://transport.miden.io
+          NEXT_PUBLIC_GUARDIAN_ENDPOINT: https://guardian-testnet.openzeppelin.com
+          NEXT_PUBLIC_USDCX_FAUCET_ID: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          NEXT_PUBLIC_USDCX_FEE_FAUCET_ID: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          NEXT_PUBLIC_AGGLAYER_BRIDGE_ID: "0xcccccccccccccccccccccccccccccccc"
+        run: npm run build

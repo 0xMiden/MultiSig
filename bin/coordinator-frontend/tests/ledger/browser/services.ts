@@ -58,7 +58,7 @@ async function run(options: ServiceOptions) {
       await ms.executeProposal(proposal.id);
       // verifyStateCommitment throws until the local and on-chain commitments match.
       const executed=await eventually(async()=>{await miden.sync();return ms.verifyStateCommitment();},()=>true,'on-chain state commitment');
-      // syncState resolves even while Guardian is behind: wait until Guardian's
+      // Guardian can still be behind right after an execute: wait until Guardian's
       // own state is the executed one.
       const same=(a:string,b:string)=>a.replace(/^0x/i,'').toLowerCase()===b.replace(/^0x/i,'').toLowerCase();
       // 'local' means Guardian's canonical nonce is not above ours, at a matching

@@ -5,6 +5,10 @@ import { useMultisig } from '@/contexts/MultisigContext';
 import { TokenAmount } from '@/components/TokenAmount';
 import { describeSignerChange, shortHex } from '@/lib/proposalDescription';
 import { switchGuardianProblem } from '@/lib/guardianUrl';
+import { decodeRecipeLabel, recipeContractStatus } from '@/lib/admin/recipe';
+import { isAdminMode } from '@/config/appMode';
+import { getAdminTargets } from '@/config/adminConfig';
+import { describeAdminRecipe } from '@/lib/admin/describe';
 
 /**
  * What a proposal does, from its metadata. The SDK checks the metadata against
@@ -77,6 +81,29 @@ export function ProposalDetails({ proposal }: { proposal: Proposal }) {
           {unreachable && <span role="alert" className="block text-red-700">{unreachable}</span>}
         </>
       );
+      break;
+    case 'custom': {
+      const recipe = decodeRecipeLabel(md.rawProposalType);
+      if (recipe) {
+        const d = describeAdminRecipe(recipe);
+        // The contract id comes from the label any proposer writes: flag one this console does not
+        // administer (admin builds only; the wallet build configures no admin contracts).
+        const unknown = isAdminMode && recipeContractStatus(recipe, getAdminTargets()) === 'unknown_contract';
+        body = (
+          <>
+            <span className="font-[600]">{d.title}</span>
+            {unknown && (
+              <span className="ml-1.5 inline-block text-[11px] font-[500] px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-mono break-all">
+                Unknown contract {recipe.faucetId}
+              </span>
+            )}
+            {d.lines.map((line, i) => <div key={i}>{line}</div>)}
+          </>
+        );
+      } else {
+        // Undecodable label: same message as the generic default below.
+        body = <>Custom transaction: no decoded details are available for this type</>;
+      }
       break;
     }
     default:

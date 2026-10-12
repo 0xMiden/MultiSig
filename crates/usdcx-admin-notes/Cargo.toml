@@ -1,0 +1,66 @@
+[package]
+description = "Builders for miden-usdcx admin notes, produced by a multisig account"
+edition     = "2024"
+license     = "MIT"
+name        = "usdcx-admin-notes"
+repository  = "https://github.com/0xMiden/MultiSig"
+version     = "0.1.0"
+
+[lints]
+workspace = true
+
+# `cargo machete` (text-based) cannot see either of these two real, compile-required
+# dependencies, because neither is ever named via `use` or a qualified path in this crate's own
+# source:
+#   - `miden-tx`: required by every call to `miden_testing::assert_transaction_executor_error!`
+#     (see `tests/roundtrip_0_17.rs`). That `macro_rules!` macro expands to the bare path
+#     `miden_tx::TransactionExecutorError` rather than `$crate::...`, so mixed-site hygiene
+#     resolves `miden_tx` against the INVOCATION site's extern prelude, not the macro's defining
+#     crate (`miden-testing`) — the calling crate must depend on `miden-tx` directly, or the
+#     expansion fails to compile (`cannot find crate miden_tx`, verified by removing the line).
+#   - `getrandom`: enabled only for its `"js"` feature, to force the browser RNG backend the wasm
+#     build needs (pulled transitively by `k256`); see the dependency's own comment below.
+[package.metadata.cargo-machete]
+ignored = ["miden-tx", "getrandom"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Enables the wasm-bindgen JS bindings (built with wasm-pack --target web).
+wasm = ["dep:wasm-bindgen", "dep:getrandom"]
+# Exposes `pub mod testing` (faucet + MockChain fixtures built on miden-usdcx's production
+# account builder), for use by this crate's own integration tests. Not meant for downstream
+# consumers. `dep:miden-testing`: `testing.rs` builds a `miden_testing::MockChain` (the round-trip
+# guard fixture), and since `testing.rs` compiles into the LIB target (not a test target), that
+# dependency must be a normal (optional) one — a `[dev-dependencies]` entry is invisible to the lib
+# build even when this feature is on.
+testing = ["dep:miden-testing", "dep:miden-agglayer"]
+
+[dependencies]
+miden-protocol  = { version = "=0.17.1", default-features = false, features = ["std"] }
+miden-standards = { version = "=0.17.1", default-features = false, features = ["std"] }
+miden-tx        = { version = "=0.17.1", default-features = false, features = ["std"] }
+miden-usdcx     = { version = "=0.17.1" }
+thiserror = { version = "2", default-features = false }
+wasm-bindgen = { version = "0.2", optional = true }
+# Force getrandom's browser backend for the wasm build (pulled transitively by k256).
+getrandom = { version = "0.2", features = ["js"], optional = true }
+# See the `testing` feature above for why this is a normal (optional) dependency rather than a
+# `[dev-dependencies]` entry.
+miden-testing = { version = "=0.17.1", optional = true }
+# Same reason: the bridge fixture in `testing.rs` builds with the published crate's testing builder.
+miden-agglayer = { version = "=0.17.1", features = ["testing"], optional = true }
+
+[dev-dependencies]
+# For the async MockChain round-trip tests (`tests/roundtrip_0_17.rs`): `ExecutedTransaction`
+# execution is async, driven by `#[tokio::test]`.
+tokio = { workspace = true, features = ["macros", "rt"] }
+# Self-dependency so the `testing` feature (see `[features]`) is enabled when this crate's own
+# integration tests (`tests/*.rs`) link against it — those link the lib as an ordinary dependency,
+# not `#[cfg(test)]`, so activating the feature is the only way to expose `pub mod testing` to them.
+usdcx-admin-notes = { path = ".", features = ["testing"] }
+# The AggLayer bridge is a second RBAC + Pausable network account our RBAC/pause notes target.
+# Dev-only: the published crate's `testing` fixtures build a deployed-equivalent bridge for the
+# MockChain round trip (`tests/agglayer_roundtrip_0_17.rs`). Pinned to the testnet bridge's line.
+miden-agglayer = { version = "=0.17.1", features = ["testing"] }

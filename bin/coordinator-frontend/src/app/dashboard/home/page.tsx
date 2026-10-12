@@ -1,19 +1,31 @@
 "use client";
 import { TokenAmount } from "@/components/TokenAmount";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import PendingActions from "../components/PendingActions";
 import RecentTransactions from "../components/RecentTransactions";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { useDashboardUI } from "@/contexts/DashboardUIContext";
 import ApproveModal from "./components/ApproveModal";
+import { isAdminMode } from "@/config/appMode";
 
 export const dynamic = 'force-dynamic';
 
 const Page: React.FC = () => {
+  const router = useRouter();
   const { detectedConfig } = useMultisig();
   const { openSendModal, openReceiveModal } = useDashboardUI();
   const [isApproveOpen, setIsApproveOpen] = useState(false);
+
+  // Defense in depth with the middleware guard (src/middleware.ts +
+  // src/lib/admin/routeGuard.ts): an admin build should never render the
+  // end-user wallet home, even if this page is reached directly.
+  useEffect(() => {
+    if (isAdminMode) {
+      router.replace("/dashboard/admin");
+    }
+  }, [router]);
 
   const walletName = useMemo(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem("walletFormData") : null;
@@ -33,6 +45,13 @@ const Page: React.FC = () => {
   // Different tokens are never added together: each has its own decimals and
   // value. The card shows the first token and counts the rest.
   const [firstBalance, ...otherBalances] = vaultBalances;
+
+  // isAdminMode is a module-level constant (fixed per build), so this branch
+  // never toggles between renders of a mounted instance — all hooks above
+  // still run unconditionally on every render, satisfying the rules of hooks.
+  if (isAdminMode) {
+    return null;
+  }
 
   return (
     <div className="flex flex-col w-full h-full">

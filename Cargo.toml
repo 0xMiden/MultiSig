@@ -8,7 +8,7 @@ missing_docs = "warn"
 unsafe_code  = "forbid"
 
 [workspace]
-members  = ["crates/miden-multisig-client", "crates/test-utils"]
+members  = ["crates/miden-multisig-client", "crates/test-utils", "crates/usdcx-admin-notes"]
 resolver = "3"
 
 [workspace.dependencies]
