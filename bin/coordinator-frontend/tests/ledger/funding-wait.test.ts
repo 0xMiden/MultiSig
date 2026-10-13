@@ -9,7 +9,7 @@ function clock() {
 }
 
 describe('waitForFundingNote', () => {
-  it('checks every second until the note arrives', async () => {
+  it('checks every three seconds until the note arrives', async () => {
     const c = clock();
     let checks = 0;
     const outcome = await waitForFundingNote({ ...c, isCurrent: () => true, check: async () => ++checks === 4 });

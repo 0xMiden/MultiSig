@@ -8,10 +8,14 @@ import { UserFacingError } from './errors';
  *
  * So no operation is allowed on an account while a private note from its
  * latest transaction is neither delivered nor consumed. Checking only the
- * latest canonical delta is enough: every earlier one had to pass this check
- * before the account could move on. Guardian keeps every canonical delta with
- * its full transaction summary, private notes included, so any signer on any
- * device can rebuild those notes and deliver them; delivery is idempotent.
+ * latest canonical delta is enough for transactions made through this app:
+ * every earlier one had to pass this check before the account could move on.
+ * A private send executed by another client (the CLI, an older app version)
+ * is checked only while it is the latest transaction.
+ *
+ * Guardian keeps every canonical delta with its full transaction summary,
+ * private notes included, so any signer on any device can rebuild those notes
+ * and deliver them; delivery is idempotent.
  */
 
 export interface GuardNote {

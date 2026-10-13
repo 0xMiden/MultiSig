@@ -876,7 +876,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
               }
               const notes = await account.getConsumableNotes();
               if (!stillCurrent()) return false;
-              // Only when the list changed: a new array every second would
+              // Only when the list changed: a new array on every poll would
               // re-render every consumer of this context.
               setConsumableNotes((current) =>
                 current.length === notes.length && current.every((n, i) => n.id === notes[i].id) ? current : notes);
@@ -1518,6 +1518,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setSigningProposal(proposalId);
       setError(null);
       try {
+        // Checked on the cached proposal first: the lock check and the sync
+        // below are signed Guardian requests (device approvals on Ledger).
+        const cached = multisig.listProposals().find((proposal) => proposal.id === proposalId);
+        const blockedSwitch = cached && switchGuardianProblem(cached);
+        if (blockedSwitch) throw new UserFacingError(blockedSwitch);
         await ensurePrivateNotesClearRef.current(multisig);
         const synced = await multisig.syncProposals();
         setProposals(synced);

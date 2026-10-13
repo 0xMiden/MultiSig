@@ -169,6 +169,21 @@ describe('latestCanonicalPrivateNotes', () => {
     expect(calls).toEqual([7, 7]);
   });
 
+  it("reads Guardian through the Multisig's own client by default (its private `guardian` field)", async () => {
+    // The app relies on this field; a rename in a client bump must fail here.
+    const { Multisig } = await import('@openzeppelin/miden-multisig-client');
+    const calls: string[] = [];
+    const guardian = {
+      getDeltaHistory: async () => { calls.push('history'); return { entries: [entry([{ noteType: 'private' }])] }; },
+      getDelta: async (_account: string, nonce: number) => { calls.push(`delta ${nonce}`); return { deltaPayload: { txSummary: { data: 'c3VtbWFyeQ==' } } }; },
+    };
+    const ms = new Multisig(null as never, { threshold: 1, signerCommitments: [] } as never, guardian as never, {} as never,
+      { defaultProver: undefined } as never, SENDER, 'https://rpc.example.org');
+    const notes = await latestCanonicalPrivateNotes(ms, undefined, () => [privateNote()]);
+    expect(calls).toEqual(['history', 'delta 7']);
+    expect(notes.map((n) => n.recipientId)).toEqual([RECIPIENT]);
+  });
+
   it('never reports clear on fewer notes than Guardian lists, or without a summary', async () => {
     const listed = multisig([entry([{ noteType: 'private' }, { noteType: 'private' }])]);
     const { guardian } = guardianWith({ txSummary: { data: 'c3VtbWFyeQ==' } });

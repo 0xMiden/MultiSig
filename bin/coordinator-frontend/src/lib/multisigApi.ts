@@ -224,11 +224,6 @@ export async function latestCanonicalPrivateNotes(
 }
 
 /**
- * Node-side checks for private notes, over one RPC connection: where a note
- * was committed, whether it has been consumed, and its inclusion proof.
- * `free()` releases the connection.
- */
-/**
  * Whether an account still has to be registered on the node: it has made no
  * transaction yet (an account on-chain was registered before) and the node
  * does not allow it. A node without an allow-list (testnet) allows every account.
@@ -244,6 +239,11 @@ export async function nodeRegistrationMissing(
 
 export type NoteChainChecks = ReturnType<typeof noteChainChecks>;
 
+/**
+ * Node-side checks for private notes, over one RPC connection: where a note
+ * was committed, whether it has been consumed, and its inclusion proof.
+ * `free()` releases the connection.
+ */
 export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {
   // Built on the first lookup: most checks have nothing to look up.
   let client: RpcClient | undefined;

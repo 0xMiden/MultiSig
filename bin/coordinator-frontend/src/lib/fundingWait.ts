@@ -1,9 +1,10 @@
 /**
  * After registration, the node sends a new account its funding note; on
  * testnet it can take a few minutes. These bound the wait: the note is checked
- * every second, for at most ten minutes, then the user is offered a retry.
+ * every three seconds (each check is a sync queued with the user's own calls),
+ * for at most ten minutes, then the user is offered a retry.
  */
-export const FUNDING_POLL_MS = 1_000;
+export const FUNDING_POLL_MS = 3_000;
 export const FUNDING_WAIT_MS = 10 * 60_000;
 /** A check failing this many times in a row ends the wait; fewer are retried. */
 export const FUNDING_MAX_FAILURES = 5;

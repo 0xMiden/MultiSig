@@ -112,6 +112,9 @@ will display a device prompt. The Guardian's own co-signature remains its own.
 
 One UI action may require several approvals, shown **one at a time**. Keep the
 Ledger unlocked with its Ethereum app open and follow each on-screen prompt.
+Before every proposal, sign, execute, offline sign or import, the private-note
+check reads the account's latest transaction from Guardian: one extra approval,
+two when that transaction has a private note.
 The device signs a transaction-summary **hash**; recipient and amount must be
 reviewed in the app, not expected as decoded transaction fields on the Ledger.
 If the Ethereum app requires blind signing, enable it on the device only when
