@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  allReadable, failedEvaluations, firstConfiguredKind, noRolesSentence, selectActiveTarget, showsActionCards, targetsWithRoles,
+  allReadable, failedEvaluations, firstConfiguredKind, noRolesSentence, proposalBelongsTo, resolveShownTarget, selectActiveTarget, showsActionCards, targetsWithRoles,
   type TargetEvaluation,
 } from '@/lib/admin/targetSelection';
 import { AGGLAYER_PROFILE, USDCX_PROFILE, type AdminTarget } from '@/lib/admin/target';
+import { encodeRecipeLabel, type AdminRecipe } from '@/lib/admin/recipe';
 
 const usdcx: AdminTarget = { ...USDCX_PROFILE, contractId: '0xa', feeFaucetId: '0xfee', networkId: 'testnet' };
 const bridge: AdminTarget = { ...AGGLAYER_PROFILE, contractId: '0xb', feeFaucetId: '0xfee', networkId: 'testnet' };
@@ -80,5 +81,51 @@ describe('noRolesSentence', () => {
       /^Neither the acting multisig nor the connected Bread account holds a role on the USDCx faucet \(0xa\) or the AggLayer bridge \(0xb\),/,
     );
     expect(noRolesSentence({ multisig: true, bread: false }, [usdcx])).not.toMatch(/Bread/);
+  });
+});
+
+describe('resolveShownTarget (one console at a time, chosen by tab)', () => {
+  it('shows the chosen tab and activates it only when someone holds a role there', () => {
+    const evaluations = [ready(usdcx, { ADMIN: true }), ready(bridge, {})];
+    expect(resolveShownTarget([usdcx, bridge], evaluations, 'agglayer')).toEqual({ shownKind: 'agglayer', activeKind: null });
+    expect(resolveShownTarget([usdcx, bridge], evaluations, 'usdcx')).toEqual({ shownKind: 'usdcx', activeKind: 'usdcx' });
+  });
+
+  it('never activates a target other than the shown one', () => {
+    const evaluations = [ready(usdcx, {}), ready(bridge, { ADMIN: true })];
+    expect(resolveShownTarget([usdcx, bridge], evaluations, 'usdcx').activeKind).toBeNull();
+  });
+
+  it('without a choice lands on the first target with roles, else the first configured', () => {
+    expect(resolveShownTarget([usdcx, bridge], [ready(usdcx, {}), ready(bridge, { ADMIN: true })], null))
+      .toEqual({ shownKind: 'agglayer', activeKind: 'agglayer' });
+    expect(resolveShownTarget([usdcx, bridge], [ready(usdcx, {}), ready(bridge, {})], null))
+      .toEqual({ shownKind: 'usdcx', activeKind: null });
+    expect(resolveShownTarget([usdcx, bridge], [], null)).toEqual({ shownKind: 'usdcx', activeKind: null });
+  });
+
+  it('ignores a chosen tab that is not configured (bridge id unset) and reports nothing with no targets', () => {
+    expect(resolveShownTarget([usdcx], [ready(usdcx, { ADMIN: true })], 'agglayer')).toEqual({ shownKind: 'usdcx', activeKind: 'usdcx' });
+    expect(resolveShownTarget([], [], 'usdcx')).toEqual({ shownKind: null, activeKind: null });
+  });
+
+  it('a target the node could not serve is shown (so its error is visible) but never active', () => {
+    expect(resolveShownTarget([usdcx, bridge], [ready(usdcx, { ADMIN: true }), failed(bridge)], 'agglayer'))
+      .toEqual({ shownKind: 'agglayer', activeKind: null });
+  });
+});
+
+describe('proposalBelongsTo (each tab lists only its contract\'s proposals)', () => {
+  const label = (target: AdminRecipe['target']) =>
+    encodeRecipeLabel({ recipeVersion: 1, action: 'pause', senderAccountId: '0xms', faucetId: target === 'agglayer' ? '0xb' : '0xa', target, args: {} } as AdminRecipe);
+  it('attributes a proposal by the contract kind in its recipe label', () => {
+    expect(proposalBelongsTo({ proposalType: 'custom', rawProposalType: label('agglayer') }, 'agglayer')).toBe(true);
+    expect(proposalBelongsTo({ proposalType: 'custom', rawProposalType: label('agglayer') }, 'usdcx')).toBe(false);
+    expect(proposalBelongsTo({ proposalType: 'custom', rawProposalType: label(undefined) }, 'usdcx')).toBe(true);
+  });
+  it('lists an undecodable admin proposal on every tab and never a non-admin one', () => {
+    expect(proposalBelongsTo({ proposalType: 'custom', rawProposalType: 'garbage' }, 'usdcx')).toBe(true);
+    expect(proposalBelongsTo({ proposalType: 'custom', rawProposalType: 'garbage' }, 'agglayer')).toBe(true);
+    expect(proposalBelongsTo({ proposalType: 'transfer' }, 'usdcx')).toBe(false);
   });
 });

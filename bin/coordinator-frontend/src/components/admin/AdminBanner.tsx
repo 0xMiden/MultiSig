@@ -2,8 +2,6 @@
 
 import { useMultisig } from '@/contexts/MultisigContext';
 import { useAdminTarget } from '@/contexts/AdminTargetContext';
-import { AdminTargetSwitcher } from '@/components/admin/AdminTargetSwitcher';
-import { failedEvaluations } from '@/lib/admin/targetSelection';
 import { shortFaucetId } from '@/lib/tokenAmounts';
 import { roleLabel, type AdminTargetProfile } from '@/lib/admin/target';
 import type { RoleFlags } from '@/lib/admin/roles';
@@ -17,9 +15,10 @@ import type { RoleFlags } from '@/lib/admin/roles';
  */
 export function AdminBanner() {
   const { multisig, walletSource, midenWalletSession } = useMultisig();
-  const { state, active, activeKind, shownTarget } = useAdminTarget();
-  const target = active?.target ?? null;
-  const ready = active?.status === 'ready' ? active : null;
+  const { state, shownTarget, shownEvaluation } = useAdminTarget();
+  // The shown contract only: its roles, or its read error. The other contract is on its own tab.
+  const target = shownTarget;
+  const ready = shownEvaluation?.status === 'ready' ? shownEvaluation : null;
 
   const breadConnected = walletSource === 'miden-wallet' && midenWalletSession.connected;
   // Bread's roles are only evaluated (and its direct actions only sent) while Bread is the active
@@ -28,13 +27,11 @@ export function AdminBanner() {
   const breadInactive = walletSource !== 'miden-wallet' && midenWalletSession.connected;
   const heldRoles = heldOf(target, ready?.roles ?? null);
   const breadHeldRoles = heldOf(target, ready?.breadRoles ?? null);
-  const failed = failedEvaluations(state.status === 'ready' ? state.evaluations : []);
+  const failed = shownEvaluation?.status === 'error' ? [shownEvaluation] : [];
   const isError = failed.length > 0;
   const loading = state.status === 'loading';
   const nobody = !multisig && !breadConnected;
-  const nowhere = !nobody && state.status === 'ready' && !activeKind && failed.length === 0;
-  // The active console, else the contract the page shows (inspected or first configured).
-  const shown = target ?? shownTarget;
+  const shown = target;
 
   return (
     <div
@@ -56,7 +53,6 @@ export function AdminBanner() {
           </div>
           <div className="text-[14px] font-[600] text-[#111]">{shown?.labels.consoleTitle ?? 'Admin Console'}</div>
         </div>
-        <AdminTargetSwitcher />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -94,7 +90,6 @@ export function AdminBanner() {
             {e.message}
           </div>
         ))}
-        {nowhere && <div className="text-[12px] text-[rgba(0,0,0,0.5)]">No admin roles are held on any configured contract.</div>}
         {ready && (
           <div className="flex flex-col gap-1.5">
             {ready.roles && (

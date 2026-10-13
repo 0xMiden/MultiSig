@@ -1,5 +1,6 @@
 import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
 import { holdsAnyRole, type RoleFlags } from '@/lib/admin/roles';
+import { decodeRecipeLabel, recipeTarget } from '@/lib/admin/recipe';
 
 /** One configured target, read from the node and evaluated for the two possible actors. */
 export interface TargetEvaluation {
@@ -84,4 +85,33 @@ export function noRolesSentence(
         ? `The acting multisig holds no role on ${on}`
         : `The connected Bread account holds no role on ${on}`;
   return `${subject}, so every action below is locked. The Roles page shows who holds each role.`;
+}
+
+/**
+ * The one console on screen and whether it can act. The shown target is the tab the user chose
+ * when it is configured, else the first target where someone holds a role, else the first
+ * configured. It is active (actions become forms) only when the multisig or Bread holds a role on
+ * it: a role held on the other contract never activates this one, so nothing is mixed.
+ */
+export function resolveShownTarget(
+  configured: readonly Pick<AdminTarget, 'kind'>[],
+  evaluations: readonly TargetEvaluation[],
+  selected: AdminTargetKind | null,
+): { shownKind: AdminTargetKind | null; activeKind: AdminTargetKind | null } {
+  const shownKind = firstConfiguredKind(configured, selected, selectActiveTarget(evaluations, null));
+  const shown = evaluations.find((e) => e.target.kind === shownKind);
+  return { shownKind, activeKind: shown && evaluationHasRoles(shown) ? shownKind : null };
+}
+
+/** A proposal's metadata as the multisig client reports it; only the custom (admin) kind is attributable. */
+export type ProposalMetadataLike = { proposalType: 'custom'; rawProposalType: string } | { proposalType: string };
+
+/**
+ * Whether an admin proposal belongs to the console of `kind`: its recipe label names the contract
+ * kind. One whose label cannot be decoded is listed on every tab, since it cannot be attributed.
+ */
+export function proposalBelongsTo(metadata: ProposalMetadataLike, kind: AdminTargetKind): boolean {
+  if (metadata.proposalType !== 'custom' || !('rawProposalType' in metadata)) return false;
+  const recipe = decodeRecipeLabel(metadata.rawProposalType);
+  return recipe === null || recipeTarget(recipe) === kind;
 }

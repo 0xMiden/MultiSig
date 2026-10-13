@@ -9,8 +9,8 @@ import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { copyToClipboard } from '@/lib/helpers';
 import { initAdminWasm } from '@/lib/admin/noteBuilders';
 import { actionLabel, actionsOfRole, listRoleHolders } from '@/lib/admin/roles';
-import { firstConfiguredKind } from '@/lib/admin/targetSelection';
-import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
+import { AdminTargetSwitcher } from '@/components/admin/AdminTargetSwitcher';
+import type { AdminTarget } from '@/lib/admin/target';
 
 export const dynamic = 'force-dynamic';
 
@@ -125,14 +125,12 @@ function RoleHolders({ target, bytesState }: { target: AdminTarget; bytesState: 
 
 export default function AdminRolesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
-  const { state, configured, activeKind, inspectKind, setInspectKind, refresh } = useAdminTarget();
-  const kind = firstConfiguredKind(configured, inspectKind, activeKind);
-  const target = configured.find((t) => t.kind === kind) ?? null;
+  const { state, shownTarget, refresh } = useAdminTarget();
+  const kind = shownTarget?.kind ?? null;
+  const target = shownTarget;
   const evaluation = state.status === 'ready' ? (state.evaluations.find((e) => e.target.kind === kind) ?? null) : null;
   const bytesState = useMemo(() => bytesStateOf(evaluation, state), [evaluation, state]);
 
-  // Inspection only: the banner switcher is the one control that changes the active console.
-  const select = (next: AdminTargetKind) => setInspectKind(next);
   const onRefresh = () => {
     refresh();
     setRefreshKey((key) => key + 1);
@@ -150,6 +148,7 @@ export default function AdminRolesPage() {
 
   return (
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
+      <AdminTargetSwitcher />
       <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] bg-white p-4 md:p-5 flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-[14px] font-[600] text-[#111]">
@@ -172,20 +171,6 @@ export default function AdminRolesPage() {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {configured.length > 1 && (
-            <select
-              aria-label="Contract"
-              value={kind ?? ''}
-              onChange={(e) => select(e.target.value as AdminTargetKind)}
-              className="h-9 px-2 rounded-[8px] border border-[rgba(0,0,0,0.12)] text-[12px] font-[500] text-[#111] bg-white"
-            >
-              {configured.map((t) => (
-                <option key={t.kind} value={t.kind}>
-                  {t.labels.contractShort}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             type="button"
             onClick={onRefresh}

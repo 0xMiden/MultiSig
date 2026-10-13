@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import type { Proposal } from '@openzeppelin/miden-multisig-client';
 import { decodeRecipeLabel, recipeContractStatus } from '@/lib/admin/recipe';
+import type { AdminTarget } from '@/lib/admin/target';
+import { proposalBelongsTo } from '@/lib/admin/targetSelection';
 import { describeAdminRecipe } from '@/lib/admin/describe';
 import { useAdminNoteConsumption } from '@/hooks/useAdminNoteConsumption';
 import { useMultisig } from '@/contexts/MultisigContext';
@@ -118,20 +120,20 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   );
 }
 
-/** Lifecycle status for every admin ('custom' proposalType) proposal: proposal-level state, and
- * once executed, whether the admin note it carries has actually been consumed at the faucet. */
-export function AdminProposalList({ proposals }: { proposals: Proposal[] }) {
+/** Lifecycle status for the shown contract's admin ('custom' proposalType) proposals: proposal-level
+ * state, and once executed, whether the admin note it carries has actually been consumed at the faucet. */
+export function AdminProposalList({ proposals, target }: { proposals: Proposal[]; target: AdminTarget }) {
   const { dismissedProposalIds } = useMultisig();
   const adminProposals = useMemo(
-    () => proposals.filter((p) => p.metadata.proposalType === 'custom' && !dismissedProposalIds.has(p.id)),
-    [proposals, dismissedProposalIds],
+    () => proposals.filter((p) => proposalBelongsTo(p.metadata, target.kind) && !dismissedProposalIds.has(p.id)),
+    [proposals, dismissedProposalIds, target],
   );
 
   if (adminProposals.length === 0) return null;
 
   return (
     <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white">
-      <div className="text-[14px] font-[600] text-[#111] mb-1">Admin proposals</div>
+      <div className="text-[14px] font-[600] text-[#111] mb-1">{target.labels.contractShort} admin proposals</div>
       <div className="flex flex-col">
         {adminProposals.map((proposal) => (
           <AdminProposalRow key={proposal.id} proposal={proposal} />

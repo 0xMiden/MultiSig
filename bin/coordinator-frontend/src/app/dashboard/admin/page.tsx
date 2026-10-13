@@ -6,8 +6,9 @@ import { useMultisig } from '@/contexts/MultisigContext';
 import { useAdminTarget } from '@/contexts/AdminTargetContext';
 import { bytesStateOf, type FaucetBytesState } from '@/hooks/useAdminTargets';
 import { AdminBanner } from '@/components/admin/AdminBanner';
+import { AdminTargetSwitcher } from '@/components/admin/AdminTargetSwitcher';
 import { resolveActionSender, type ActionSender } from '@/lib/admin/directAction';
-import { allReadable, failedEvaluations, noRolesSentence, showsActionCards } from '@/lib/admin/targetSelection';
+import { noRolesSentence, showsActionCards } from '@/lib/admin/targetSelection';
 import { actionFormKey, type AdminTarget } from '@/lib/admin/target';
 import { decodeRecipeLabel, type AdminAction, type AdminRecipe } from '@/lib/admin/recipe';
 import { AdminFundingCard } from './components/AdminFundingCard';
@@ -43,6 +44,7 @@ const FORM_OF: Record<AdminAction, ComponentType<ActionFormProps>> = {
 export default function AdminPage() {
   const { proposals, multisig, walletSource, midenWalletSession } = useMultisig();
   const { state, configured, active, activeKind, shownTarget, shownEvaluation } = useAdminTarget();
+  const configuredTargets = configured;
   const faucetBytesState = useMemo(() => bytesStateOf(shownEvaluation, state), [shownEvaluation, state]);
 
   // Other not-yet-finalized admin proposals, for the revoke-in-flight guardrail. Memoized so a
@@ -71,8 +73,8 @@ export default function AdminPage() {
   const breadConnected = walletSource === 'miden-wallet' && midenWalletSession.connected;
   const anyone = multisig !== null || breadConnected;
   const rolesKnown = anyone && state.status === 'ready';
-  // The shown contract: the active console, else the inspected or first configured one, whose
-  // actions are then all locked (with the bridge id unset this is the USDCx console as before).
+  // The shown contract: the tab the user picked (see `resolveShownTarget`). Only this contract's
+  // state, errors, actions and proposals are on the page; with no role on it every action is locked.
   const target: AdminTarget | null = shownTarget;
   const senderFor = (action: AdminAction): ActionSender | null =>
     active && active.status === 'ready' ? resolveActionSender(action, active.target, active.roles, active.breadRoles) : null;
@@ -80,8 +82,7 @@ export default function AdminPage() {
 
   // Usable actions first, each group in its listed order (Array.prototype.sort is stable).
   const actions = target ? [...target.actions].sort((a, b) => Number(canAct(b)) - Number(canAct(a))) : [];
-  const evaluations = state.status === 'ready' ? state.evaluations : [];
-  const failed = failedEvaluations(evaluations);
+  const shownFailed = shownEvaluation?.status === 'error' ? shownEvaluation : null;
 
   // See `showsActionCards`: with nobody connected every action is listed as locked; otherwise only
   // once the shown contract was read -- while detecting, or after a failed read, "locked" would be
@@ -90,6 +91,7 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col w-full h-full gap-4 p-2 md:p-4">
+      <AdminTargetSwitcher />
       <AdminBanner />
       <AdminFundingCard />
       {target?.kind === 'usdcx' ? (
@@ -117,18 +119,17 @@ export default function AdminPage() {
         </div>
       )}
 
-      {anyone &&
-        failed.map((e) => (
-          <div key={e.target.kind} role="alert" className="rounded-[10px] border border-red-200 bg-red-50 p-4 md:p-5 text-[13px] text-red-700">
-            {e.message}
-          </div>
-        ))}
+      {anyone && shownFailed && (
+        <div role="alert" className="rounded-[10px] border border-red-200 bg-red-50 p-4 md:p-5 text-[13px] text-red-700">
+          {shownFailed.message}
+        </div>
+      )}
 
-      {rolesKnown && !activeKind && allReadable(evaluations) && (
+      {rolesKnown && !activeKind && !shownFailed && (
         <div className="rounded-[10px] border border-[rgba(0,0,0,0.08)] p-4 md:p-5 bg-white text-[13px] text-[rgba(0,0,0,0.6)]">
-          {configured.length === 0
+          {configuredTargets.length === 0 || !target
             ? 'No contract is configured for this console (NEXT_PUBLIC_USDCX_FAUCET_ID / NEXT_PUBLIC_AGGLAYER_BRIDGE_ID).'
-            : noRolesSentence({ multisig: multisig !== null, bread: breadConnected }, configured)}
+            : noRolesSentence({ multisig: multisig !== null, bread: breadConnected }, [target])}
         </div>
       )}
 
@@ -146,7 +147,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {rolesKnown && multisig && <AdminProposalList proposals={proposals} />}
+      {rolesKnown && multisig && target && <AdminProposalList proposals={proposals} target={target} />}
     </div>
   );
 }

@@ -1,39 +1,39 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useMultisig } from '@/contexts/MultisigContext';
 import { getAdminTargets } from '@/config/adminConfig';
 import type { AdminTarget, AdminTargetKind } from '@/lib/admin/target';
-import { firstConfiguredKind, selectActiveTarget, targetsWithRoles, type TargetEvaluation } from '@/lib/admin/targetSelection';
+import { resolveShownTarget, type TargetEvaluation } from '@/lib/admin/targetSelection';
 import { useAdminTargets, type AdminTargetsState } from '@/hooks/useAdminTargets';
 
 export interface AdminTargetContextValue {
   state: AdminTargetsState;
   configured: AdminTarget[];
-  activeKind: AdminTargetKind | null;
-  active: TargetEvaluation | null;
-  switchable: AdminTargetKind[];
-  setActiveKind: (kind: AdminTargetKind) => void;
-  /** The contract picked on the roles page; inspection only, never changes the active console. */
-  inspectKind: AdminTargetKind | null;
-  setInspectKind: (kind: AdminTargetKind) => void;
+  /** The tab the user picked; `null` until they pick one (the console then lands where roles are held). */
+  selectedKind: AdminTargetKind | null;
+  /** Picks the console (USDCx or AggLayer) for every admin page. */
+  selectKind: (kind: AdminTargetKind) => void;
   /**
-   * The contract the admin page shows: the active one, else the inspected one, else the first
-   * configured. Without an active console its actions are all locked.
+   * The contract every admin page shows: the selected tab, else the first where someone holds a
+   * role, else the first configured. Never a mix of two contracts.
    */
   shownTarget: AdminTarget | null;
   /** `shownTarget`'s evaluation; `null` until the contracts were read. */
   shownEvaluation: TargetEvaluation | null;
+  /** `shownTarget`'s kind when the multisig or Bread holds a role on it; actions are then usable. */
+  activeKind: AdminTargetKind | null;
+  /** The evaluation behind `activeKind`; `null` when nobody holds a role on the shown contract. */
+  active: TargetEvaluation | null;
   refresh: () => void;
 }
 
 const Ctx = createContext<AdminTargetContextValue | null>(null);
 
-const storageKey = (accountId: string | null) => `adminTarget:${(accountId ?? 'none').toLowerCase()}`;
+const STORAGE_KEY = 'adminTarget:selected';
 
-function readRemembered(accountId: string | null): AdminTargetKind | null {
+function readSelected(): AdminTargetKind | null {
   try {
-    const v = window.localStorage.getItem(storageKey(accountId));
+    const v = window.localStorage.getItem(STORAGE_KEY);
     return v === 'usdcx' || v === 'agglayer' ? v : null;
   } catch {
     return null;
@@ -42,51 +42,34 @@ function readRemembered(accountId: string | null): AdminTargetKind | null {
 
 const NO_EVALUATIONS: TargetEvaluation[] = [];
 
-/** Which contract the console administers right now; see `selectActiveTarget` for the rule. */
+/** Which contract the console administers right now; see `resolveShownTarget` for the rule. */
 export function AdminTargetProvider({ children }: { children: ReactNode }) {
-  const { multisig } = useMultisig();
   const { state, refresh } = useAdminTargets();
-  const accountId = multisig?.accountId ?? null;
-  const [remembered, setRemembered] = useState<AdminTargetKind | null>(null);
-  const [inspectKind, setInspectKind] = useState<AdminTargetKind | null>(null);
+  const [selectedKind, setSelectedKind] = useState<AdminTargetKind | null>(null);
   const configured = useMemo(() => getAdminTargets(), []);
-  useEffect(() => setRemembered(readRemembered(accountId)), [accountId]);
+  useEffect(() => setSelectedKind(readSelected()), []);
 
   const evaluations = state.status === 'ready' ? state.evaluations : NO_EVALUATIONS;
-  const activeKind = useMemo(() => selectActiveTarget(evaluations, remembered), [evaluations, remembered]);
-  const switchable = useMemo(() => targetsWithRoles(evaluations), [evaluations]);
-  const active = useMemo(() => evaluations.find((e) => e.target.kind === activeKind) ?? null, [evaluations, activeKind]);
-  const shownKind = firstConfiguredKind(configured, activeKind, inspectKind);
+  const { shownKind, activeKind } = useMemo(
+    () => resolveShownTarget(configured, evaluations, selectedKind),
+    [configured, evaluations, selectedKind],
+  );
   const shownTarget = useMemo(() => configured.find((t) => t.kind === shownKind) ?? null, [configured, shownKind]);
   const shownEvaluation = useMemo(() => evaluations.find((e) => e.target.kind === shownKind) ?? null, [evaluations, shownKind]);
+  const active = activeKind ? shownEvaluation : null;
 
-  const setActiveKind = useCallback(
-    (kind: AdminTargetKind) => {
-      setRemembered(kind);
-      try {
-        window.localStorage.setItem(storageKey(accountId), kind);
-      } catch {
-        /* per-browser convenience only */
-      }
-    },
-    [accountId],
-  );
+  const selectKind = useCallback((kind: AdminTargetKind) => {
+    setSelectedKind(kind);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, kind);
+    } catch {
+      /* per-browser convenience only */
+    }
+  }, []);
 
   const value = useMemo<AdminTargetContextValue>(
-    () => ({
-      state,
-      configured,
-      activeKind,
-      active,
-      switchable,
-      setActiveKind,
-      inspectKind,
-      setInspectKind,
-      shownTarget,
-      shownEvaluation,
-      refresh,
-    }),
-    [state, configured, activeKind, active, switchable, setActiveKind, inspectKind, shownTarget, shownEvaluation, refresh],
+    () => ({ state, configured, selectedKind, selectKind, shownTarget, shownEvaluation, activeKind, active, refresh }),
+    [state, configured, selectedKind, selectKind, shownTarget, shownEvaluation, activeKind, active, refresh],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
