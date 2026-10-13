@@ -16,9 +16,16 @@ const context = vi.hoisted(() => ({
   handleSync: vi.fn(),
   retryGuardianRegistration: vi.fn(),
   retryAccountFunding: vi.fn(),
+  registerWithInvitationCode: vi.fn(),
 }));
 
 vi.mock('../../src/contexts/MultisigContext', () => ({ useMultisig: () => context }));
+
+function elementsWith(node: ReactNode, prop: string): ReactElement<Record<string, unknown>>[] {
+  if (!React.isValidElement<Record<string, unknown>>(node)) return [];
+  const own = prop in node.props ? [node] : [];
+  return [...own, ...React.Children.toArray(node.props.children as ReactNode).flatMap((child) => elementsWith(child, prop))];
+}
 
 function buttons(node: ReactNode): ReactElement<{ children: string; disabled: boolean; onClick: () => void }>[] {
   if (!React.isValidElement<{ children?: ReactNode }>(node)) return [];
@@ -31,6 +38,7 @@ describe('Guardian registration recovery', () => {
     vi.resetAllMocks();
     context.guardianRegistrationRequired = false;
     context.registeringOnGuardian = false;
+    context.accountFunding = { phase: 'idle' };
     context.handleSync.mockResolvedValue(undefined);
     context.retryGuardianRegistration.mockResolvedValue(undefined);
   });
@@ -49,6 +57,24 @@ describe('Guardian registration recovery', () => {
     context.registeringOnGuardian = true;
     const [button] = buttons(AccountStatusBanner());
     expect(button.props.disabled).toBe(true);
+  });
+
+  it.each(['registering', 'waiting-for-note'])('keeps Retry usable while the background %s phase runs', (phase) => {
+    context.guardianRegistrationRequired = true;
+    context.accountFunding = { phase };
+    const retry = buttons(AccountStatusBanner()).find((b) => b.props.children === 'Retry Guardian registration');
+    expect(retry?.props.disabled).toBe(false);
+  });
+
+  it('asks for the invitation code when this tab does not know it, instead of a Retry that cannot work', () => {
+    context.error = null as never;
+    context.accountFunding = { phase: 'error', message: 'not registered', needsInvitationCode: true } as never;
+    const tree = AccountStatusBanner();
+    expect(buttons(tree).map((b) => b.props.children)).not.toContain('Retry registration');
+    expect(elementsWith(tree, 'onRegister').map((e) => e.props.onRegister)).toEqual([context.registerWithInvitationCode]);
+    context.accountFunding = { phase: 'error', message: 'node down' } as never;
+    expect(elementsWith(AccountStatusBanner(), 'onRegister')).toEqual([]);
+    context.error = 'Account not found on Guardian';
   });
 
   it('handles a rejected retry instead of leaving an unhandled rejection', async () => {

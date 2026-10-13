@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { msUntilUnlockable } from "@/lib/pendingCandidate";
 import { ledgerNotice } from "@/lib/ledgerNotice";
+import { fundsOnRegistration } from "@/lib/midenNetwork";
+import { MIDEN_NETWORK } from "@/config/psm";
 import type { AccountLock, MultisigContextValue } from "@/contexts/MultisigContext";
 import { useMultisig } from "@/contexts/MultisigContext";
 
@@ -33,15 +35,19 @@ const AccountStatusBanner = () => {
     handleSync,
     retryGuardianRegistration,
     retryAccountFunding,
+    registerWithInvitationCode,
     walletSource,
     ledger,
     handleLoad,
     undeliveredNotes,
     retryPrivateDeliveries,
+    privateNoteGuard,
   } = useMultisig();
 
-  const fundingBusy = accountFunding.phase === "registering" || accountFunding.phase === "waiting-for-note";
-  const busy = loadingAccount || registeringOnGuardian || syncingState || fundingBusy || releasingCandidate || Boolean(executingProposal);
+  // Node registration and the funding wait run in the background and do not
+  // conflict with anything else, so they never disable unrelated Retry/Unlock buttons.
+  const busy = loadingAccount || registeringOnGuardian || syncingState || releasingCandidate || Boolean(executingProposal);
+  const funds = fundsOnRegistration(MIDEN_NETWORK);
   const configMissing = Boolean(multisig) && !detectedConfig && !busy;
   // Auto-load skips Ledger and an unplug unloads the account, so a Ledger user
   // can land here with nothing loaded: offer the way back from the dashboard.
@@ -50,8 +56,14 @@ const AccountStatusBanner = () => {
   // An executed private send whose note has not reached the recipient yet:
   // the funds are committed, so delivery must not be forgotten.
   const undelivered = undeliveredNotes ?? [];
+  // No operation runs until earlier private notes have reached their recipients.
+  const notesBlocked = privateNoteGuard?.phase === "blocked";
+  // The check could not run: nothing is known to be undelivered, but the
+  // account waits until it can confirm that.
+  const notesUnverified = privateNoteGuard?.phase === "unverified";
+  const notesChecking = privateNoteGuard?.phase === "checking";
 
-  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && accountFunding.phase === "idle") return null;
+  if (!error && !pendingCandidateWarning && !lockedCandidate && !configMissing && !ledgerNeeded && undelivered.length === 0 && !notesBlocked && !notesUnverified && !notesChecking && accountFunding.phase === "idle") return null;
 
   const retry = () => {
     const operation = guardianRegistrationRequired ? retryGuardianRegistration : handleSync;
@@ -62,12 +74,45 @@ const AccountStatusBanner = () => {
 
   return (
     <div className="w-full flex flex-col gap-2 mb-4">
-      {undelivered.length > 0 && (
+      {notesChecking && (
+        <div role="status" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5">
+          <span className="text-[12px] font-[500] text-amber-800">
+            Checking that earlier private notes reached their recipients…
+          </span>
+        </div>
+      )}
+
+      {notesUnverified && undelivered.length === 0 && (
         <div role="alert" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-start justify-between gap-3">
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-amber-800">
-              Private note not delivered yet
+              Account paused: earlier private notes could not be checked
             </span>
+            <span className="text-[12px] text-amber-700 wrap-break-word">
+              {privateNoteGuard.error} Operations wait until the app can confirm that every private note from the last transaction reached its recipient.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void retryPrivateDeliveries()}
+            className="min-h-8 shrink-0 rounded-[6px] bg-amber-600 px-3 text-[12px] font-[500] text-white hover:bg-amber-700"
+          >
+            Check again
+          </button>
+        </div>
+      )}
+
+      {(undelivered.length > 0 || notesBlocked) && (
+        <div role="alert" className="w-full rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2.5 flex flex-row items-start justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[12px] font-[600] text-amber-800">
+              {notesBlocked ? "Account locked until a private note reaches its recipient" : "Private note not delivered yet"}
+            </span>
+            {notesBlocked && undelivered.length === 0 && (
+              <span className="text-[12px] text-amber-700 wrap-break-word">
+                {privateNoteGuard.error} No operation is allowed until it is delivered, so the recipient&apos;s funds cannot be lost.
+              </span>
+            )}
             {undelivered.map((note) => (
               <span key={note.proposalId} className="text-[12px] text-amber-700 wrap-break-word">
                 Transfer to {note.recipientId.slice(0, 10)}…: {note.error} The recipient cannot use the funds until it is delivered.
@@ -96,25 +141,28 @@ const AccountStatusBanner = () => {
           <div className="flex flex-col gap-0.5">
             <span className="text-[12px] font-[600] text-[#C2410C]">
               {accountFunding.phase === "registering" && "Registering account on the network"}
-              {accountFunding.phase === "waiting-for-note" && "Waiting for devnet funding"}
+              {accountFunding.phase === "waiting-for-note" && "Waiting for funding"}
               {accountFunding.phase === "funding-available" && "Funding note ready"}
-              {accountFunding.phase === "error" && "Account funding needs attention"}
+              {accountFunding.phase === "error" && (funds ? "Account funding needs attention" : "Node registration needs attention")}
             </span>
             <span className="text-[12px] font-[400] text-[#9A3412] wrap-break-word">
-              {accountFunding.phase === "registering" && "The node is registering this account and preparing its initial funding note."}
-              {accountFunding.phase === "waiting-for-note" && "The account is registered. Waiting for its funding note to appear in Receive Funds."}
+              {accountFunding.phase === "registering" && (funds ? "The node is registering this account and preparing its initial funding note." : "The node is registering this account.")}
+              {accountFunding.phase === "waiting-for-note" && "The account is registered. Its funding note can take a few minutes to arrive; it will appear in Receive Funds."}
               {accountFunding.phase === "funding-available" && "Open Receive Funds, create a proposal for this note, then collect signatures to deploy and fund the account."}
               {accountFunding.phase === "error" && accountFunding.message}
             </span>
           </div>
-          {accountFunding.phase === "error" && (
+          {accountFunding.phase === "error" && accountFunding.needsInvitationCode && (
+            <InvitationCodeForm busy={busy} onRegister={registerWithInvitationCode} />
+          )}
+          {accountFunding.phase === "error" && !accountFunding.needsInvitationCode && (
             <button
               type="button"
               onClick={() => void retryAccountFunding()}
               disabled={busy}
               className="min-h-8 shrink-0 text-[12px] font-[500] text-[#9A3412] underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FF5500] disabled:opacity-50"
             >
-              Retry funding
+              {funds ? "Retry funding" : "Retry registration"}
             </button>
           )}
         </div>
@@ -185,6 +233,40 @@ const AccountStatusBanner = () => {
  * Ledger connection state on the dashboard: the last Ledger error, and the
  * next step (connect the device, or load the account with it).
  */
+/** The node-registration invitation code, when this tab does not know it (see AccountFundingState). */
+function InvitationCodeForm({ busy, onRegister }: { busy: boolean; onRegister: (code: string) => Promise<void> }) {
+  const [code, setCode] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setRegistering(true);
+    try {
+      await onRegister(code);
+    } finally {
+      setRegistering(false);
+    }
+  };
+  return (
+    <form onSubmit={(event) => void submit(event)} className="flex shrink-0 flex-row items-center gap-2">
+      <input
+        value={code}
+        onChange={(event) => setCode(event.target.value)}
+        placeholder="Invitation code"
+        aria-label="Invitation code"
+        autoComplete="off"
+        className="min-h-8 w-36 rounded-[6px] border border-[#FF550033] bg-white px-2 text-[12px] text-[#9A3412] focus-visible:outline-2 focus-visible:outline-[#FF5500]"
+      />
+      <button
+        type="submit"
+        disabled={busy || registering || !code.trim()}
+        className="min-h-8 rounded-[6px] bg-[#C2410C] px-3 text-[12px] font-[500] text-white disabled:opacity-50"
+      >
+        {registering ? "Registering…" : "Register"}
+      </button>
+    </form>
+  );
+}
+
 function LedgerNotice({ ledger, accountLoaded, loading, onLoad }: {
   ledger: MultisigContextValue["ledger"];
   accountLoaded: boolean;

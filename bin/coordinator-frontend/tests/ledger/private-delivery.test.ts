@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Note, NoteId, NoteInclusionProof } from '@miden-sdk/miden-sdk';
 import {
-  DELIVERY_GIVE_UP_MS,
   deliverCommittedNotes,
+  NoteNotOnChainError,
   pendingDeliveries,
   recordPendingDelivery,
   removePendingDelivery,
@@ -19,7 +19,8 @@ describe('deliverCommittedNotes', () => {
     const sendPrivate = vi.fn(async () => {});
     let polls = 0;
     const fetchProof = vi.fn(async (id: NoteId) => (++polls >= 3 ? proof(String(id)) : undefined));
-    await deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xrecipient', { fetchProof, sleep });
+    await expect(deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xrecipient', { fetchProof, sleep }))
+      .resolves.toBe('delivered');
     expect(polls).toBe(3);
     expect(sendPrivate).toHaveBeenCalledWith({ note: expect.anything(), to: '0xrecipient', inclusionProof: proof('a') });
   });
@@ -36,7 +37,18 @@ describe('deliverCommittedNotes', () => {
     const sendPrivate = vi.fn(async () => {});
     await expect(deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xr', {
       fetchProof: async () => undefined, sleep, timeoutMs: 6_000, pollMs: 3_000,
-    })).rejects.toThrow(/not on-chain yet.*retried/);
+    })).rejects.toBeInstanceOf(NoteNotOnChainError);
+    expect(sendPrivate).not.toHaveBeenCalled();
+  });
+
+  it('stops waiting, without sending, once the note is dropped (its execution failed)', async () => {
+    const sendPrivate = vi.fn(async () => {});
+    let polls = 0;
+    const result = deliverCommittedNotes({ notes: { sendPrivate } } as never, [note('a')], '0xr', {
+      fetchProof: async () => { polls++; return undefined; }, stillPending: () => polls < 2, sleep,
+    });
+    await expect(result).resolves.toBe('dropped');
+    expect(polls).toBe(2);
     expect(sendPrivate).not.toHaveBeenCalled();
   });
 
@@ -48,18 +60,15 @@ describe('deliverCommittedNotes', () => {
   });
 });
 
-describe('pending delivery records', () => {
-  beforeEach(() => {
-    const store = new Map<string, string>();
-    vi.stubGlobal('localStorage', {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => { store.set(k, v); },
-    });
+describe('pending delivery records (in memory only)', () => {
+  afterEach(() => {
+    for (const id of ['p1', 'p2']) removePendingDelivery(id);
+    vi.unstubAllGlobals();
+    vi.resetModules();
   });
-  afterEach(() => { vi.unstubAllGlobals(); });
 
-  const record = (proposalId: string, accountId = '0xAbC', createdAt = Date.now()) =>
-    ({ accountId, proposalId, recipientId: '0xr', notes: ['bm90ZQ=='], createdAt });
+  const record = (proposalId: string, accountId = '0xAbC') =>
+    ({ accountId, proposalId, recipientId: '0xr', notes: ['bm90ZQ=='], createdAt: Date.now() });
 
   it('keeps a note pending until it is removed after delivery', () => {
     recordPendingDelivery(record('p1'));
@@ -75,8 +84,16 @@ describe('pending delivery records', () => {
     expect(pendingDeliveries('0xabc')).toHaveLength(1);
   });
 
-  it('stops retrying a note that never appeared on-chain', () => {
-    recordPendingDelivery(record('old', '0xabc', Date.now() - DELIVERY_GIVE_UP_MS - 1));
-    expect(pendingDeliveries('0xabc')).toEqual([]);
+  it('does not survive a reload, and drops records older versions left in localStorage', async () => {
+    const store = new Map([['pendingPrivateDeliveries', JSON.stringify([record('stale')])]]);
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+    });
+    vi.resetModules();
+    const fresh = await import('../../src/lib/privateDelivery');
+    expect(fresh.pendingDeliveries('0xabc')).toEqual([]);
+    expect(store.has('pendingPrivateDeliveries')).toBe(false);
   });
 });

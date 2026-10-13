@@ -3,7 +3,7 @@ import { MidenClient, NoteType, AccountId, NoteTag } from '@miden-sdk/miden-sdk'
 import { AccountInspector, Eip712Signer, MultisigClient, type Multisig, type Proposal } from '@openzeppelin/miden-multisig-client';
 import { privateKeyToAccount } from 'viem/accounts';
 import { DirectLedgerAdapter, ledgerPath, type LedgerDevice } from '../../../src/lib/ledger/adapter';
-import { registerAccountOnNode, getOutputNotesFromTxSummary, fetchNoteInclusionProof } from '../../../src/lib/multisigApi';
+import { registerAccountOnNode, getOutputNotesFromTxSummary, noteChainChecks } from '../../../src/lib/multisigApi';
 import { deliverCommittedNotes } from '../../../src/lib/privateDelivery';
 import loadWasm from '../../../node_modules/@miden-sdk/miden-sdk/dist/st/wasm.js';
 
@@ -83,7 +83,7 @@ async function run(options: ServiceOptions) {
       const notes=noteType===NoteType.Private?getOutputNotesFromTxSummary(proposal.txSummary):[];
       assert(noteType!==NoteType.Private||notes.length>0,'Private transfer produced no relayable note');
       await execute(proposal);
-      if (notes.length) await deliverCommittedNotes(miden,notes,account.accountId,{fetchProof:id=>fetchNoteInclusionProof(id,options.rpcUrl)});
+      if (notes.length){const checks=noteChainChecks(options.rpcUrl);try{await deliverCommittedNotes(miden,notes,account.accountId,{fetchProof:checks.fetchProofById});}finally{checks.free();}}
       mark(`send ${label} note`);
       await receive();mark(`consume ${label} note`);
     }

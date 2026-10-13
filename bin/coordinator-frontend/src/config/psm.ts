@@ -1,26 +1,91 @@
-import { resolveMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
+import { parseMidenNetwork, type MidenNetwork } from '@/lib/midenNetwork';
 import { parseParaEnvironment, type ParaEnvironment } from '@/lib/paraEnvironment';
+import { originOf } from '@/lib/securityHeaders';
 
-export const GUARDIAN_ENDPOINT = process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT || '';
-// Guardian's raw WASM client does not resolve SDK network shorthands.
-// Share a concrete URL across Miden, Guardian, and Para clients.
-const rpcEndpoints: Record<string, string> = {
-  devnet: 'https://rpc.devnet.miden.io',
-  testnet: 'https://rpc.testnet.miden.io',
-  local: 'http://localhost:57291',
-  localhost: 'http://localhost:57291',
-};
-const configuredRpc = process.env.NEXT_PUBLIC_MIDEN_RPC_URL?.trim() || 'devnet';
-export const MIDEN_RPC_URL = rpcEndpoints[configuredRpc.toLowerCase()] ?? configuredRpc;
-// The network identity behind the RPC: the Miden Wallet's network and the
-// Bech32 address prefix follow it (set NEXT_PUBLIC_MIDEN_NETWORK for a custom RPC).
-export const MIDEN_NETWORK: MidenNetwork = resolveMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK, configuredRpc);
-export const MIDEN_NOTE_TRANSPORT_URL = process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL || 'devnet';
-// Unset keeps in-browser proving: a remote prover sees the full transaction
-// witness, including private note contents, so using one must be a deliberate
-// choice. In-browser proving can outlast a transaction's expiration window, in
-// which case the node rejects it after Guardian has already locked the account.
-export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim() || 'local';
+// Every network endpoint comes from env as a full URL: the code holds no
+// devnet/testnet addresses. Missing or invalid values are collected in
+// CONFIG_ERRORS and reported when the client starts.
+const configErrors: string[] = [];
+
+/**
+ * A configured endpoint, normalised. Miden services (RPC, note transport,
+ * prover) must be a plain origin such as https://rpc.example.org: the SDK's
+ * endpoint parser rejects some paths (one after an explicit port fails with
+ * "invalid digit found in string"), so none is allowed. A Guardian may sit
+ * under a path prefix. Never credentials, a query or a fragment.
+ */
+function endpoint(
+  name: string,
+  value: string | undefined,
+  { allowLocal = false, allowPath = false, required = true } = {},
+): string {
+  const raw = value?.trim() ?? '';
+  if (allowLocal && raw.toLowerCase() === 'local') return 'local';
+  if (!raw) {
+    if (required) configErrors.push(`${name} is not set.`);
+    return '';
+  }
+  let url: URL | undefined;
+  try {
+    url = new URL(raw);
+  } catch { /* reported below */ }
+  const problem =
+    !url || (url.protocol !== 'https:' && url.protocol !== 'http:') ? `must be a full http(s) URL${allowLocal ? ' or "local"' : ''}`
+    : !originOf(raw) ? 'has an invalid host name'
+    : url.username || url.password ? 'must not contain credentials'
+    : url.search || url.hash ? 'must not contain a query or fragment'
+    : !allowPath && url.pathname !== '/' ? 'must be a plain origin such as https://rpc.example.org (no path)'
+    : null;
+  if (problem || !url) {
+    configErrors.push(`${name} ${problem}; got "${raw}".`);
+    return '';
+  }
+  return allowPath ? url.origin + url.pathname.replace(/\/+$/, '') : url.origin;
+}
+
+// The default Guardian. Unset is reported when connecting (with how to set it).
+export const GUARDIAN_ENDPOINT = endpoint('NEXT_PUBLIC_GUARDIAN_ENDPOINT', process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINT, {
+  allowPath: true,
+  required: false,
+});
+
+// The network identity: the Miden Wallet's network, the Bech32 address prefix
+// and the invitation-code rule follow it.
+export const MIDEN_NETWORK: MidenNetwork = (() => {
+  try {
+    return parseMidenNetwork(process.env.NEXT_PUBLIC_MIDEN_NETWORK);
+  } catch (error) {
+    configErrors.push((error as Error).message);
+    return 'custom';
+  }
+})();
+// One concrete URL shared by the Miden, Guardian and Para clients.
+export const MIDEN_RPC_URL = endpoint('NEXT_PUBLIC_MIDEN_RPC_URL', process.env.NEXT_PUBLIC_MIDEN_RPC_URL);
+export const MIDEN_NOTE_TRANSPORT_URL = endpoint(
+  'NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL',
+  process.env.NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL,
+);
+// A remote prover URL, or "local" for in-browser proving (the default when
+// unset). A remote prover sees the full transaction witness, including private
+// note contents, so using one must be a deliberate choice. In-browser proving
+// can outlast a transaction's expiration window, in which case the node
+// rejects it after Guardian has already locked the account.
+export const MIDEN_PROVER_URL = process.env.NEXT_PUBLIC_MIDEN_PROVER_URL?.trim()
+  ? endpoint('NEXT_PUBLIC_MIDEN_PROVER_URL', process.env.NEXT_PUBLIC_MIDEN_PROVER_URL, { allowLocal: true })
+  : 'local';
+// Guardians a user may switch to at runtime (header > Guardian), besides the
+// default one: full URLs, comma- or space-separated. Only these (and the
+// default) are reachable under the page's Content-Security-Policy.
+export const GUARDIAN_ENDPOINTS: readonly string[] = (() => {
+  const urls = [GUARDIAN_ENDPOINT].filter(Boolean);
+  for (const entry of (process.env.NEXT_PUBLIC_GUARDIAN_ENDPOINTS ?? '').split(/[\s,]+/).filter(Boolean)) {
+    const url = endpoint('NEXT_PUBLIC_GUARDIAN_ENDPOINTS entry', entry, { allowPath: true });
+    if (url && !urls.includes(url)) urls.push(url);
+  }
+  return urls;
+})();
+/** Configuration problems; the app refuses to start the Miden client while any remain. */
+export const CONFIG_ERRORS: readonly string[] = configErrors;
 export const MIDEN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE || 'guardian';
 export const MIDEN_DB_NAME = 'MidenClientDB';
 /** The Miden SDK this build runs (next.config.mjs); the local store records which version wrote it. */

@@ -92,7 +92,10 @@ const OTHER_TAB_OPEN = 'This app is open in another tab, which is using its loca
 
 /**
  * Resets the store only while no other tab holds it (see STORE_LOCK). Without
- * Web Locks it falls back to the plain delete, which still fails when blocked.
+ * Web Locks (none of the browsers this app supports: Chrome 69+, Edge 79+,
+ * Firefox 96+, Safari 15.4+) it falls back to the plain delete. Do not rely on
+ * that fallback: a blocked delete fails here, but IndexedDB still runs it once
+ * the other tab closes its connection.
  */
 export async function resetStoreExclusively(
   name: string,
@@ -107,9 +110,67 @@ export async function resetStoreExclusively(
   if (!done) throw new Error(OTHER_TAB_OPEN);
 }
 
-/** Holds STORE_LOCK in shared mode for the life of this tab. */
-export function holdStoreLock(locks: LockManager | undefined = globalThis.navigator?.locks): void {
-  void locks?.request(STORE_LOCK, { mode: 'shared' }, () => new Promise<void>(() => {}));
+export interface StoreLock {
+  /**
+   * Gives the lock up, e.g. so this tab can take it exclusively for its own
+   * reset. Resolves once the browser has actually released it.
+   */
+  release(): Promise<void>;
+}
+
+/**
+ * Takes STORE_LOCK in shared mode and holds it until released (or the tab
+ * closes). Resolves once granted, so it can be taken before the client opens
+ * the store: another tab's reset then cannot run while this one starts.
+ */
+export async function holdStoreLock(locks: LockManager | undefined = globalThis.navigator?.locks): Promise<StoreLock> {
+  if (!locks) return { release: async () => {} };
+  let unhold!: () => void;
+  const held = new Promise<void>((resolve) => { unhold = resolve; });
+  let released!: Promise<unknown>;
+  await new Promise<void>((granted) => {
+    // request() settles only after the callback's promise does and the lock is freed.
+    released = locks.request(STORE_LOCK, { mode: 'shared' }, () => {
+      granted();
+      return held;
+    });
+  });
+  return {
+    release: async () => {
+      unhold();
+      await released;
+    },
+  };
+}
+
+/**
+ * Starts the client (startWithStoreCheck) holding STORE_LOCK in shared mode,
+ * taken before the store is opened and kept once started. This tab gives it up
+ * only for its own reset (`reset` takes the lock exclusively), and after a
+ * failed start: kept then, it would block this tab's own reset on every Retry
+ * as if another tab had the store open.
+ */
+export async function startHoldingStoreLock<T>(
+  options: StoreStartOptions<T>,
+  locks: LockManager | undefined = globalThis.navigator?.locks,
+): Promise<T> {
+  let lock = await holdStoreLock(locks);
+  try {
+    return await startWithStoreCheck({
+      ...options,
+      reset: async () => {
+        await lock.release();
+        try {
+          await options.reset();
+        } finally {
+          lock = await holdStoreLock(locks);
+        }
+      },
+    });
+  } catch (error) {
+    await lock.release();
+    throw error;
+  }
 }
 
 export interface ClientParts<M, C> {
@@ -156,5 +217,16 @@ export async function waitForClientParts<M, C>(
     if (state.phase === 'error') throw new Error(state.error);
     if (waited >= timeoutMs) throw new Error('The Miden client is still starting. Please try again in a moment.');
     await sleep(pollMs);
+  }
+}
+
+/**
+ * A misconfigured deployment (missing or invalid network env) must fail with
+ * the reason, before any start attempt: it is not a stale local store, so it
+ * must not trigger the store reset above.
+ */
+export function assertConfigured(errors: readonly string[]): void {
+  if (errors.length > 0) {
+    throw new Error(`This deployment is misconfigured: ${errors.join(' ')}`);
   }
 }

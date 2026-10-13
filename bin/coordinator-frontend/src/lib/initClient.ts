@@ -33,41 +33,49 @@ export async function saveSignerKeys(signer: SignerInfo): Promise<void> {
   });
 }
 
+/**
+ * The local signer keys, or null when none are stored yet (the caller then
+ * generates them). Any read or decode failure, or only one of the two keys
+ * present, throws instead: returning null there would make start-up generate
+ * new keys and overwrite the stored ones, losing that signer.
+ */
 export async function loadSignerKeys(): Promise<SignerInfo | null> {
+  let falconBytes: Uint8Array | undefined;
+  let ecdsaBytes: Uint8Array | undefined;
   try {
     const db = await openSignerDB();
-    const tx = db.transaction(SIGNER_STORE_NAME, 'readonly');
-    const store = tx.objectStore(SIGNER_STORE_NAME);
-
-    const [falconBytes, ecdsaBytes] = await Promise.all([
-      new Promise<Uint8Array | undefined>((resolve, reject) => {
-        const req = store.get('falcon');
+    try {
+      const tx = db.transaction(SIGNER_STORE_NAME, 'readonly');
+      const store = tx.objectStore(SIGNER_STORE_NAME);
+      const read = (key: string) => new Promise<Uint8Array | undefined>((resolve, reject) => {
+        const req = store.get(key);
         req.onsuccess = () => resolve(req.result as Uint8Array | undefined);
         req.onerror = () => reject(req.error);
-      }),
-      new Promise<Uint8Array | undefined>((resolve, reject) => {
-        const req = store.get('ecdsa');
-        req.onsuccess = () => resolve(req.result as Uint8Array | undefined);
-        req.onerror = () => reject(req.error);
-      }),
-    ]);
+      });
+      [falconBytes, ecdsaBytes] = await Promise.all([read('falcon'), read('ecdsa')]);
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    throw new Error(`The local signer keys could not be read, so none were replaced: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
-    db.close();
-
-    if (!falconBytes || !ecdsaBytes) return null;
-
+  if (!falconBytes && !ecdsaBytes) return null;
+  if (!falconBytes || !ecdsaBytes) {
+    throw new Error('Only one of the two local signer keys is stored, so none were replaced. Clear this site\'s data to start with new keys.');
+  }
+  try {
     const falconSecretKey = AuthSecretKey.deserialize(falconBytes);
     const ecdsaSecretKey = AuthSecretKey.deserialize(ecdsaBytes);
     const falconCommitment = normalizeCommitment(falconSecretKey.publicKey().toCommitment().toHex());
     const ecdsaCommitment = normalizeCommitment(ecdsaSecretKey.publicKey().toCommitment().toHex());
-
     return {
       falcon: { commitment: falconCommitment, secretKey: falconSecretKey },
       ecdsa: { commitment: ecdsaCommitment, secretKey: ecdsaSecretKey },
       activeScheme: 'falcon',
     };
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error(`The local signer keys could not be decoded, so none were replaced: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

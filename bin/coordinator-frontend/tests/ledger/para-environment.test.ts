@@ -4,7 +4,7 @@ import { paraIsHosted, parseParaEnvironment } from '../../src/lib/paraEnvironmen
 import { buildContentSecurityPolicy } from '../../src/lib/securityHeaders';
 
 const csp = (paraHosted: boolean) => buildContentSecurityPolicy({
-  nonce: 'n', dev: false, guardianEndpoint: '', midenRpcUrl: '', noteTransportUrl: '', proverUrl: '',
+  nonce: 'n', dev: false, guardianEndpoints: [], midenRpcUrl: '', noteTransportUrl: '', proverUrl: '',
   chatEndpoint: '', paraHosted, extraConnectSrc: '',
 });
 

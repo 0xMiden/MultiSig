@@ -1,8 +1,9 @@
-import { extraOrigins, OPENZEPPELIN_GUARDIANS, originOf } from '@/lib/securityHeaders';
+import { GUARDIAN_ENDPOINTS } from '@/config/psm';
+import { extraOrigins, originOf } from '@/lib/securityHeaders';
 
 export interface GuardianUrlPolicy {
-  /** The Guardian endpoint the app was built with (NEXT_PUBLIC_GUARDIAN_ENDPOINT). */
-  configured: string;
+  /** The default Guardian plus NEXT_PUBLIC_GUARDIAN_ENDPOINTS. */
+  guardians: readonly string[];
   /** NEXT_PUBLIC_CSP_CONNECT_SRC. */
   extra: string;
   /** The app's own origin ('self'). */
@@ -19,15 +20,52 @@ export function guardianUrlProblem(value: string, policy: GuardianUrlPolicy): st
   if (!value.trim()) return 'Enter a Guardian URL.';
   const origin = originOf(value);
   if (!origin) return 'Enter a full http(s) URL, e.g. https://guardian.example.com.';
+  if (!normalizeGuardianUrl(value)) return 'Enter the Guardian URL without credentials, a query or a fragment.';
 
-  const allowed = new Set([policy.self, originOf(policy.configured), ...extraOrigins(policy.extra)]);
+  const guardians = policy.guardians.map(originOf).filter((o): o is string => o !== null);
+  const allowed = new Set([policy.self, ...guardians, ...extraOrigins(policy.extra)]);
   if (allowed.has(origin)) return null;
-  const url = new URL(origin);
-  // `https://*.openzeppelin.com`: any subdomain, https, default port.
-  const suffix = OPENZEPPELIN_GUARDIANS.slice('https://*'.length);
-  if (url.protocol === 'https:' && url.port === '' && url.hostname.endsWith(suffix)) return null;
 
-  const listed = [originOf(policy.configured), OPENZEPPELIN_GUARDIANS, ...extraOrigins(policy.extra)].filter(Boolean);
-  return `This app's security policy only lets it connect to Guardians at ${listed.join(', ')}. ` +
-    `To use ${origin}, add it to NEXT_PUBLIC_CSP_CONNECT_SRC and redeploy.`;
+  return `This app can only switch to the Guardians it was deployed with: ${guardians.join(', ') || 'none'}. ` +
+    `To use ${origin}, add it to NEXT_PUBLIC_GUARDIAN_ENDPOINTS and redeploy.`;
+}
+
+/**
+ * A Guardian URL as the app uses it, like the env ones (config/psm.ts): origin
+ * plus any path prefix, without trailing slashes (the client appends
+ * "/pubkey", so "https://g.example/" would request "//pubkey"). Null when it
+ * is not a plain http(s) URL.
+ */
+export function normalizeGuardianUrl(value: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  if (url.username || url.password || url.search || url.hash) return null;
+  return url.origin + url.pathname.replace(/\/+$/, '');
+}
+
+/** guardianUrlProblem against this deployment's allowed Guardians. */
+export function deployedGuardianUrlProblem(value: string): string | null {
+  return guardianUrlProblem(value, {
+    guardians: GUARDIAN_ENDPOINTS,
+    extra: process.env.NEXT_PUBLIC_CSP_CONNECT_SRC ?? '',
+    self: typeof window === 'undefined' ? '' : window.location.origin,
+  });
+}
+
+/**
+ * Why this app cannot act on a proposal that switches to another Guardian, or
+ * null: executing it contacts the new Guardian, which the page's CSP may
+ * block (a cosigner using another client can propose any endpoint).
+ */
+export function switchGuardianProblem(proposal: { metadata?: { proposalType?: string; newGuardianEndpoint?: string } }): string | null {
+  const md = proposal.metadata;
+  if (md?.proposalType !== 'switch_guardian') return null;
+  if (!md.newGuardianEndpoint) return 'This proposal does not name the new Guardian endpoint.';
+  const problem = deployedGuardianUrlProblem(md.newGuardianEndpoint);
+  return problem && `This proposal switches to ${md.newGuardianEndpoint}, which this app cannot reach. ${problem}`;
 }
