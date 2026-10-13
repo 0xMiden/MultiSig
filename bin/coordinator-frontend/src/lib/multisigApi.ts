@@ -175,7 +175,7 @@ export function p2idRecipient(note: Note): string | undefined {
  * not a substitute: the app replaces it on a Guardian reconnect, and it has no
  * signer after an auto-load ("No signer configured").
  */
-function multisigGuardian(multisig: Multisig): Pick<GuardianHttpClient, 'getDelta'> {
+export function multisigGuardian(multisig: Multisig): GuardianHttpClient {
   return (multisig as unknown as { guardian: GuardianHttpClient }).guardian;
 }
 

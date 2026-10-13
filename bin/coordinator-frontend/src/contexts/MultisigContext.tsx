@@ -21,10 +21,11 @@ import {
   type SignatureScheme,
   type ProcedureThreshold,
   type ParaSigningContext,
+  type GuardianSession,
   AccountInspector,
   isProposalActionable,
 } from "@openzeppelin/miden-multisig-client";
-import { GuardianHttpError } from "@openzeppelin/guardian-client";
+import { GuardianHttpError, type GuardianHttpClient, type SessionGrantFields, type Signer } from "@openzeppelin/guardian-client";
 import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
@@ -46,6 +47,7 @@ import {
   registerAccountOnNode,
   latestCanonicalPrivateNotes,
   noteChainChecks,
+  multisigGuardian,
   nodeRegistrationMissing,
   type NoteChainChecks,
   type LatestPrivateNote,
@@ -67,6 +69,15 @@ import { getProposalActionState } from "@/lib/proposalActions";
 import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { deployedGuardianUrlProblem, normalizeGuardianUrl, switchGuardianProblem } from "@/lib/guardianUrl";
+import {
+  closeGuardianSession,
+  openGuardianSession,
+  sessionClientFor,
+  sessionGrantRows,
+  sessionKeyStore,
+  walletUsesSessions,
+  type GuardianSessionState,
+} from "@/lib/guardianSession";
 import { runRegistrationRetry } from "@/lib/registrationRetry";
 import {
   decodeNote,
@@ -245,6 +256,15 @@ export interface MultisigContextValue {
   handleSync: () => Promise<void>;
   retryGuardianRegistration: () => Promise<void>;
   retryAccountFunding: () => Promise<void>;
+  /** The wallet's Guardian session (see guardianSession.ts). */
+  guardianSession: GuardianSessionState;
+  /** Starts it again after it failed, was declined or ended. */
+  startGuardianSession: () => Promise<void>;
+  /** Ends it on Guardian (logout). */
+  endGuardianSession: () => Promise<void>;
+  /** A session grant waiting for the user's confirmation (wallets that sign it as a hash). */
+  sessionGrantPrompt: { rows: Array<{ label: string; value: string }> } | null;
+  answerSessionGrant: (approved: boolean) => void;
   /** Registers the loaded account on the node with an invitation code typed in the banner. */
   registerWithInvitationCode: (code: string) => Promise<void>;
   retryProposalVerification: (proposalId: string) => Promise<void>;
@@ -635,6 +655,96 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     signBytes,
     ledger.signer,
   ]);
+
+  // Connecting a wallet starts a Guardian session (guardianSession.ts): one
+  // approval, then Guardian reads and proposal requests stop prompting. It is
+  // tied to this wallet and this Guardian: another wallet or Guardian (or a
+  // disconnect, or logout) ends it on Guardian and starts the next one; a reload
+  // or a new client object for the same account resumes it. Guardian
+  // grants sessions only to a cosigner of some account, and checks that after
+  // the wallet signs, so it starts once the wallet's account is loaded and on
+  // Guardian (right after connecting for an existing account), never with an
+  // approval that cannot succeed.
+  const [guardianSession, setGuardianSession] = useState<GuardianSessionState>({ phase: "off" });
+  const [sessionGrantPrompt, setSessionGrantPrompt] = useState<{ rows: Array<{ label: string; value: string }> } | null>(null);
+  const grantAnswer = useRef<((approved: boolean) => void) | null>(null);
+  const answerSessionGrant = useCallback((approved: boolean) => {
+    const answer = grantAnswer.current;
+    grantAnswer.current = null;
+    setSessionGrantPrompt(null);
+    answer?.(approved);
+  }, []);
+  const confirmSessionGrant = useCallback((grant: SessionGrantFields) => new Promise<boolean>((resolve) => {
+    grantAnswer.current?.(false);
+    grantAnswer.current = resolve;
+    setSessionGrantPrompt({ rows: sessionGrantRows(grant) });
+  }), []);
+
+  // The session is set on the account's own Guardian client (the Multisig's),
+  // which signs the app's requests; it is not always the MultisigClient's.
+  const sessionOwner = useRef<{ key: string; guardian: GuardianHttpClient; session: GuardianSession | null } | null>(null);
+  const onGuardianAccount = Boolean(multisig) && !guardianRegistrationRequired && !registeringOnGuardian;
+  const sessionGuardian = multisig && onGuardianAccount ? multisigGuardian(multisig) : null;
+  // One session per wallet and Guardian.
+  const walletSessionKey = activeCommitment && walletUsesSessions(walletSource)
+    ? `${walletSource}|${activeCommitment.toLowerCase()}|${guardianUrl}`
+    : null;
+  const startGuardianSession = useCallback(async () => {
+    const guardian = sessionGuardian;
+    if (!guardian || !walletSessionKey) return;
+    let walletSigner: Signer;
+    try {
+      walletSigner = createSigner(signer, activeScheme, buildExternalParams());
+    } catch (err) {
+      setGuardianSession({ phase: "failed", message: formatError(err) });
+      return;
+    }
+    const owner = { key: walletSessionKey, guardian, session: null as GuardianSession | null };
+    sessionOwner.current = owner;
+    const current = () => sessionOwner.current === owner;
+    setGuardianSession({ phase: "starting" });
+    const { state, session } = await openGuardianSession(sessionClientFor(guardian), walletSigner, {
+      store: sessionKeyStore(),
+      confirm: confirmSessionGrant,
+      onEnded: (reason) => {
+        if (current()) setGuardianSession(reason === "logout" ? { phase: "off" } : { phase: "ended", reason });
+      },
+    });
+    owner.session = session;
+    if (current()) setGuardianSession(state);
+  }, [sessionGuardian, walletSessionKey, signer, activeScheme, buildExternalParams, confirmSessionGrant]);
+
+  const endGuardianSession = useCallback(async () => {
+    const owner = sessionOwner.current;
+    sessionOwner.current = null;
+    setGuardianSession({ phase: "off" });
+    if (owner?.session) await closeGuardianSession(owner.guardian, owner.session, sessionKeyStore()).catch(() => false);
+  }, []);
+
+  useEffect(() => {
+    const owner = sessionOwner.current;
+    if (owner && owner.key !== walletSessionKey) {
+      // Another wallet or Guardian, or the wallet disconnected: end it on Guardian.
+      void endGuardianSession();
+    } else if (owner && (owner.guardian === sessionGuardian || !sessionGuardian)) {
+      // Same wallet and client, or no account at the moment: keep it.
+      return;
+    }
+    // First time for this wallet, or the account now uses another client
+    // object: start, or resume the stored key without a prompt.
+    if (walletSessionKey && sessionGuardian) void startGuardianSession();
+  }, [walletSessionKey, sessionGuardian, startGuardianSession, endGuardianSession]);
+
+  // Guardian did not know this wallet as a cosigner yet ('waiting'): try once
+  // more per account.
+  const sessionRetriedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const accountId = multisig?.accountId ?? null;
+    if (guardianSession.phase !== "waiting" || !onGuardianAccount || !accountId) return;
+    if (sessionRetriedFor.current === accountId) return;
+    sessionRetriedFor.current = accountId;
+    void startGuardianSession();
+  }, [guardianSession.phase, onGuardianAccount, multisig, startGuardianSession]);
 
   const connectToGuardian = useCallback(
     async (url: string, clientParam?: MidenClient): Promise<GuardianConnectResult> => {
@@ -2151,6 +2261,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryGuardianRegistration,
       retryAccountFunding,
       registerWithInvitationCode,
+      guardianSession,
+      startGuardianSession,
+      endGuardianSession,
+      sessionGrantPrompt,
+      answerSessionGrant,
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
@@ -2236,6 +2351,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryGuardianRegistration,
       retryAccountFunding,
       registerWithInvitationCode,
+      guardianSession,
+      startGuardianSession,
+      endGuardianSession,
+      sessionGrantPrompt,
+      answerSessionGrant,
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,

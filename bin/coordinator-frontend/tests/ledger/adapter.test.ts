@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyTypedData } from 'viem';
 import { Eip712Signer } from '@openzeppelin/miden-multisig-client';
@@ -177,6 +177,64 @@ describe('direct Ledger → real Guardian signer → Miden WASM', () => {
     await expect(bridge.request({ method: 'eth_signTypedData_v4', params: [other.address, '{}'] })).rejects.toThrow('address');
     await expect(bridge.request({ method: 'eth_signTypedData_v4', params: [account.address, JSON.stringify({ primaryType: 'MidenTransaction', domain: { name: 'Other' } })] })).rejects.toThrow('schema');
     expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+});
+
+describe('Guardian 0.18.1 sessions through the Ledger adapter', () => {
+  const ORIGIN = 'https://multisig.example';
+  const grant = (change: Record<string, unknown> = {}) => ({
+    signerCommitment: commitment,
+    sessionPublicKey: `0x02${'ab'.repeat(32)}`,
+    origin: ORIGIN,
+    issuedAt: 1_800_000_000,
+    expiresAt: 1_800_000_000 + 28_740,
+    guardianCommitment: `0x${'cd'.repeat(32)}`,
+    network: 'testnet',
+    ...change,
+  });
+  beforeEach(() => vi.stubGlobal('location', { origin: ORIGIN }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('signs a session grant as readable typed data that verifies', async () => {
+    const device = deviceFor();
+    const signer = new Eip712Signer(new DirectLedgerAdapter(device, selected), selected.publicKey, selected.address);
+    const signature = await signer.signSessionGrant(grant());
+    const data = vi.mocked(device.signTypedData).mock.calls[0][1] as Parameters<typeof verifyTypedData>[0];
+    expect(data.primaryType).toBe('GuardianSession');
+    expect((data.message as Record<string, string>).origin).toBe(ORIGIN);
+    expect(await verifyTypedData({ ...data, address: account.address, signature: signature as `0x${string}` })).toBe(true);
+  });
+
+  it('signs a revoke-all', async () => {
+    const device = deviceFor();
+    const signer = new Eip712Signer(new DirectLedgerAdapter(device, selected), selected.publicKey, selected.address);
+    const signature = await signer.signSessionRevokeAll(commitment, 1_800_000_000_123);
+    const data = vi.mocked(device.signTypedData).mock.calls[0][1] as Parameters<typeof verifyTypedData>[0];
+    expect(data.primaryType).toBe('GuardianSessionRevokeAll');
+    expect(await verifyTypedData({ ...data, address: account.address, signature: signature as `0x${string}` })).toBe(true);
+  });
+
+  it.each([
+    ['another website', { origin: 'https://other.example' }],
+    ['a lifetime above Guardian\'s maximum', { expiresAt: 1_800_000_000 + 28_801 }],
+    ['an uncompressed session key', { sessionPublicKey: `0x04${'ab'.repeat(64)}` }],
+    ['an expiry before its start', { expiresAt: 1_799_999_999 }],
+  ])('refuses a grant for %s before the device sees it', async (_case, change) => {
+    const device = deviceFor();
+    const signer = new Eip712Signer(new DirectLedgerAdapter(device, selected), selected.publicKey, selected.address);
+    await expect(signer.signSessionGrant(grant(change))).rejects.toThrow('schema');
+    expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+
+  it('refuses a grant whose scope or fields were altered', async () => {
+    const device = deviceFor();
+    const bridge = new DirectLedgerAdapter(device, selected);
+    await new Eip712Signer(bridge, selected.publicKey, selected.address).signSessionGrant(grant());
+    const valid = vi.mocked(device.signTypedData).mock.calls[0][1] as unknown as { message: Record<string, string> };
+    const request = (data: unknown) => bridge.request({ method: 'eth_signTypedData_v4', params: [account.address, JSON.stringify(data)] });
+    await expect(request({ ...valid, message: { ...valid.message, scope: 'One account only' } })).rejects.toThrow('schema');
+    await expect(request({ ...valid, message: { ...valid.message, extra: 'x' } })).rejects.toThrow('schema');
+    expect(device.signTypedData).toHaveBeenCalledTimes(1);
   });
 });
 

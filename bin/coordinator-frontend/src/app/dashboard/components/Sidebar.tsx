@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import media from "../../../../public/media";
 import { SidebarPage } from "@/types";
 import { clearWalletCookie } from "@/lib/walletCookie";
+import { useMultisig } from "@/contexts/MultisigContext";
 
 const sidebarPages: SidebarPage[] = [
   { pageName: "Home", path: "/dashboard/home", pageIcon: media.HomeIcon },
@@ -22,10 +23,14 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { endGuardianSession } = useMultisig();
 
   const isActive = (path: string) => pathname === path;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // The Guardian session ends on Guardian too: its key would otherwise stay
+    // usable in this browser until it expires. Bounded, so logout never hangs.
+    await Promise.race([endGuardianSession(), new Promise((resolve) => setTimeout(resolve, 3000))]);
     localStorage.clear();
     clearWalletCookie();
     document.cookie.split(";").forEach((c) => {
@@ -90,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       <div className="mb-4 shrink-0">
         <div
           className="mx-2 py-2.5 px-2 flex items-center gap-3 cursor-pointer hover:bg-red-50 rounded-[8px] transition-colors"
-          onClick={handleLogout}
+          onClick={() => void handleLogout()}
         >
           <div className="w-[20px] h-[20px] flex items-center justify-center shrink-0">
             <svg

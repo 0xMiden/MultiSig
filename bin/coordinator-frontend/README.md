@@ -112,9 +112,22 @@ will display a device prompt. The Guardian's own co-signature remains its own.
 
 One UI action may require several approvals, shown **one at a time**. Keep the
 Ledger unlocked with its Ethereum app open and follow each on-screen prompt.
-Before every proposal, sign, execute, offline sign or import, the private-note
-check reads the account's latest transaction from Guardian: one extra approval,
-two when that transaction has a private note.
+
+**Guardian session.** Once an account is loaded (right after connecting for an
+existing account; after creating the first one), the app asks for one
+`GuardianSession` approval: the device shows the website, the expiry (Guardian's
+maximum, 8 hours), the scope and the network. From then on Guardian reads and
+proposal list, create and sign requests are signed by a key the browser keeps
+(non-extractable), so they stop prompting; approving a transaction summary,
+executing, unlocking, registering and lookup still ask the Ledger. A reload
+resumes the session without a prompt; logout or disconnecting the wallet ends
+it on Guardian. Guardian grants sessions only to a cosigner of some account.
+Without a session (declined, expired, or a Guardian without sessions), the
+private-note check before every proposal, sign, execute, offline sign or import
+reads the account's latest transaction from Guardian: one extra approval, two
+when that transaction has a private note. The signer chip shows the session and
+offers **Start session** when there is none. Para and the Miden Wallet sign the
+grant as a hash, so the app shows its fields in a dialog first.
 The device signs a transaction-summary **hash**; recipient and amount must be
 reviewed in the app, not expected as decoded transaction fields on the Ledger.
 If the Ethereum app requires blind signing, enable it on the device only when

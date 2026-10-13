@@ -1,4 +1,5 @@
 import type { TypedData } from '@ledgerhq/device-signer-kit-ethereum';
+import { SESSION_GRANT_SCOPE } from '@openzeppelin/miden-multisig-client';
 
 export type LedgerPathScheme = 'ledger-live' | 'legacy';
 export interface LedgerAccount {
@@ -29,10 +30,67 @@ export function encodeLedgerSignature({ r, s, v }: { r: string; s: string; v: nu
   return `${r}${s.slice(2)}${recovery.toString(16).padStart(2, '0')}`;
 }
 
+const domainTypes = [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }];
+const SESSION_DOMAIN = 'Guardian Session';
+// Guardian 0.18.1 session messages (multisig client `utils/eip712.js`): every
+// field is shown on the device, so each one is checked here.
+const SESSION_TYPES: Record<string, Array<{ name: string; type: string }>> = {
+  GuardianSession: [
+    { name: 'signer', type: 'bytes32' },
+    { name: 'sessionKey', type: 'bytes' },
+    { name: 'origin', type: 'string' },
+    { name: 'issuedAt', type: 'uint64' },
+    { name: 'expiresAt', type: 'uint64' },
+    { name: 'expires', type: 'string' },
+    { name: 'scope', type: 'string' },
+    { name: 'guardianKey', type: 'bytes32' },
+    { name: 'network', type: 'string' },
+  ],
+  GuardianSessionRevokeAll: [
+    { name: 'signer', type: 'bytes32' },
+    { name: 'timestamp', type: 'uint64' },
+  ],
+};
+/** Guardian's longest session (`GUARDIAN_SESSION_MAX_TTL_SECONDS` may only shorten it). */
+const MAX_SESSION_SECONDS = 28_800;
+const WORD = /^0x[\da-f]{64}$/i;
+const UINT = /^\d{1,20}$/;
+
+function checkSessionMessage(primaryType: string, message: Record<string, unknown>, origin: string): void {
+  const fields = SESSION_TYPES[primaryType].map((field) => field.name);
+  const ok = (condition: boolean) => { if (!condition) throw new Error('Ledger session message does not match the supported protocol schema'); };
+  ok(Object.keys(message).length === fields.length && fields.every((field) => typeof message[field] === 'string'));
+  const m = message as Record<string, string>;
+  ok(WORD.test(m.signer));
+  if (primaryType === 'GuardianSessionRevokeAll') {
+    ok(UINT.test(m.timestamp));
+    return;
+  }
+  const issuedAt = Number(m.issuedAt);
+  const expiresAt = Number(m.expiresAt);
+  ok(/^0x0[23][\da-f]{64}$/i.test(m.sessionKey));
+  // A grant for another website would let that site act for this wallet.
+  ok(Boolean(origin) && m.origin === origin);
+  ok(UINT.test(m.issuedAt) && UINT.test(m.expiresAt) && expiresAt > issuedAt && expiresAt - issuedAt <= MAX_SESSION_SECONDS);
+  ok(m.expires.length > 0 && m.expires.length <= 64);
+  ok(m.scope === SESSION_GRANT_SCOPE);
+  ok(WORD.test(m.guardianKey));
+  ok(/^[a-z0-9-]{1,32}$/i.test(m.network));
+}
+
 // Only the protocol-defined messages used by our signer may reach this adapter.
-export function parseLedgerTypedData(value: unknown): TypedData {
+export function parseLedgerTypedData(value: unknown, origin = globalThis.location?.origin ?? ''): TypedData {
   if (typeof value !== 'string') throw new Error('Expected serialized typed data');
   const data = JSON.parse(value) as TypedData;
+  if (data && SESSION_TYPES[data.primaryType]) {
+    const types = { EIP712Domain: domainTypes, [data.primaryType]: SESSION_TYPES[data.primaryType] };
+    if (data.domain?.name !== SESSION_DOMAIN || data.domain.version !== '1' || Object.keys(data.domain).length !== 2 ||
+        JSON.stringify(data.types) !== JSON.stringify(types) || !data.message || typeof data.message !== 'object') {
+      throw new Error('Ledger typed data does not match the supported protocol schema');
+    }
+    checkSessionMessage(data.primaryType, data.message as Record<string, unknown>, origin);
+    return data;
+  }
   const definitions: Record<string, [string, string]> = {
     MidenTransaction: ['Miden Transaction', 'txSummaryHash'],
     GuardianRequest: ['Guardian Request', 'requestHash'],
@@ -54,6 +112,13 @@ export function parseLedgerTypedData(value: unknown): TypedData {
   }
   return data;
 }
+
+const PROMPTS: Record<string, string> = {
+  MidenTransaction: 'Approve the transaction summary on Ledger',
+  GuardianLookup: 'Approve account lookup on Ledger',
+  GuardianSession: 'Approve the Guardian session on Ledger: one approval instead of one per Guardian request',
+  GuardianSessionRevokeAll: 'Approve ending all Guardian sessions on Ledger',
+};
 
 /** A session-bound EIP-1193 bridge; no Ledger Wallet Provider or remote API key. */
 export class DirectLedgerAdapter {
@@ -87,11 +152,7 @@ export class DirectLedgerAdapter {
       if (data.primaryType !== 'MidenTransaction' && Date.now() - queuedAt > 30_000) {
         throw new Error('Ledger authentication waited too long. Please retry the action.');
       }
-      this.onPrompt(data.primaryType === 'MidenTransaction'
-        ? 'Approve the transaction summary on Ledger'
-        : data.primaryType === 'GuardianLookup'
-          ? 'Approve account lookup on Ledger'
-          : 'Authenticate the Guardian request on Ledger');
+      this.onPrompt(PROMPTS[data.primaryType] ?? 'Authenticate the Guardian request on Ledger');
       try {
         const signature = await this.device.signTypedData(this.account.path, data);
         if (!this.valid) throw new Error('Ledger session changed during signing');
