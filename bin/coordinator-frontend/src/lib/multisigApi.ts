@@ -196,6 +196,9 @@ export async function latestCanonicalPrivateNotes(
   guardian: Pick<GuardianHttpClient, 'getDelta'> = multisigGuardian(multisig as Multisig),
   readNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
 ): Promise<LatestPrivateNote[]> {
+  // Guardian lists history newest-first by nonce, and 0.18.1 labels each
+  // proposal with the account nonce its transaction reaches: the first entry
+  // is the latest transaction.
   const { entries } = await multisig.deltaHistory({ limit: 1 });
   const latest = entries[0];
   if (!latest) return [];
