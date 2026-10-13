@@ -92,3 +92,28 @@ describe('registerAccountOnNode', () => {
     expect(calls.isAllowed).toBe(0);
   });
 });
+
+describe('nodeRegistrationMissing (checked on load)', () => {
+  const accounts = (nonce: bigint | null, allowed: boolean) => {
+    const calls = { isAllowed: 0 };
+    return {
+      calls,
+      accounts: {
+        get: async () => (nonce === null ? null : { nonce: () => ({ asInt: () => nonce }) }),
+        isAllowed: async () => { calls.isAllowed++; return allowed; },
+      },
+    };
+  };
+
+  it('asks the node only for an account with no transaction yet', async () => {
+    await setup({ network: 'mainnet' });
+    const { nodeRegistrationMissing } = await import('../../src/lib/multisigApi');
+    const unregistered = accounts(0n, false);
+    expect(await nodeRegistrationMissing(unregistered.accounts as never, '0x1234')).toBe(true);
+    expect(await nodeRegistrationMissing(accounts(0n, true).accounts as never, '0x1234')).toBe(false);
+    const onChain = accounts(3n, false);
+    expect(await nodeRegistrationMissing(onChain.accounts as never, '0x1234')).toBe(false);
+    expect(onChain.calls.isAllowed).toBe(0);
+    expect(await nodeRegistrationMissing(accounts(null, false).accounts as never, '0x1234')).toBe(false);
+  });
+});

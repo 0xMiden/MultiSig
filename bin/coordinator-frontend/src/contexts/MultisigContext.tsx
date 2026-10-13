@@ -46,6 +46,7 @@ import {
   registerAccountOnNode,
   latestCanonicalPrivateNotes,
   noteChainChecks,
+  nodeRegistrationMissing,
   type NoteChainChecks,
   type LatestPrivateNote,
 } from "@/lib/multisigApi";
@@ -122,6 +123,12 @@ export type AccountFundingPhase =
 export interface AccountFundingState {
   phase: AccountFundingPhase;
   message?: string;
+  /**
+   * The account is not registered on the node and the code to register it is
+   * not known here: the creator's code lives only in the creating tab's memory,
+   * so after a reload or on another device it must be entered again (mainnet).
+   */
+  needsInvitationCode?: boolean;
 }
 
 /**
@@ -161,6 +168,9 @@ export type PrivateNoteGuardState =
   | { phase: "unverified"; error: string };
 
 /** The message to show for an operation's error: a user-facing one as it is, anything else via `describe`. */
+const NOT_REGISTERED = "This account is not registered on the network yet, so its first transaction would be refused.";
+const CODE_NEEDED = "This account is not registered on the network yet. Enter its invitation code to register it.";
+
 function operationErrorMessage(err: unknown, describe: (err: unknown) => string): string {
   return err instanceof UserFacingError ? err.message : describe(err);
 }
@@ -235,6 +245,8 @@ export interface MultisigContextValue {
   handleSync: () => Promise<void>;
   retryGuardianRegistration: () => Promise<void>;
   retryAccountFunding: () => Promise<void>;
+  /** Registers the loaded account on the node with an invitation code typed in the banner. */
+  registerWithInvitationCode: (code: string) => Promise<void>;
   retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
   handleExecuteProposal: (proposalId: string) => Promise<void>;
@@ -827,6 +839,10 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           toast.error(`Account ${account.accountId.slice(0, 10)}…: ${message}`);
         }
       };
+      if (invitationCodeRequired(MIDEN_NETWORK) && !invitationCodes.current.get(account.accountId)?.trim()) {
+        setAccountFunding({ phase: "error", message: CODE_NEEDED, needsInvitationCode: true });
+        return false;
+      }
       setAccountFunding({ phase: "registering" });
       try {
         await registerAccountOnNode(liveClient, account.accountId, invitationCodes.current.get(account.accountId));
@@ -898,6 +914,25 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       toast.error(formatError(fundingError, "Account funding failed"));
     }
   }, [requestAccountFunding]);
+
+  const registerWithInvitationCode = useCallback(async (code: string) => {
+    const ms = multisig;
+    const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+    const trimmed = code.trim();
+    if (!ms || !liveClient || !trimmed) return;
+    try {
+      // Checked with the node first where it can, like at create.
+      await assertInvitationCodeValid(liveClient.accounts, trimmed);
+      invitationCodes.current.set(ms.accountId, trimmed);
+      await requestAccountFunding(ms, { waitInBackground: true });
+    } catch (registrationError) {
+      // Rejected: ask for the code again rather than retrying a bad one.
+      invitationCodes.current.delete(ms.accountId);
+      if (multisigRef.current !== ms) return;
+      const message = operationErrorMessage(registrationError, (e) => formatError(e, "Node registration failed"));
+      setAccountFunding({ phase: "error", message, needsInvitationCode: invitationCodeRequired(MIDEN_NETWORK) });
+    }
+  }, [multisig, midenClient, requestAccountFunding]);
 
   const handleCreate = useCallback(
     async (
@@ -1531,6 +1566,30 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadedAccountId]);
 
+  // On load: an account with no transaction yet must be registered on the node
+  // before its first one (mainnet's allow-list), and only the node knows whether
+  // it is. Ask it, so a loaded account, or one whose registration never
+  // finished, can be registered from here. One node call, no wallet prompt;
+  // skipped while create or a Retry is already registering it.
+  useEffect(() => {
+    const ms = multisigRef.current;
+    const client = midenClientRef.current;
+    if (!loadedAccountId || clientStartup.phase !== "ready" || creating || loadingAccount) return;
+    if (!ms || !client || ms.accountId !== loadedAccountId || fundingAccountId.current === loadedAccountId) return;
+    let cancelled = false;
+    void nodeRegistrationMissing(client.accounts, ms.accountId).then((missing) => {
+      if (!missing || cancelled || multisigRef.current !== ms || fundingAccountId.current === ms.accountId) return;
+      fundingAccountId.current = ms.accountId;
+      const needsInvitationCode = invitationCodeRequired(MIDEN_NETWORK) && !invitationCodes.current.get(ms.accountId)?.trim();
+      setAccountFunding({ phase: "error", message: needsInvitationCode ? CODE_NEEDED : NOT_REGISTERED, needsInvitationCode });
+    }).catch(() => {
+      /* Unknown: nothing to show; registration reports its own errors. */
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedAccountId, clientStartup.phase, creating, loadingAccount]);
+
   // Deliver this account's pending private notes (see privateDelivery.ts):
   // right after execute with a long wait for the commit, and on load or retry
   // with a short one. A note stays pending until the transport accepts it, or
@@ -2086,6 +2145,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleSync,
       retryGuardianRegistration,
       retryAccountFunding,
+      registerWithInvitationCode,
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
@@ -2170,6 +2230,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleSync,
       retryGuardianRegistration,
       retryAccountFunding,
+      registerWithInvitationCode,
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,

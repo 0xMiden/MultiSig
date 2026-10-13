@@ -228,6 +228,20 @@ export async function latestCanonicalPrivateNotes(
  * was committed, whether it has been consumed, and its inclusion proof.
  * `free()` releases the connection.
  */
+/**
+ * Whether an account still has to be registered on the node: it has made no
+ * transaction yet (an account on-chain was registered before) and the node
+ * does not allow it. A node without an allow-list (testnet) allows every account.
+ */
+export async function nodeRegistrationMissing(
+  accounts: Pick<MidenClient['accounts'], 'get' | 'isAllowed'>,
+  accountId: string,
+): Promise<boolean> {
+  const account = await accounts.get(accountId);
+  if (!account || account.nonce().asInt() !== 0n) return false;
+  return !(await accounts.isAllowed(accountId));
+}
+
 export type NoteChainChecks = ReturnType<typeof noteChainChecks>;
 
 export function noteChainChecks(rpcUrl: string = MIDEN_RPC_URL) {

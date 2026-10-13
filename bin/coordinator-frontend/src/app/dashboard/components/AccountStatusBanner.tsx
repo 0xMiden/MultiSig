@@ -35,6 +35,7 @@ const AccountStatusBanner = () => {
     handleSync,
     retryGuardianRegistration,
     retryAccountFunding,
+    registerWithInvitationCode,
     walletSource,
     ledger,
     handleLoad,
@@ -151,7 +152,10 @@ const AccountStatusBanner = () => {
               {accountFunding.phase === "error" && accountFunding.message}
             </span>
           </div>
-          {accountFunding.phase === "error" && (
+          {accountFunding.phase === "error" && accountFunding.needsInvitationCode && (
+            <InvitationCodeForm busy={busy} onRegister={registerWithInvitationCode} />
+          )}
+          {accountFunding.phase === "error" && !accountFunding.needsInvitationCode && (
             <button
               type="button"
               onClick={() => void retryAccountFunding()}
@@ -229,6 +233,40 @@ const AccountStatusBanner = () => {
  * Ledger connection state on the dashboard: the last Ledger error, and the
  * next step (connect the device, or load the account with it).
  */
+/** The node-registration invitation code, when this tab does not know it (see AccountFundingState). */
+function InvitationCodeForm({ busy, onRegister }: { busy: boolean; onRegister: (code: string) => Promise<void> }) {
+  const [code, setCode] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setRegistering(true);
+    try {
+      await onRegister(code);
+    } finally {
+      setRegistering(false);
+    }
+  };
+  return (
+    <form onSubmit={(event) => void submit(event)} className="flex shrink-0 flex-row items-center gap-2">
+      <input
+        value={code}
+        onChange={(event) => setCode(event.target.value)}
+        placeholder="Invitation code"
+        aria-label="Invitation code"
+        autoComplete="off"
+        className="min-h-8 w-36 rounded-[6px] border border-[#FF550033] bg-white px-2 text-[12px] text-[#9A3412] focus-visible:outline-2 focus-visible:outline-[#FF5500]"
+      />
+      <button
+        type="submit"
+        disabled={busy || registering || !code.trim()}
+        className="min-h-8 rounded-[6px] bg-[#C2410C] px-3 text-[12px] font-[500] text-white disabled:opacity-50"
+      >
+        {registering ? "Registering…" : "Register"}
+      </button>
+    </form>
+  );
+}
+
 function LedgerNotice({ ledger, accountLoaded, loading, onLoad }: {
   ledger: MultisigContextValue["ledger"];
   accountLoaded: boolean;
