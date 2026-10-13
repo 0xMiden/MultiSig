@@ -82,6 +82,7 @@ export function ProposalDetails({ proposal }: { proposal: Proposal }) {
         </>
       );
       break;
+    }
     case 'custom': {
       const recipe = decodeRecipeLabel(md.rawProposalType);
       if (recipe) {
