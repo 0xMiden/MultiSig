@@ -1,5 +1,7 @@
+import { TransactionSummary } from '@miden-sdk/miden-sdk';
 import { GuardianHttpError, type AbandonStatus } from '@openzeppelin/guardian-client';
 import type { Multisig } from '@openzeppelin/miden-multisig-client';
+import { base64ToBytes } from './base64';
 
 /**
  * Execute pushes the delta to Guardian, which co-signs it and records it as
@@ -37,8 +39,18 @@ export interface LockedCandidate {
 }
 
 interface DeltaReader {
-  getDelta(accountId: string, nonce: number): Promise<{ status: { status: string; timestamp?: string } }>;
+  getDelta(accountId: string, nonce: number): Promise<{
+    status: { status: string; timestamp?: string };
+    deltaPayload?: { txSummary?: { data?: unknown } };
+  }>;
 }
+
+/** A proposal's id is its transaction summary's commitment. */
+function summaryCommitment(txSummaryBase64: string): string {
+  return TransactionSummary.deserialize(base64ToBytes(txSummaryBase64)).toCommitment().toHex();
+}
+
+const sameWord = (a: string, b: string) => a.replace(/^0x/i, '').toLowerCase() === b.replace(/^0x/i, '').toLowerCase();
 
 function guardianOf(multisig: object): DeltaReader | null {
   const guardian = (multisig as { guardian?: Partial<DeltaReader> }).guardian;
@@ -59,6 +71,7 @@ export type CandidateLookup =
 export async function findLockedCandidate(
   multisig: Pick<Multisig, 'accountId'> & object,
   proposals: ReadonlyArray<{ id: string; nonce: number }>,
+  commitmentOf: (txSummaryBase64: string) => string = summaryCommitment,
 ): Promise<CandidateLookup> {
   const guardian = guardianOf(multisig);
   if (!guardian) return { kind: 'unknown', reason: 'Guardian client unavailable' };
@@ -72,7 +85,17 @@ export async function findLockedCandidate(
       if (delta.status.status !== 'candidate') continue;
       const lockedAt = Date.parse(delta.status.timestamp ?? '');
       if (!Number.isFinite(lockedAt)) return { kind: 'unknown', reason: 'Guardian returned no lock time' };
-      return { kind: 'found', candidate: { proposalId: proposal.id, nonce: proposal.nonce, lockedAt } };
+      // Several open proposals can share a nonce (Guardian 0.18.1 labels each
+      // with the account nonce it reaches): the candidate is the one whose
+      // summary Guardian holds. Empty when none matches.
+      const sharing = proposals.filter((p) => p.nonce === proposal.nonce);
+      let proposalId = proposal.id;
+      if (sharing.length > 1) {
+        const data = delta.deltaPayload?.txSummary?.data;
+        const commitment = typeof data === 'string' ? commitmentOf(data) : '';
+        proposalId = sharing.find((p) => commitment && sameWord(p.id, commitment))?.id ?? '';
+      }
+      return { kind: 'found', candidate: { proposalId, nonce: proposal.nonce, lockedAt } };
     } catch (error) {
       if (error instanceof GuardianHttpError && error.code === 'delta_not_found') continue;
       failure = error instanceof Error ? error.message : String(error);

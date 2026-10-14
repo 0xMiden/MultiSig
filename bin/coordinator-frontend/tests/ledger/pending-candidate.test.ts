@@ -121,6 +121,18 @@ describe('findLockedCandidate', () => {
     expect(multisig.guardian.getDelta).toHaveBeenCalledWith('0xacc', 3);
   });
 
+  it('picks, among proposals sharing a nonce, the one whose summary Guardian holds (0.18.1 nonce labels)', async () => {
+    const multisig = withDeltas({
+      5: async () => ({ status: { status: 'candidate', timestamp: lockedAt }, deltaPayload: { txSummary: { data: 'summary-of-b' } } }),
+    });
+    const commitmentOf = (data: string) => (data === 'summary-of-b' ? '0xB' : '0xff');
+    const lookup = await findLockedCandidate(multisig, [{ id: '0xa', nonce: 5 }, { id: '0xb', nonce: 5 }], commitmentOf);
+    expect(lookup).toEqual({ kind: 'found', candidate: { proposalId: '0xb', nonce: 5, lockedAt: Date.parse(lockedAt) } });
+    // Never blames one of them when the summary matches none.
+    const unknown = await findLockedCandidate(multisig, [{ id: '0xa', nonce: 5 }, { id: '0xc', nonce: 5 }], commitmentOf);
+    expect(unknown).toMatchObject({ kind: 'found', candidate: { proposalId: '' } });
+  });
+
   it('reports none when no open proposal is a candidate', async () => {
     const multisig = withDeltas({ 1: notFound, 2: async () => ({ status: { status: 'canonical', timestamp: lockedAt } }) });
     await expect(findLockedCandidate(multisig, [{ id: '0xa', nonce: 1 }, { id: '0xb', nonce: 2 }])).resolves.toEqual({ kind: 'none' });

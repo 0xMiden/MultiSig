@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { SessionEndReason } from "@openzeppelin/guardian-client";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard, truncateHex } from "@/lib/helpers";
 
@@ -102,32 +103,42 @@ export function SignerChip() {
 
 type SessionState = ReturnType<typeof useMultisig>["guardianSession"];
 
-/** Green while Guardian requests are signed by the session, amber when they ask the wallet again. */
+/** Green while the session signs Guardian requests, amber while it starts or after it stopped. */
 function SessionDot({ state }: { state: SessionState }) {
-  if (state.phase === "off" || state.phase === "unsupported" || state.phase === "waiting") return null;
+  if (state.phase === "off" || state.phase === "unsupported") return null;
   const active = state.phase === "active";
+  const busy = state.phase === "starting" || state.phase === "resuming";
   return (
     <span
-      aria-label={active ? "Guardian session active" : "No Guardian session"}
-      title={active ? "Guardian session active" : "No Guardian session: Guardian requests ask the wallet"}
-      className={`h-1.5 w-1.5 rounded-full ${active ? "bg-green-600" : state.phase === "starting" ? "bg-amber-400 animate-pulse" : "bg-amber-500"}`}
+      aria-label={active ? "Guardian session active" : busy ? "Guardian session starting" : "No Guardian session"}
+      title={active ? "Guardian session active" : busy ? "Guardian session starting" : "No Guardian session: Guardian requests ask the wallet"}
+      className={`h-1.5 w-1.5 rounded-full ${active ? "bg-green-600" : busy ? "bg-amber-400 animate-pulse" : "bg-amber-500"}`}
     />
   );
 }
 
-const ENDED: Record<string, string> = {
+const ENDED: Record<SessionEndReason, string> = {
   expired: "It expired.",
-  revoked: "It was ended elsewhere.",
+  revoked: "It was ended elsewhere (another tab or device).",
   rejected: "Guardian no longer accepts it.",
   logout: "It was ended.",
 };
 
+/** The expiry in local time, with the date when it is not today. */
+function untilText(expiresAt: number): string {
+  const at = new Date(expiresAt * 1000);
+  const sameDay = at.toDateString() === new Date().toDateString();
+  return sameDay
+    ? at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : at.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 function SessionStatus({ state, onStart }: { state: SessionState; onStart: () => void }) {
   const text =
-    state.phase === "active" ? `Active until ${new Date(state.expiresAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}: Guardian requests do not ask your wallet.`
+    state.phase === "active" ? `Active until ${untilText(state.expiresAt)}: Guardian requests do not ask your wallet.`
+    : state.phase === "resuming" ? "Resuming this wallet's session…"
     : state.phase === "starting" ? "Starting: approve it in your wallet."
-    : state.phase === "waiting" ? "Starts once this wallet signs for an account on this Guardian."
-    : state.phase === "ended" ? `${ENDED[state.reason] ?? "It ended."} Guardian requests ask your wallet again.`
+    : state.phase === "ended" ? `${ENDED[state.reason]} Guardian requests ask your wallet again.`
     : state.phase === "failed" ? state.message
     : state.phase === "unsupported" ? "This Guardian does not offer sessions: Guardian requests ask your wallet."
     : "";

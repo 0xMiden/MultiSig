@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import media from "../../../../public/media";
@@ -27,9 +27,14 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
 
   const isActive = (path: string) => pathname === path;
 
+  const [loggingOut, setLoggingOut] = useState(false);
+  const loggingOutRef = useRef(false);
   const handleLogout = async () => {
-    // The Guardian session ends on Guardian too: its key would otherwise stay
-    // usable in this browser until it expires. Bounded, so logout never hangs.
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    setLoggingOut(true);
+    // Guardian sessions end: their stored keys are deleted here first, then
+    // each is revoked on Guardian, bounded so logout never hangs on it.
     await Promise.race([endGuardianSession(), new Promise((resolve) => setTimeout(resolve, 3000))]);
     localStorage.clear();
     clearWalletCookie();
@@ -94,7 +99,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       {/* Logout */}
       <div className="mb-4 shrink-0">
         <div
-          className="mx-2 py-2.5 px-2 flex items-center gap-3 cursor-pointer hover:bg-red-50 rounded-[8px] transition-colors"
+          role="button"
+          aria-disabled={loggingOut}
+          className={`mx-2 py-2.5 px-2 flex items-center gap-3 rounded-[8px] transition-colors ${loggingOut ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-red-50"}`}
           onClick={() => void handleLogout()}
         >
           <div className="w-[20px] h-[20px] flex items-center justify-center shrink-0">
@@ -118,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
               collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
             }`}
           >
-            Logout
+            {loggingOut ? "Logging out…" : "Logout"}
           </span>
         </div>
       </div>

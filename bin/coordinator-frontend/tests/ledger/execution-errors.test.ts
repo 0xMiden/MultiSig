@@ -18,6 +18,15 @@ describe('describeExecutionError', () => {
     );
   });
 
+  it("explains Guardian 0.18.1's refusal of a proposal made for another account state, advice included", () => {
+    quiet();
+    const word = (c: string) => `0x${c.repeat(64)}`;
+    const stale = new Error(`Proposal ${word('a')} was made for account state ${word('b')}, but this client's account is at ${word('c')}: sync and retry, or create the proposal again`);
+    expect(describeExecutionError(stale, 'Execute failed')).toBe(
+      'Execute failed: this proposal was made for an earlier state of the account. Sync and try again; if it still fails, create it again.',
+    );
+  });
+
   it('reports a local database failure as such, not as a network problem', () => {
     quiet();
     const store = new Error('failed to execute transaction: storage error: database-related non-query error: failed to fetch account snapshot: JsValue(Object({"name":"PrematureCommitError","message":"Transaction committed too early. See http://bit.ly/2kdckMn","inner":null}))');

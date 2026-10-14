@@ -28,8 +28,8 @@ interface ProposalSubmitter {
  * Makes the multisig re-submit a built proposal to Guardian when the push
  * fails for a transient reason. The SDK builds each proposal (nonce, salt,
  * summary) once and hands it to `createProposal`, which only pushes it; the
- * retry re-sends that exact data. Guardian keys a proposal by
- * (account, nonce, summary), so a push whose response was lost and is then
+ * retry re-sends that exact data. Guardian keys a proposal by its summary's
+ * commitment (its id), so a push whose response was lost and is then
  * repeated stores the same proposal again instead of creating a duplicate.
  *
  * Returns false, leaving the SDK untouched, if the multisig lacks the method.

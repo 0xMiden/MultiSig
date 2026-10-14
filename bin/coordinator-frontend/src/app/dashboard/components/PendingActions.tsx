@@ -15,6 +15,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
     proposals,
     detectedConfig,
     activeCommitment,
+    accountNonce,
     syncingState,
   } = useMultisig();
 
@@ -69,6 +70,7 @@ const PendingActions: React.FC<PendingActionsProps> = ({ threshold, fixedHeight 
               detectedConfig,
               activeCommitment,
               threshold ?? 0,
+              accountNonce,
             );
             const isSend = proposal.metadata?.proposalType === 'p2id';
 

@@ -21,7 +21,6 @@ import {
   type SignatureScheme,
   type ProcedureThreshold,
   type ParaSigningContext,
-  type GuardianSession,
   AccountInspector,
   isProposalActionable,
 } from "@openzeppelin/miden-multisig-client";
@@ -70,11 +69,11 @@ import { useParaSession } from "@/hooks/useParaSession";
 import { useLedgerSession, type LedgerSession } from "@/hooks/useLedgerSession";
 import { deployedGuardianUrlProblem, normalizeGuardianUrl, switchGuardianProblem } from "@/lib/guardianUrl";
 import {
-  closeGuardianSession,
-  openGuardianSession,
-  sessionClientFor,
+  GuardianSessionManager,
+  forgetAllSessionKeys,
+  guardianEndpoint,
+  retryIfSessionDied,
   sessionGrantRows,
-  sessionKeyStore,
   walletUsesSessions,
   type GuardianSessionState,
 } from "@/lib/guardianSession";
@@ -130,6 +129,11 @@ export type AccountFundingPhase =
   | "waiting-for-note"
   | "funding-available"
   | "error";
+
+export interface SessionGrantPrompt {
+  id: number;
+  rows: Array<{ label: string; value: string }>;
+}
 
 export interface AccountFundingState {
   phase: AccountFundingPhase;
@@ -256,15 +260,17 @@ export interface MultisigContextValue {
   handleSync: () => Promise<void>;
   retryGuardianRegistration: () => Promise<void>;
   retryAccountFunding: () => Promise<void>;
+  /** The loaded account's nonce, when known (outdated proposals). */
+  accountNonce: bigint | null;
   /** The wallet's Guardian session (see guardianSession.ts). */
   guardianSession: GuardianSessionState;
   /** Starts it again after it failed, was declined or ended. */
   startGuardianSession: () => Promise<void>;
   /** Ends it on Guardian (logout). */
   endGuardianSession: () => Promise<void>;
-  /** A session grant waiting for the user's confirmation (wallets that sign it as a hash). */
-  sessionGrantPrompt: { rows: Array<{ label: string; value: string }> } | null;
-  answerSessionGrant: (approved: boolean) => void;
+  /** A session grant waiting for the user's confirmation, shown before the wallet signs it. */
+  sessionGrantPrompt: SessionGrantPrompt | null;
+  answerSessionGrant: (id: number, approved: boolean) => void;
   /** Registers the loaded account on the node with an invitation code typed in the banner. */
   registerWithInvitationCode: (code: string) => Promise<void>;
   retryProposalVerification: (proposalId: string) => Promise<void>;
@@ -382,6 +388,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [undeliveredNotes, setUndeliveredNotes] = useState<UndeliveredNote[]>([]);
   const [privateNoteGuard, setPrivateNoteGuard] = useState<PrivateNoteGuardState>({ phase: "idle" });
+  // The loaded account's nonce: proposals labelled at or below it are outdated.
+  const [accountNonce, setAccountNonce] = useState<bigint | null>(null);
   const privateNoteGuardRef = useRef(privateNoteGuard);
   privateNoteGuardRef.current = privateNoteGuard;
   // Action handlers are defined before the delivery code; they reach the guard
@@ -472,6 +480,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     if (sync.source === "guardian") setGuardianState(sync.state);
     else if (!guardianStateRef.current) setGuardianState(await ms.fetchState());
     setDetectedConfig(AccountInspector.fromAccount(ms.account));
+    if (multisigRef.current === ms) setAccountNonce(ms.account.nonce().asInt());
     setProposals(synced);
     setConsumableNotes(notes);
   }, []);
@@ -656,42 +665,87 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     ledger.signer,
   ]);
 
-  // Connecting a wallet starts a Guardian session (guardianSession.ts): one
-  // approval, then Guardian reads and proposal requests stop prompting. It is
-  // tied to this wallet and this Guardian: another wallet or Guardian (or a
-  // disconnect, or logout) ends it on Guardian and starts the next one; a reload
-  // or a new client object for the same account resumes it. Guardian
-  // grants sessions only to a cosigner of some account, and checks that after
-  // the wallet signs, so it starts once the wallet's account is loaded and on
-  // Guardian (right after connecting for an existing account), never with an
-  // approval that cannot succeed.
+  // Guardian sessions (guardianSession.ts): one approval, then Guardian reads
+  // and proposal requests stop prompting. The manager holds every session of
+  // the connected wallet on this Guardian; another wallet or Guardian, or
+  // logout, ends them all.
   const [guardianSession, setGuardianSession] = useState<GuardianSessionState>({ phase: "off" });
-  const [sessionGrantPrompt, setSessionGrantPrompt] = useState<{ rows: Array<{ label: string; value: string }> } | null>(null);
-  const grantAnswer = useRef<((approved: boolean) => void) | null>(null);
-  const answerSessionGrant = useCallback((approved: boolean) => {
-    const answer = grantAnswer.current;
+  const [sessionGrantPrompt, setSessionGrantPrompt] = useState<SessionGrantPrompt | null>(null);
+  const grantAnswer = useRef<{ id: number; resolve: (approved: boolean) => void } | null>(null);
+  const grantPromptId = useRef(0);
+  const answerSessionGrant = useCallback((id: number, approved: boolean) => {
+    const pending = grantAnswer.current;
+    if (!pending || pending.id !== id) return;
     grantAnswer.current = null;
     setSessionGrantPrompt(null);
-    answer?.(approved);
+    pending.resolve(approved);
+  }, []);
+  const cancelSessionGrant = useCallback(() => {
+    const pending = grantAnswer.current;
+    grantAnswer.current = null;
+    setSessionGrantPrompt(null);
+    pending?.resolve(false);
   }, []);
   const confirmSessionGrant = useCallback((grant: SessionGrantFields) => new Promise<boolean>((resolve) => {
-    grantAnswer.current?.(false);
-    grantAnswer.current = resolve;
-    setSessionGrantPrompt({ rows: sessionGrantRows(grant) });
+    grantAnswer.current?.resolve(false);
+    const id = ++grantPromptId.current;
+    grantAnswer.current = { id, resolve };
+    setSessionGrantPrompt({ id, rows: sessionGrantRows(grant) });
   }), []);
+  const [sessions] = useState(() => new GuardianSessionManager({
+    confirm: confirmSessionGrant,
+    cancelConfirm: cancelSessionGrant,
+    onState: setGuardianSession,
+  }));
 
-  // The session is set on the account's own Guardian client (the Multisig's),
-  // which signs the app's requests; it is not always the MultisigClient's.
-  const sessionOwner = useRef<{ key: string; guardian: GuardianHttpClient; session: GuardianSession | null } | null>(null);
-  const onGuardianAccount = Boolean(multisig) && !guardianRegistrationRequired && !registeringOnGuardian;
-  const sessionGuardian = multisig && onGuardianAccount ? multisigGuardian(multisig) : null;
-  // One session per wallet and Guardian.
-  const walletSessionKey = activeCommitment && walletUsesSessions(walletSource)
-    ? `${walletSource}|${activeCommitment.toLowerCase()}|${guardianUrl}`
-    : null;
+  const sessionKeyFor = useCallback((url: string) =>
+    activeCommitment && walletUsesSessions(walletSource)
+      ? `${walletSource}|${activeCommitment.toLowerCase()}|${normalizeGuardianUrl(url) ?? url}`
+      : null,
+  [activeCommitment, walletSource]);
+  const walletSessionKey = sessionKeyFor(guardianUrl);
+  // Another wallet or Guardian (or a disconnected wallet) ends the sessions.
+  useEffect(() => {
+    void sessions.setWallet(walletSessionKey);
+  }, [sessions, walletSessionKey]);
+
+  /**
+   * Resumes this wallet's session on `guardian`, or starts one (one approval),
+   * before an account is loaded or right after one is created: Guardian grants
+   * sessions only to a cosigner, and the requests that follow then need no
+   * wallet. Never throws; a failure leaves the wallet signing.
+   */
+  const openGuardianSession = useCallback(async (guardian: GuardianHttpClient, walletSigner: Signer, url: string) => {
+    const key = sessionKeyFor(url);
+    if (!key) return;
+    await sessions.setWallet(key);
+    await sessions.ensure(guardian, walletSigner);
+  }, [sessions, sessionKeyFor]);
+
+  // A loaded account of this wallet may use its own Guardian client object:
+  // put the stored session on it too (no prompt). An account that moved to
+  // another Guardian (a switch_guardian execute) ends this Guardian's sessions.
+  useEffect(() => {
+    if (!multisig || !walletSessionKey || sessions.walletKey !== walletSessionKey) return;
+    if (multisig.signerCommitment.toLowerCase() !== activeCommitment?.toLowerCase()) return;
+    const guardian = multisigGuardian(multisig);
+    if ((normalizeGuardianUrl(guardianEndpoint(guardian)) ?? "") !== (normalizeGuardianUrl(guardianUrl) ?? guardianUrl)) {
+      void sessions.endAll();
+      return;
+    }
+    if (sessions.holds(guardian)) return;
+    try {
+      void sessions.resume(guardian, createSigner(signer, activeScheme, buildExternalParams()));
+    } catch {
+      /* the wallet is not ready: its requests keep using the wallet */
+    }
+  }, [multisig, walletSessionKey, sessions, activeCommitment, guardianUrl, signer, activeScheme, buildExternalParams]);
+
+  /** "Start session" in the signer chip, after a decline, failure or expiry. */
   const startGuardianSession = useCallback(async () => {
-    const guardian = sessionGuardian;
-    if (!guardian || !walletSessionKey) return;
+    const ownAccount = multisig && multisig.signerCommitment.toLowerCase() === activeCommitment?.toLowerCase();
+    const guardian = ownAccount ? multisigGuardian(multisig) : clientPartsRef.current?.multisigClient.guardianClient;
+    if (!guardian) return;
     let walletSigner: Signer;
     try {
       walletSigner = createSigner(signer, activeScheme, buildExternalParams());
@@ -699,52 +753,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setGuardianSession({ phase: "failed", message: formatError(err) });
       return;
     }
-    const owner = { key: walletSessionKey, guardian, session: null as GuardianSession | null };
-    sessionOwner.current = owner;
-    const current = () => sessionOwner.current === owner;
-    setGuardianSession({ phase: "starting" });
-    const { state, session } = await openGuardianSession(sessionClientFor(guardian), walletSigner, {
-      store: sessionKeyStore(),
-      confirm: confirmSessionGrant,
-      onEnded: (reason) => {
-        if (current()) setGuardianSession(reason === "logout" ? { phase: "off" } : { phase: "ended", reason });
-      },
-    });
-    owner.session = session;
-    if (current()) setGuardianSession(state);
-  }, [sessionGuardian, walletSessionKey, signer, activeScheme, buildExternalParams, confirmSessionGrant]);
+    await openGuardianSession(guardian, walletSigner, guardianUrl);
+  }, [multisig, activeCommitment, signer, activeScheme, buildExternalParams, openGuardianSession, guardianUrl]);
 
+  /** Logout: every stored session key of this site is deleted, then every session is revoked. */
   const endGuardianSession = useCallback(async () => {
-    const owner = sessionOwner.current;
-    sessionOwner.current = null;
-    setGuardianSession({ phase: "off" });
-    if (owner?.session) await closeGuardianSession(owner.guardian, owner.session, sessionKeyStore()).catch(() => false);
-  }, []);
-
-  useEffect(() => {
-    const owner = sessionOwner.current;
-    if (owner && owner.key !== walletSessionKey) {
-      // Another wallet or Guardian, or the wallet disconnected: end it on Guardian.
-      void endGuardianSession();
-    } else if (owner && (owner.guardian === sessionGuardian || !sessionGuardian)) {
-      // Same wallet and client, or no account at the moment: keep it.
-      return;
-    }
-    // First time for this wallet, or the account now uses another client
-    // object: start, or resume the stored key without a prompt.
-    if (walletSessionKey && sessionGuardian) void startGuardianSession();
-  }, [walletSessionKey, sessionGuardian, startGuardianSession, endGuardianSession]);
-
-  // Guardian did not know this wallet as a cosigner yet ('waiting'): try once
-  // more per account.
-  const sessionRetriedFor = useRef<string | null>(null);
-  useEffect(() => {
-    const accountId = multisig?.accountId ?? null;
-    if (guardianSession.phase !== "waiting" || !onGuardianAccount || !accountId) return;
-    if (sessionRetriedFor.current === accountId) return;
-    sessionRetriedFor.current = accountId;
-    void startGuardianSession();
-  }, [guardianSession.phase, onGuardianAccount, multisig, startGuardianSession]);
+    await forgetAllSessionKeys();
+    await sessions.endAll();
+  }, [sessions]);
 
   const connectToGuardian = useCallback(
     async (url: string, clientParam?: MidenClient): Promise<GuardianConnectResult> => {
@@ -802,6 +818,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
               walletSource === "ledger" ? "ecdsa" : signer?.activeScheme ?? activeScheme,
               buildExternalParams(),
             );
+            // A session on this Guardian before reloading the account on it.
+            await openGuardianSession(msClient.guardianClient, clientSigner, url);
             const reloadedMs = await loadMultisigAccount(
               msClient,
               multisig.accountId,
@@ -854,7 +872,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         return fail(`Failed to connect to Guardian: ${msg}`);
       }
     },
-    [midenClient, multisig, multisigClient, guardianUrl, signer, guardianState, buildExternalParams, walletSource, activeScheme, refreshAccount],
+    [midenClient, multisig, multisigClient, guardianUrl, signer, guardianState, buildExternalParams, walletSource, activeScheme, refreshAccount, openGuardianSession],
   );
 
   // Initialization. Starting the in-browser Miden client downloads and compiles
@@ -1141,6 +1159,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           await ms.registerOnGuardian();
           registeredOnGuardian = true;
           setGuardianRegistrationRequired(false);
+          // Guardian grants sessions only to a cosigner: the first chance is now.
+          await openGuardianSession(multisigGuardian(ms), clientSigner, guardianUrl);
           if (midenClient && ms.accountId) {
             await watchAccountNotes(midenClient, ms.accountId);
             // Node registration and the funding wait run in the background: a
@@ -1178,6 +1198,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       walletSource,
       buildExternalParams,
       requestAccountFunding,
+      openGuardianSession,
     ],
   );
 
@@ -1222,6 +1243,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           signatureScheme,
           externalParams,
         );
+
+        // The Guardian session first (none on a reload, at most one approval),
+        // so the load's own Guardian requests need no wallet: on Ledger they
+        // would otherwise queue behind the grant on the device.
+        await openGuardianSession(multisigClient.guardianClient, clientSigner, guardianUrl);
 
         let pendingRegistration = false;
         const ms = await loadMultisigAccount(
@@ -1283,6 +1309,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       guardianUrl,
       walletSource,
       buildExternalParams,
+      openGuardianSession,
     ],
   );
 
@@ -1342,15 +1369,19 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       if (multisig.accountId) {
         await watchAccountNotes(midenClient, multisig.accountId);
       }
+      // Guardian's account state is synced even when the chain sync fails
+      // (e.g. the note transport is down): proposals are labelled with this
+      // state's nonce, and a stale one would reuse a nonce already taken.
+      let chainError: unknown = null;
       try {
         await midenClient.sync();
       } catch {
         await new Promise((resolve) => setTimeout(resolve, 500));
-        await midenClient.sync();
+        await midenClient.sync().catch((err: unknown) => { chainError = err; });
       }
-      await fetchPrivateNotes(midenClient);
+      if (!chainError) await fetchPrivateNotes(midenClient);
 
-      const state = await multisig.syncState().catch((err: unknown) => {
+      const state = await retryIfSessionDied(() => multisig.syncState()).catch((err: unknown) => {
         if (err instanceof GuardianHttpError && err.code === "account_not_found") {
           setGuardianRegistrationRequired(true);
         }
@@ -1358,6 +1389,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       });
       setGuardianRegistrationRequired(false);
       await refreshAccount(multisig, state);
+      if (chainError) throw chainError;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (await handleLocalStateAhead(multisig, message)) {
@@ -1501,6 +1533,12 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
             await liveClient.syncChain();
           });
         }
+        // And to Guardian's account state: 0.18.1 labels a proposal with the
+        // local account's nonce + 1, so a tab that missed another cosigner's
+        // execute would label it with a nonce already taken, and it could
+        // never execute.
+        await retryIfSessionDied(() => ms.syncState());
+        if (multisigRef.current === ms) setAccountNonce(ms.account.nonce().asInt());
         const created = await create(ms);
         if (multisigRef.current === ms) setProposals(ms.listProposals());
         toast.success(`${label} proposal created`);
@@ -1640,7 +1678,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         if (!fresh) throw new Error("Proposal no longer exists on Guardian.");
         const unreachable = switchGuardianProblem(fresh);
         if (unreachable) throw new UserFacingError(unreachable);
-        const action = getProposalActionState(fresh, detectedConfig, activeCommitment);
+        const action = getProposalActionState(fresh, detectedConfig, activeCommitment, 0, accountNonce);
         if (action.action !== "sign") {
           throw new Error(action.statusLabel);
         }
@@ -1657,7 +1695,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         setSigningProposal(null);
       }
     },
-    [activeCommitment, detectedConfig, multisig, walletSource],
+    [activeCommitment, detectedConfig, multisig, walletSource, accountNonce],
   );
 
   const loadedAccountId = multisig?.accountId ?? null;
@@ -1671,6 +1709,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     setReleasingCandidate(false);
     setUndeliveredNotes([]);
     setPrivateNoteGuard({ phase: "idle" });
+    setAccountNonce(null);
     const fundingFailure = loadedAccountId ? fundingFailures.current.get(loadedAccountId.toLowerCase()) : undefined;
     if (fundingFailure && fundingAccountId.current !== loadedAccountId) {
       fundingAccountId.current = loadedAccountId;
@@ -1816,7 +1855,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           // The latest canonical transaction, as Guardian keeps it: covers sends
           // executed by another signer, on another device, or before a reload.
           await ensureLatestPrivateNotesDelivered<LatestPrivateNote>({
-            latestPrivateNotes: () => latestCanonicalPrivateNotes(ms).catch((err: unknown) => {
+            latestPrivateNotes: () => retryIfSessionDied(() => latestCanonicalPrivateNotes(ms)).catch((err: unknown) => {
               throw new Error(`Could not read the last transaction from Guardian: ${formatError(err)}`);
             }),
             committedAt: (n) => checks.committedAt(n.note).catch((err: unknown) => {
@@ -1985,6 +2024,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       let executing: { id: string; nonce: number } | undefined;
       try {
         await ensurePrivateNotesClearRef.current(ms);
+        // This tab's copy of the account must match Guardian's: 0.18.1 refuses
+        // to execute a proposal made for another state than the one held here.
+        await retryIfSessionDied(() => multisig.syncState());
         // Align local proposal cache with Guardian before executing. After any
         // previous execute, Guardian's proposal state can diverge from the local
         // cache — re-syncing here ensures getDeltaProposal inside executeProposal
@@ -2262,6 +2304,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryAccountFunding,
       registerWithInvitationCode,
       guardianSession,
+      accountNonce,
       startGuardianSession,
       endGuardianSession,
       sessionGrantPrompt,
@@ -2352,6 +2395,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryAccountFunding,
       registerWithInvitationCode,
       guardianSession,
+      accountNonce,
       startGuardianSession,
       endGuardianSession,
       sessionGrantPrompt,

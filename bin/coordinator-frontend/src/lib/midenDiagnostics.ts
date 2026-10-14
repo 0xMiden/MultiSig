@@ -89,20 +89,8 @@ function inspect(value: unknown, method: string): unknown {
   } catch { return '[unavailable]'; }
 }
 
-function anchorDetails(anchor: unknown): unknown {
-  const header = inspect(anchor, 'blockHeader');
-  try {
-    return { anchorBlock: inspect(anchor, 'blockNum'), verificationBaseFee: inspect(header, 'verificationBaseFee') };
-  } finally {
-    inspect(header, 'free');
-  }
-}
-
 function callDetails(method: string, args: unknown[]): unknown {
   // Only explicitly selected scalar metadata, never a general argument dump.
-  if (method === 'executeForSummaryAt' || method === 'newTransactionAt') {
-    return { accountId: inspect(args[0], 'toString'), anchorBlock: inspect(args[2], 'blockNum') };
-  }
   if (method === 'getAccount') return { accountId: inspect(args[0], 'toString') };
   if (method === 'newAccount') {
     const id = inspect(args[0], 'id');
@@ -147,8 +135,7 @@ function wrap(target: object, method: string, after?: (result: unknown) => void)
         const result = await original.apply(this, args);
         try { after?.(result); } catch { /* Observational only. */ }
         diagnosticLog('OK', { ...context, ms: Date.now() - started,
-          result: method === 'chainAnchorForRequest' ? anchorDetails(result)
-            : method === 'getAccount' ? { found: result != null, nonce: String(inspect(result, 'nonce')) }
+          result: method === 'getAccount' ? { found: result != null, nonce: String(inspect(result, 'nonce')) }
             : method === 'getSyncHeight' ? result : undefined });
         return result;
       } catch (error) {
@@ -186,11 +173,6 @@ export function instrumentPublicClient(client: object): void {
 export function instrumentMultisig(multisig: object, owner: object): void {
   if (!DIAGNOSTICS_ENABLED) return;
   linkDiagnosticClient(multisig, owner, 'multisig');
-  wrap(multisig, 'getRawClient', (raw) => {
-    if (!raw || typeof raw !== 'object') return;
-    linkDiagnosticClient(raw, owner, 'guardian-intentional-raw-client');
-    for (const method of ['getAccount', 'getSyncHeight', 'chainAnchorForRequest', 'executeForSummaryAt', 'newAccount', 'syncState']) wrap(raw, method);
-  });
   for (const method of ['syncState', 'syncProposals', 'createAddSignerProposal',
     'createRemoveSignerProposal', 'createChangeThresholdProposal', 'createConsumeNotesProposal',
     'createP2idProposal', 'createSwitchGuardianProposal', 'signProposal', 'executeProposal',

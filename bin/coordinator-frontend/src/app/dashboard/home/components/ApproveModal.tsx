@@ -25,6 +25,7 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
     activeCommitment,
     handleSignProposal,
     syncingState,
+    accountNonce,
   } = useMultisig();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -39,9 +40,9 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
 
   const signableProposals = useMemo(
     () => pendingProposals.filter(
-      (proposal) => getProposalActionState(proposal, detectedConfig, activeCommitment).action === "sign",
+      (proposal) => getProposalActionState(proposal, detectedConfig, activeCommitment, 0, accountNonce).action === "sign",
     ),
-    [activeCommitment, detectedConfig, pendingProposals],
+    [activeCommitment, detectedConfig, pendingProposals, accountNonce],
   );
 
   const handleSelectAll = () => {
@@ -130,7 +131,7 @@ const ApproveModal = ({ open, onClose }: ApproveModalProps) => {
                 </div>
               ) : (
                 pendingProposals.map(proposal => {
-                  const action = getProposalActionState(proposal, detectedConfig, activeCommitment);
+                  const action = getProposalActionState(proposal, detectedConfig, activeCommitment, 0, accountNonce);
                   const isSelected = selectedIds.includes(proposal.id);
                   const selectable = action.action === "sign";
 
