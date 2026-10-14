@@ -133,8 +133,8 @@ session ended elsewhere is retried once with the wallet. Without a session
 (declined, expired, or a Guardian without sessions), the private-note check
 before every proposal, sign, execute, offline sign or import reads the account's
 latest transaction from Guardian: one extra approval, two when that transaction
-has a private note, and one more on an account with over 20 transactions from
-before Guardian 0.18.1. The signer chip shows the session and offers
+has a private note, and one more on an account with transactions from before
+Guardian 0.18.1. The signer chip shows the session and offers
 **Start session** when there is none.
 
 The device signs a transaction-summary **hash**; recipient and amount must be

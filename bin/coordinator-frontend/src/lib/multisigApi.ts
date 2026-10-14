@@ -202,12 +202,14 @@ function canonicalAt(entry: HistoryEntry): number {
 
 /**
  * The account's latest canonical transaction: the history entry that became
- * canonical last. One request when the newest row is keyed by account nonce;
- * otherwise the timestamp-keyed rows, which come first, are read up to the
- * first nonce-keyed row (the newest of those, which follow in chain order).
+ * canonical last. One request for one row when the newest row is keyed by
+ * account nonce (Guardian decodes every row it returns in full, so the common
+ * case asks for no more); otherwise the timestamp-keyed rows, which come
+ * first, are read up to the first nonce-keyed row (the newest of those, which
+ * follow in chain order).
  */
 export async function latestHistoryEntry(multisig: Pick<Multisig, 'deltaHistory'>): Promise<HistoryEntry | undefined> {
-  let page = await multisig.deltaHistory({ limit: 20 });
+  let page = await multisig.deltaHistory({ limit: 1 });
   let latest = page.entries[0];
   if (!latest || latest.nonce < TIMESTAMP_KEY) return latest;
   for (;;) {
