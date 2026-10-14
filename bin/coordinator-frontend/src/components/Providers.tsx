@@ -10,6 +10,7 @@ import { store } from '../store';
 import { MultisigProvider, useMultisig } from '../contexts/MultisigContext';
 import { PARA_API_KEY, PARA_ENVIRONMENT } from '@/config/psm';
 import { LedgerPanel } from './LedgerPanel';
+import { SessionGrantDialog } from './SessionGrantDialog';
 
 
 
@@ -69,6 +70,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             {children}
             <LedgerPanelWrapper />
             {PARA_API_KEY && <ParaModalWrapper />}
+            <SessionGrantDialog />
             <Toaster position="bottom-right" />
           </MultisigProvider>
         </Provider>

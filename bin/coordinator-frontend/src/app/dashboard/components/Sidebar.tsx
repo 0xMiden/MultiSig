@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import media from "../../../../public/media";
 import { SidebarPage } from "@/types";
 import { clearWalletCookie } from "@/lib/walletCookie";
+import { useMultisig } from "@/contexts/MultisigContext";
 
 const sidebarPages: SidebarPage[] = [
   { pageName: "Home", path: "/dashboard/home", pageIcon: media.HomeIcon },
@@ -22,10 +23,19 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { endGuardianSession } = useMultisig();
 
   const isActive = (path: string) => pathname === path;
 
-  const handleLogout = () => {
+  const [loggingOut, setLoggingOut] = useState(false);
+  const loggingOutRef = useRef(false);
+  const handleLogout = async () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    setLoggingOut(true);
+    // Guardian sessions end: their stored keys are deleted here first, then
+    // each is revoked on Guardian, bounded so logout never hangs on it.
+    await Promise.race([endGuardianSession(), new Promise((resolve) => setTimeout(resolve, 3000))]);
     localStorage.clear();
     clearWalletCookie();
     document.cookie.split(";").forEach((c) => {
@@ -89,8 +99,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
       {/* Logout */}
       <div className="mb-4 shrink-0">
         <div
-          className="mx-2 py-2.5 px-2 flex items-center gap-3 cursor-pointer hover:bg-red-50 rounded-[8px] transition-colors"
-          onClick={handleLogout}
+          role="button"
+          aria-disabled={loggingOut}
+          className={`mx-2 py-2.5 px-2 flex items-center gap-3 rounded-[8px] transition-colors ${loggingOut ? "cursor-wait opacity-60" : "cursor-pointer hover:bg-red-50"}`}
+          onClick={() => void handleLogout()}
         >
           <div className="w-[20px] h-[20px] flex items-center justify-center shrink-0">
             <svg
@@ -113,7 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
               collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
             }`}
           >
-            Logout
+            {loggingOut ? "Logging out…" : "Logout"}
           </span>
         </div>
       </div>

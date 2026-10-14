@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { SessionEndReason } from "@openzeppelin/guardian-client";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard, truncateHex } from "@/lib/helpers";
 
@@ -31,7 +32,7 @@ function CopyIcon({ done }: { done: boolean }) {
  * it belongs to (each Ledger address has its own commitment).
  */
 export function SignerChip() {
-  const { walletSource, activeCommitment, activeScheme, ledger } = useMultisig();
+  const { walletSource, activeCommitment, activeScheme, ledger, guardianSession, startGuardianSession } = useMultisig();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -67,6 +68,7 @@ export function SignerChip() {
         >
           <span className="text-[#FF5500] uppercase">{source}</span>
           <span className="font-mono text-[#111]">{truncateHex(activeCommitment, 6, 4)}</span>
+          <SessionDot state={guardianSession} />
         </button>
         <button
           type="button"
@@ -90,7 +92,66 @@ export function SignerChip() {
             <Field label="Ledger address" value={ledgerAccount.address} copied={copied} onCopy={copy}
               hint={`Path ${ledgerAccount.path}. Reconnect this same address to sign with this commitment.`} />
           )}
+          {guardianSession.phase !== "off" && (
+            <SessionStatus state={guardianSession} onStart={() => void startGuardianSession()} />
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+type SessionState = ReturnType<typeof useMultisig>["guardianSession"];
+
+/** Green while the session signs Guardian requests, amber while it starts or after it stopped. */
+function SessionDot({ state }: { state: SessionState }) {
+  if (state.phase === "off" || state.phase === "unsupported") return null;
+  const active = state.phase === "active";
+  const busy = state.phase === "starting" || state.phase === "resuming";
+  return (
+    <span
+      aria-label={active ? "Guardian session active" : busy ? "Guardian session starting" : "No Guardian session"}
+      title={active ? "Guardian session active" : busy ? "Guardian session starting" : "No Guardian session: Guardian requests ask the wallet"}
+      className={`h-1.5 w-1.5 rounded-full ${active ? "bg-green-600" : busy ? "bg-amber-400 animate-pulse" : "bg-amber-500"}`}
+    />
+  );
+}
+
+const ENDED: Record<SessionEndReason, string> = {
+  expired: "It expired.",
+  revoked: "It was ended elsewhere (another tab or device).",
+  rejected: "Guardian no longer accepts it.",
+  logout: "It was ended.",
+};
+
+/** The expiry in local time, with the date when it is not today. */
+function untilText(expiresAt: number): string {
+  const at = new Date(expiresAt * 1000);
+  const sameDay = at.toDateString() === new Date().toDateString();
+  return sameDay
+    ? at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : at.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function SessionStatus({ state, onStart }: { state: SessionState; onStart: () => void }) {
+  const text =
+    state.phase === "active" ? `Active until ${untilText(state.expiresAt)}: Guardian requests do not ask your wallet.`
+    : state.phase === "resuming" ? "Resuming this wallet's session…"
+    : state.phase === "starting" ? "Starting: approve it in your wallet."
+    : state.phase === "ended" ? `${ENDED[state.reason]} Guardian requests ask your wallet again.`
+    : state.phase === "failed" ? state.message
+    : state.phase === "unsupported" ? "This Guardian does not offer sessions: Guardian requests ask your wallet."
+    : "";
+  const canStart = state.phase === "ended" || state.phase === "failed";
+  return (
+    <div className="flex flex-col gap-1 border-t border-[rgba(0,0,0,0.08)] pt-2">
+      <span className="text-[11px] font-[500] text-[#111]">Guardian session</span>
+      <span className="text-[11px] text-[rgba(0,0,0,0.6)]">{text}</span>
+      {canStart && (
+        <button type="button" onClick={onStart}
+          className="self-start text-[11px] font-[500] text-[#FF5500] underline underline-offset-2 hover:text-[#E64A00]">
+          Start session
+        </button>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyTypedData } from 'viem';
 import { Eip712Signer } from '@openzeppelin/miden-multisig-client';
@@ -177,6 +177,94 @@ describe('direct Ledger → real Guardian signer → Miden WASM', () => {
     await expect(bridge.request({ method: 'eth_signTypedData_v4', params: [other.address, '{}'] })).rejects.toThrow('address');
     await expect(bridge.request({ method: 'eth_signTypedData_v4', params: [account.address, JSON.stringify({ primaryType: 'MidenTransaction', domain: { name: 'Other' } })] })).rejects.toThrow('schema');
     expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+});
+
+describe('Guardian 0.18.1 sessions through the Ledger adapter', () => {
+  const ORIGIN = 'https://multisig.example';
+  const nowSeconds = () => Math.floor(Date.now() / 1000);
+  // A Ledger bound to its own signer commitment, as useLedgerSession does.
+  function ledger() {
+    const device = deviceFor();
+    const bridge = new DirectLedgerAdapter(device, selected);
+    const signer = new Eip712Signer(bridge, selected.publicKey, selected.address);
+    bridge.bindSigner(signer.commitment);
+    return { device, bridge, signer };
+  }
+  type Grant = Parameters<Eip712Signer['signSessionGrant']>[0];
+  const grant = (signerCommitment: string, change: (base: Grant) => Partial<Grant> = () => ({})): Grant => {
+    const issuedAt = nowSeconds();
+    const base = {
+      signerCommitment,
+      sessionPublicKey: `0x02${'ab'.repeat(32)}`,
+      origin: ORIGIN,
+      issuedAt,
+      expiresAt: issuedAt + 28_740,
+      guardianCommitment: `0x${'cd'.repeat(32)}`,
+      network: 'testnet',
+    };
+    return { ...base, ...change(base) };
+  };
+  const request = (bridge: DirectLedgerAdapter, data: unknown) =>
+    bridge.request({ method: 'eth_signTypedData_v4', params: [account.address, JSON.stringify(data)] });
+  beforeEach(() => vi.stubGlobal('location', { origin: ORIGIN }));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("signs this Ledger's session grant as readable typed data that verifies", async () => {
+    const { device, signer } = ledger();
+    const signature = await signer.signSessionGrant(grant(signer.commitment));
+    const data = vi.mocked(device.signTypedData).mock.calls[0][1] as Parameters<typeof verifyTypedData>[0];
+    expect(data.primaryType).toBe('GuardianSession');
+    expect((data.message as Record<string, string>).origin).toBe(ORIGIN);
+    expect(await verifyTypedData({ ...data, address: account.address, signature: signature as `0x${string}` })).toBe(true);
+  });
+
+  it('signs a revoke-all timestamped now', async () => {
+    const { device, signer } = ledger();
+    const signature = await signer.signSessionRevokeAll(signer.commitment, Date.now());
+    const data = vi.mocked(device.signTypedData).mock.calls[0][1] as Parameters<typeof verifyTypedData>[0];
+    expect(data.primaryType).toBe('GuardianSessionRevokeAll');
+    expect(await verifyTypedData({ ...data, address: account.address, signature: signature as `0x${string}` })).toBe(true);
+  });
+
+  it.each<[string, (base: Grant) => Partial<Grant>]>([
+    ['another website', () => ({ origin: 'https://other.example' })],
+    ["a lifetime above Guardian's maximum", (g) => ({ expiresAt: g.issuedAt + 28_801 })],
+    ['an uncompressed session key', () => ({ sessionPublicKey: `0x04${'ab'.repeat(64)}` })],
+    ['an expiry before its start', (g) => ({ expiresAt: g.issuedAt - 1 })],
+    // Registered later, it would outlive a logout or a revoke-all.
+    ['a start a day from now', (g) => ({ issuedAt: g.issuedAt + 86_400, expiresAt: g.issuedAt + 86_400 + 3_600 })],
+    ['a start an hour ago', (g) => ({ issuedAt: g.issuedAt - 3_600, expiresAt: g.issuedAt + 3_600 })],
+    ['another signer', () => ({ signerCommitment: `0x${'ee'.repeat(32)}` })],
+  ])('refuses a grant with %s before the device sees it', async (_case, change) => {
+    const { device, signer } = ledger();
+    await expect(signer.signSessionGrant(grant(signer.commitment, change))).rejects.toThrow('schema');
+    expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+
+  it('refuses every session message on an adapter not bound to its signer', async () => {
+    const device = deviceFor();
+    const signer = new Eip712Signer(new DirectLedgerAdapter(device, selected), selected.publicKey, selected.address);
+    await expect(signer.signSessionGrant(grant(signer.commitment))).rejects.toThrow('schema');
+    await expect(signer.signSessionRevokeAll(signer.commitment, Date.now())).rejects.toThrow('schema');
+    expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+
+  it('refuses a revoke-all timestamped an hour ago', async () => {
+    const { device, signer } = ledger();
+    await expect(signer.signSessionRevokeAll(signer.commitment, Date.now() - 3_600_000)).rejects.toThrow('schema');
+    expect(device.signTypedData).not.toHaveBeenCalled();
+  });
+
+  it('refuses a grant whose readable expiry, scope or fields were altered', async () => {
+    const { device, bridge, signer } = ledger();
+    await signer.signSessionGrant(grant(signer.commitment));
+    const valid = vi.mocked(device.signTypedData).mock.calls[0][1] as unknown as { message: Record<string, string> };
+    await expect(request(bridge, { ...valid, message: { ...valid.message, expires: '2099-01-01 00:00:00 UTC' } })).rejects.toThrow('schema');
+    await expect(request(bridge, { ...valid, message: { ...valid.message, scope: 'One account only' } })).rejects.toThrow('schema');
+    await expect(request(bridge, { ...valid, message: { ...valid.message, extra: 'x' } })).rejects.toThrow('schema');
+    await expect(request(bridge, { ...valid, primaryType: '__proto__' })).rejects.toThrow('Unsupported');
+    expect(device.signTypedData).toHaveBeenCalledTimes(1);
   });
 });
 

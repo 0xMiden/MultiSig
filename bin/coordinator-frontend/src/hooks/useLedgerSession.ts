@@ -132,6 +132,7 @@ export function useLedgerSession() {
     adapter.current?.invalidate();
     const bridge = new DirectLedgerAdapter(target, confirmed, message => { if (generation.current === current) setStatus(message); });
     const nextSigner = new Eip712Signer(bridge, confirmed.publicKey, confirmed.address);
+    bridge.bindSigner(nextSigner.commitment);
     adapter.current = bridge;
     setSigner(nextSigner); setSelected(confirmed); setOpen(false);
   }), [perform, signer, selected]);

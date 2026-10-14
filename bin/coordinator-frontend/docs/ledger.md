@@ -43,6 +43,8 @@ The bridge accepts only these protocol schemas (version `1`):
 | Miden Transaction | MidenTransaction | txSummaryHash: bytes32 |
 | Guardian Request | GuardianRequest | requestHash: bytes32 |
 | Guardian Lookup | GuardianLookup | lookupHash: bytes32 |
+| Guardian Session | GuardianSession | Guardian 0.18.1 session grant (every field checked: this Ledger's signer, this site's origin, a start within a minute of now, at most 8 h, the readable expiry) |
+| Guardian Session | GuardianSessionRevokeAll | this Ledger's signer, a timestamp within a minute of now |
 
 The SDK constructs the exact payload, including hashing the transaction summary
 or timestamp-bound authentication data. The bridge serializes prompts, enforces
@@ -73,7 +75,7 @@ npm run test:ledger:app
 ```
 
 `test:ledger` uses real Miden WASM, the real Guardian signer and independent viem
-signatures. It checks commitment derivation, all three typed-data domains,
+signatures. It checks commitment derivation, every typed-data domain (session grants included),
 wrong-key/address failures, queue invalidation, recovery IDs, signer selection,
 and simulated SDK observable cancellation/rejection/timeout.
 

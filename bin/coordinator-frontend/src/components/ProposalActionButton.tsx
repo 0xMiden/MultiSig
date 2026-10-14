@@ -21,9 +21,10 @@ export function ProposalActionButton({ proposal, className = '' }: ProposalActio
     retryProposalVerification,
     signingProposal,
     syncingState,
+    accountNonce,
   } = useMultisig();
   const recreateProposal = useProposalRecreation();
-  const state = getProposalActionState(proposal, detectedConfig, activeCommitment);
+  const state = getProposalActionState(proposal, detectedConfig, activeCommitment, 0, accountNonce);
   const signing = signingProposal === proposal.id;
   const executing = executingProposal === proposal.id;
   const busy = signing || executing || releasingCandidate || (state.action === 'retry' && syncingState);

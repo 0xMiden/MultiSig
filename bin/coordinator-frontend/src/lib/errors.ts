@@ -55,6 +55,12 @@ export function describeExecutionError(err: unknown, prefix: string): string {
   if (lower.includes('failed to submit proven transaction')) {
     return `${prefix}: the Miden node rejected the transaction. Sync and try again.`;
   }
+  // Guardian 0.18.1 refuses, before anything is pushed, to execute a proposal
+  // made for another account state than this client holds (its message names
+  // two 64-hex commitments, which would push its advice past the cut-off).
+  if (lower.includes('was made for account state')) {
+    return `${prefix}: this proposal was made for an earlier state of the account. Sync and try again; if it still fails, create it again.`;
+  }
   // Before the network check: "failed to fetch account snapshot" is a local
   // IndexedDB failure, not a network one.
   if (lower.includes('database-related') || lower.includes('prematurecommiterror')) {

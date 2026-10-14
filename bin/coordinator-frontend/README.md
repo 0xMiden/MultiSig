@@ -8,9 +8,9 @@ The versions are pinned together because Guardian proposal serialization must ma
 
 | Package group | Version |
 | --- | --- |
-| `@openzeppelin/guardian-client` | `0.18.0` |
-| `@openzeppelin/miden-multisig-client` | `0.18.0` |
-| `@miden-sdk/miden-sdk` | `0.17.3`, forced for every package via `overrides` (one SDK copy: the app and the multisig client share WASM objects). `miden-multisig-client` 0.18.0 pins 0.17.0, but 0.17.1+ fixes consuming/sending V2 faucet assets such as testnet USDCX ("procedure root could not be found"). `tests/ledger/procedure-roots.test.ts` checks the client's hard-coded procedure roots still match. |
+| `@openzeppelin/guardian-client` | `0.18.1` |
+| `@openzeppelin/miden-multisig-client` | `0.18.1` (0.18.0 clients refuse proposals made by 0.18.1 ones: every app on a Guardian must move together) |
+| `@miden-sdk/miden-sdk` | `0.17.3`, forced for every package via `overrides` (one SDK copy: the app and the multisig client share WASM objects); `miden-multisig-client` 0.18.1 depends on 0.17.3 too. 0.17.1+ fixes consuming/sending V2 faucet assets such as testnet USDCX ("procedure root could not be found"). `tests/ledger/procedure-roots.test.ts` checks the client's hard-coded procedure roots still match. |
 | other `@miden-sdk/*` | `0.17.3` |
 | `@getpara/*` | `3.20.0` |
 
@@ -102,19 +102,40 @@ not required for Ledger testing.
 ### What to expect when signing (including Sync)
 
 While **Ledger is the selected wallet source**, all user-signature requests use
-that selected Ledger address and derivation path. This includes authenticated
-Guardian reads during **Sync**, proposal signing, account registration/loading,
-and lookup when invoked. Guardian state sync calls the SDK's `signRequest`,
-which routes through the Ledger adapter as an EIP-712 `GuardianRequest`.
+that selected Ledger address and derivation path. Without a Guardian session
+(below), this includes authenticated Guardian reads during **Sync**, proposal
+signing, account registration/loading, and lookup when invoked: Guardian state
+sync calls the SDK's `signRequest`, which routes through the Ledger adapter as an
+EIP-712 `GuardianRequest`.
 Transaction approval uses `MidenTransaction`; lookup uses `GuardianLookup`.
 Ordinary Miden chain reads do not require a signature, so not every sync step
 will display a device prompt. The Guardian's own co-signature remains its own.
 
 One UI action may require several approvals, shown **one at a time**. Keep the
 Ledger unlocked with its Ethereum app open and follow each on-screen prompt.
-Before every proposal, sign, execute, offline sign or import, the private-note
-check reads the account's latest transaction from Guardian: one extra approval,
-two when that transaction has a private note.
+
+**Guardian session (Guardian 0.18.1).** Loading an account starts one before
+the load's own Guardian requests (creating an account, right after Guardian
+registers it; Guardian grants sessions only to a cosigner of some account). The
+app first shows the grant (signer, session key, website, validity, scope,
+Guardian key, network), then the wallet signs it: one `GuardianSession`
+approval on the Ledger. The device shows its fields only with the Ethereum app's
+raw-message / verbose EIP-712 display; with blind signing it shows a hash, so
+check the app's dialog. From then on Guardian reads and proposal list, get,
+create and sign requests are signed by a key the browser keeps (non-extractable),
+so they stop prompting; approving a transaction summary, executing, unlocking,
+registering and lookup still ask the Ledger. The session lasts Guardian's
+maximum less a minute (7 h 59 min by default). A reload resumes it before the
+account loads, without a prompt. Another wallet or Guardian, disconnecting the
+wallet, or logout ends it on Guardian; logout first deletes the stored keys, so
+a revoke Guardian never receives leaves no usable key. A request that finds the
+session ended elsewhere is retried once with the wallet. Without a session
+(declined, expired, or a Guardian without sessions), the private-note check
+before every proposal, sign, execute, offline sign or import reads the account's
+latest transaction from Guardian: one extra approval, two when that transaction
+has a private note. The signer chip shows the session and offers
+**Start session** when there is none.
+
 The device signs a transaction-summary **hash**; recipient and amount must be
 reviewed in the app, not expected as decoded transaction fields on the Ledger.
 If the Ethereum app requires blind signing, enable it on the device only when
@@ -138,11 +159,13 @@ for a Falcon account or an account that does not authorize its commitment.
 | --- | --- | --- |
 | Create | With Ledger selected, create a multisig and approve Guardian prompts. | Account stores the selected Ledger commitment; save its Miden account ID. |
 | Receive | Wait for registration funding or use Retry funding. In Receive Funds, create a consume-notes proposal, Sign, then Execute. | Funding note is consumed and the account balance updates after confirmation. Receiving at the Miden account ID alone needs no sender-side Ledger action; consuming requires approval. |
-| Sync | Click Sync with the device ready, then repeat and reject a Guardian authentication prompt. | Required authentication prompts appear on Ledger. Rejection reports a failure; the app does not sign with local/Para/extension keys. Previously displayed state may remain visible. |
+| Session | Load the account: review the grant dialog, then approve `GuardianSession` on the Ledger. Reload and load again. Decline once ("Not now"), then use **Start session** in the signer chip. | One approval starts the session (green dot in the signer chip); the reload resumes it with no prompt; declining leaves Guardian requests on the Ledger until Start session. |
+| Sync | Click Sync with the device ready. With no session, repeat and reject a Guardian authentication prompt. | With a session, Sync needs no device approval. Without one, required authentication prompts appear on Ledger; rejection reports a failure; the app does not sign with local/Para/extension keys. Previously displayed state may remain visible. |
 | Send | Send a small public note to another test Miden account; repeat with a private note. Sign and Execute each proposal. | Each transaction approval goes to Ledger. The recipient discovers and consumes the note; private sends require working note transport. |
 | Add signer | Add a second test signer's **commitment**, retaining threshold 1 initially; Sign and Execute. | Updated account configuration contains the second commitment. |
 | Threshold | With the second signer available, change threshold to 2; Sign and Execute under the old threshold. | Account becomes 2-of-2. A subsequent proposal needs both distinct signers before Execute becomes available. Do not raise the threshold without access to both signers. |
-| Load | Save the account ID, reload the page, reconnect to the **same** Ledger address, then Load Existing Account. | Guardian authentication uses Ledger; account/configuration loads and subsequent signatures still use Ledger. |
+| Load | Save the account ID, reload the page, reconnect to the **same** Ledger address, then Load Existing Account. | The stored session resumes (no prompt) and the account/configuration loads; transaction approvals still use Ledger. |
+| Logout | With a session active, log out. | The session ends on Guardian; loading again asks for a new grant. |
 | Cancellation | Reject address confirmation, reject signing, and unplug during a pending prompt; reconnect and retry. | Rejected address is not selected; invalidated sessions cannot sign. There is no silent software-key fallback. |
 | Change address | Choose Change Ledger Address and select a different address. | Previous account session clears. Load an account authorizing the new commitment before signing. |
 
@@ -213,6 +236,7 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - **Execute** is shown only when `isProposalActionable()` succeeds.
 - transient verification failure receives one automatic sync retry, then exposes **Retry**; with Ledger selected, retries are manual to avoid unsolicited device prompts;
 - a non-retryable invalid proposal exposes **Create again** with editable values;
+- an **Outdated** proposal (labelled at or below the account's nonce: another transaction took its slot, Guardian 0.18.1) exposes **Create again** instead of collecting signatures;
 - completed proposals have no action.
 
 ## Key files

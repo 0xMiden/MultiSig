@@ -27,6 +27,7 @@ export function getProposalActionState(
   config: DetectedMultisigConfig | null,
   activeCommitment: string | null,
   fallbackThreshold = 0,
+  accountNonce: bigint | null = null,
 ): ProposalActionState {
   const signatureCount = proposal.signatures.length;
   const requiredSignatures = proposal.metadata.requiredSignatures
@@ -50,6 +51,19 @@ export function getProposalActionState(
 
   if (proposal.status === 'finalized') {
     return { ...common, action: 'none', actionLabel: 'Completed', statusLabel: 'Completed', disabled: true };
+  }
+
+  // Guardian 0.18.1 labels a proposal with the account nonce its transaction
+  // reaches. At or below the account's nonce, another transaction already
+  // took that slot: the proposal can never execute, so nobody should sign it.
+  if (accountNonce !== null && BigInt(proposal.nonce) <= accountNonce) {
+    return {
+      ...common,
+      action: 'recreate',
+      actionLabel: 'Create again',
+      statusLabel: 'Outdated: another transaction was executed first',
+      disabled: false,
+    };
   }
 
   if (proposal.verification.status === 'unchecked') {
