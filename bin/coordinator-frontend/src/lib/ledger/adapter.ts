@@ -1,4 +1,5 @@
 import type { TypedData } from '@ledgerhq/device-signer-kit-ethereum';
+import { recoverTypedDataAddress } from 'viem';
 import { SESSION_GRANT_SCOPE } from '@openzeppelin/miden-multisig-client';
 
 export type LedgerPathScheme = 'ledger-live' | 'legacy';
@@ -169,6 +170,33 @@ export class DirectLedgerAdapter {
     this.device.cancel();
   }
 
+  /**
+   * The device must have signed with the selected address's key. The multisig client verifies the
+   * signature against that key too, but only says "a different key"; this names the address the
+   * device actually used (recovered from the signature) and the path it was asked for, which
+   * tells a stale address selection, another device or a path the device ignored apart.
+   */
+  private async checkSignedBySelectedAddress(data: TypedData, signature: { r: string; s: string; v: number }): Promise<void> {
+    let signedBy: string;
+    try {
+      signedBy = await recoverTypedDataAddress({
+        domain: data.domain as Record<string, unknown>,
+        types: data.types as Record<string, Array<{ name: string; type: string }>>,
+        primaryType: data.primaryType,
+        message: data.message as Record<string, unknown>,
+        signature: { r: signature.r as `0x${string}`, s: signature.s as `0x${string}`, yParity: signature.v === 27 || signature.v === 28 ? signature.v - 27 : signature.v },
+      });
+    } catch {
+      return; // Not recoverable here: the client's own verification still decides.
+    }
+    if (signedBy.toLowerCase() !== this.account.address.toLowerCase()) {
+      throw new Error(
+        `The Ledger signed with a different key: as ${signedBy} on path ${this.account.path}, but the selected address is ${this.account.address}. ` +
+        'Reconnect the Ledger and select the address whose commitment this account authorizes; if the addresses still differ, the device uses another seed or passphrase than when the account was created.',
+      );
+    }
+  }
+
   /** Binds the signer commitment derived from this Ledger's key (see useLedgerSession). */
   bindSigner(commitment: string): void {
     this.signer = commitment;
@@ -192,7 +220,9 @@ export class DirectLedgerAdapter {
       try {
         const signature = await this.device.signTypedData(this.account.path, data);
         if (!this.valid) throw new Error('Ledger session changed during signing');
-        return encodeLedgerSignature(signature);
+        const encoded = encodeLedgerSignature(signature);
+        await this.checkSignedBySelectedAddress(data, signature);
+        return encoded;
       } finally {
         this.onPrompt(null);
       }

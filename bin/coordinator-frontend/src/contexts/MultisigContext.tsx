@@ -20,6 +20,7 @@ import {
   type Proposal,
   type SignatureScheme,
   type ProcedureThreshold,
+  type ProcedureName,
   type ParaSigningContext,
   AccountInspector,
   isProposalActionable,
@@ -28,6 +29,22 @@ import { GuardianHttpError, type GuardianHttpClient, type SessionGrantFields, ty
 import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
 
 import { normalizeCommitment } from "@/lib/helpers";
+import { buildAdminTransactionRequest, createAdminProposalWith } from "@/lib/admin/adminRequest";
+import { executeCustomProposal } from "@/lib/admin/adminExecute";
+import { buildDirectAdminTransactionRequest, submitDirectAdminAction } from "@/lib/admin/directAction";
+import { useOnChainHistory, type OnChainHistory } from "@/hooks/useOnChainHistory";
+import { buildAdminNoteBytes } from "@/lib/admin/noteBuilders";
+import { recipeTarget, type AdminRecipe } from "@/lib/admin/recipe";
+import { profileOf } from "@/lib/admin/target";
+import {
+  recordObserved,
+  recordExecuted,
+  recordDiscarded,
+  historyEntries,
+  statsFromEntries,
+  type ProposalHistoryEntry,
+  type HistoryStats,
+} from "@/lib/proposalHistory";
 import { formatError, classifyWalletError, describeExecutionError, UserFacingError } from "@/lib/errors";
 import {
   createMidenClient,
@@ -52,7 +69,7 @@ import {
   type LatestPrivateNote,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
-import { CONFIG_ERRORS, GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK, MIDEN_SDK_VERSION } from "@/config/psm";
+import { CONFIG_ERRORS, GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK, MIDEN_RPC_URL, MIDEN_SDK_VERSION } from "@/config/psm";
 import { assertInvitationCodeValid, fundsOnRegistration, invitationCodeRequired } from "@/lib/midenNetwork";
 import {
   assertConfigured,
@@ -62,6 +79,7 @@ import {
   waitForClientParts,
   type StartupState,
 } from "@/lib/clientStartup";
+import { readNodeIdentity } from "@/lib/nodeRegistration";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
@@ -231,7 +249,7 @@ export interface MultisigContextValue {
     commitment: string | null;
     publicKey: string | null;
   };
-  midenWalletSession: { connected: boolean; commitment: string | null };
+  midenWalletSession: { connected: boolean; commitment: string | null; address?: string | null };
 
   // Loading flags
   creating: boolean;
@@ -276,12 +294,37 @@ export interface MultisigContextValue {
   retryProposalVerification: (proposalId: string) => Promise<void>;
   handleSignProposal: (proposalId: string) => Promise<void>;
   handleExecuteProposal: (proposalId: string) => Promise<void>;
+  handleCancelProposal: (proposalId: string) => Promise<void>;
+  cancelingProposal: string | null;
+  dismissedProposalIds: ReadonlySet<string>;
+  /**
+   * Durable, per-account proposal history (newest-first). Unlike `proposals`
+   * (Guardian's pending-only, pruned-on-execute list), this records every
+   * proposal this browser has seen with its decoded action and terminal status,
+   * so executed/discarded proposals and accurate totals survive the prune.
+   */
+  proposalHistory: ProposalHistoryEntry[];
+  /** Totals derived from `proposalHistory` for the Transaction-tab summary cards. */
+  proposalStats: HistoryStats;
   unlockAccount: () => Promise<void>;
   handleCreateP2idProposal: (
     recipientId: string,
     faucetId: string,
     amount: bigint,
   ) => Promise<void>;
+  handleCreateAdminProposal: (
+    recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
+      Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
+  ) => Promise<void>;
+  /**
+   * Runs an admin action directly from the account connected through Bread (which must itself
+   * hold the action's role): no proposal, Bread signs and submits. Resolves to the transaction id.
+   */
+  handleDirectAdminAction: (
+    recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex">,
+  ) => Promise<string>;
+  /** The loaded account's on-chain transaction history, read from the node (History page). */
+  onChainHistory: OnChainHistory;
   handleSendPrivateNote: (
     recipientId: string,
     faucetId: string,
@@ -299,6 +342,8 @@ export interface MultisigContextValue {
     newThreshold?: number,
   ) => Promise<void>;
   handleCreateChangeThresholdProposal: (newThreshold: number) => Promise<void>;
+  /** Proposes a per-procedure signature threshold that overrides the account's default. */
+  handleCreateProcedureThresholdProposal: (procedure: ProcedureName, threshold: number) => Promise<void>;
   handleCreateSwitchGuardianProposal: (
     newEndpoint: string,
     newPubkey: string,
@@ -410,8 +455,11 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   const [syncingState, setSyncingState] = useState(false);
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [proposalHistory, setProposalHistory] = useState<ProposalHistoryEntry[]>([]);
   const [creatingProposal, setCreatingProposal] = useState(false);
   const [signingProposal, setSigningProposal] = useState<string | null>(null);
+  const [cancelingProposal, setCancelingProposal] = useState<string | null>(null);
+  const [dismissedProposalIds, setDismissedProposalIds] = useState<ReadonlySet<string>>(new Set());
   const [executingProposal, setExecutingProposal] = useState<string | null>(
     null,
   );
@@ -584,15 +632,21 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     wasMidenConnected.current = midenWalletSession.connected;
   }, [midenWalletSession.connected, setWalletSource]);
 
-  // Attempt to auto-connect external wallets on mount
+  // Attempt to auto-connect external wallets once the Miden client exists. The
+  // wallet's connect handler derives the key commitment with the SDK's WASM,
+  // which is loaded while the client is created; connecting any earlier (on
+  // mount) fails in that handler and leaves the wallet "not connected".
+  const autoConnectAttempted = useRef(false);
   useEffect(() => {
+    if (!midenClient || autoConnectAttempted.current) return;
+    autoConnectAttempted.current = true;
     const savedSource = localStorage.getItem("currentWalletSource");
     if (savedSource === "miden-wallet") {
       connectMidenWalletRaw().catch(() => {
         // Silently ignore auto-connect failures
       });
     }
-  }, [connectMidenWalletRaw]);
+  }, [connectMidenWalletRaw, midenClient]);
 
   // Null means "not connected": an external wallet source never borrows the
   // browser's local key.
@@ -640,9 +694,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       };
     }
     if (walletSource === "miden-wallet") {
-      if (!midenWalletSession.connected) throw new Error("Connect the Miden Wallet first");
+      if (!midenWalletSession.connected) throw new Error("Connect Bread first");
       if (!midenWalletSession.commitment || !midenWalletSession.scheme) {
-        throw new Error("The Miden Wallet did not share its signing key. Reconnect it and try again");
+        throw new Error("Bread did not share its signing key. Reconnect it and try again");
       }
       return {
         walletSource: "miden-wallet",
@@ -896,6 +950,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           create: () => createMidenClient(),
           reset: () => resetStoreExclusively(MIDEN_DB_NAME),
           sdkVersion: MIDEN_SDK_VERSION,
+          network: async () => `${MIDEN_RPC_URL} genesis ${(await readNodeIdentity(MIDEN_RPC_URL)).genesis}`,
           onReset: (reason) => console.warn(`Resetting the Miden client's local data: ${reason}.`),
         });
         setMidenClient(client);
@@ -1594,6 +1649,15 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation],
   );
 
+  const handleCreateProcedureThresholdProposal = useCallback(
+    async (procedure: ProcedureName, threshold: number) => {
+      await runProposalCreation("Procedure threshold", (ms) =>
+        ms.createUpdateProcedureThresholdProposal(procedure, threshold),
+      );
+    },
+    [runProposalCreation],
+  );
+
   const handleCreateConsumeNotesProposal = useCallback(
     async (noteIds: string[]) => {
       const selectedNotes = consumableNotes.filter((n) => noteIds.includes(n.id));
@@ -1618,6 +1682,39 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       await runProposalCreation("Send", (ms) => ms.createP2idProposal(recipientId, faucetId, amount));
     },
     [runProposalCreation],
+  );
+
+  const handleCreateAdminProposal = useCallback(
+    async (
+      recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex"> &
+        Partial<Pick<AdminRecipe, "saltHex" | "boundBlockNum">>,
+    ) => {
+      await runProposalCreation(`${profileOf(recipeTarget(recipe)).labels.contractShort} ${recipe.action}`, async (ms) => {
+        if (!midenClient) throw new Error("Load an account first");
+        const draft: AdminRecipe = {
+          ...recipe,
+          saltHex: recipe.saltHex ?? "",
+          boundBlockNum: recipe.boundBlockNum ?? 0,
+        };
+        const built = await buildAdminTransactionRequest(midenClient, draft);
+        const noteIdHex = Note.deserialize(buildAdminNoteBytes(built.recipe))
+          .id()
+          .toString();
+        return createAdminProposalWith(ms, built, noteIdHex);
+      });
+    },
+    [runProposalCreation, midenClient],
+  );
+
+  const handleDirectAdminAction = useCallback(
+    async (recipe: Omit<AdminRecipe, "saltHex" | "boundBlockNum" | "noteIdHex">): Promise<string> => {
+      if (walletSource !== "miden-wallet" || !midenWalletSession.connected || !midenWalletSession.address) {
+        throw new Error("Connect Bread first");
+      }
+      const built = await buildDirectAdminTransactionRequest({ ...recipe, saltHex: "", boundBlockNum: 0 });
+      return submitDirectAdminAction(midenWalletAdapter, midenWalletSession.address, built);
+    },
+    [walletSource, midenWalletSession, midenWalletAdapter],
   );
 
   // Creates the private send proposal only. The note is delivered after the
@@ -1699,6 +1796,108 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   );
 
   const loadedAccountId = multisig?.accountId ?? null;
+
+  // Locally-dismissed (cancelled) proposal ids, per account. The Guardian has no delete-proposal
+  // API, so a stuck proposal that will never execute is hidden client-side; the account lock, if
+  // any, is released via abandonCandidate in handleCancelProposal.
+  useEffect(() => {
+    if (!loadedAccountId || typeof window === "undefined") {
+      setDismissedProposalIds(new Set());
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(`dismissedProposals:${loadedAccountId}`);
+      setDismissedProposalIds(new Set<string>(raw ? (JSON.parse(raw) as string[]) : []));
+    } catch {
+      setDismissedProposalIds(new Set());
+    }
+  }, [loadedAccountId]);
+
+  // Fold every observed proposal into the durable per-account history (which
+  // outlives Guardian's prune-on-execute), and surface it newest-first. Loading
+  // an account with an empty proposal list still refreshes from storage, so
+  // prior history shows immediately.
+  useEffect(() => {
+    if (!loadedAccountId) {
+      setProposalHistory([]);
+      return;
+    }
+    const map = recordObserved(loadedAccountId, proposals);
+    setProposalHistory(historyEntries(map));
+  }, [proposals, loadedAccountId]);
+
+  // The account's on-chain history from the node. Besides feeding the History page, it is the
+  // one record of execution that does not depend on which browser pressed Execute: a custom
+  // (admin) proposal is never reported finalized by Guardian, so a proposal executed elsewhere
+  // would otherwise sit in this browser's history as "pending" forever. Any pending proposal
+  // whose admin note is on chain is marked executed here, with the transaction that carried it.
+  const onChainHistory = useOnChainHistory(loadedAccountId, proposalHistory);
+  const { executedOnChain, refresh: refreshOnChainHistory } = onChainHistory;
+  useEffect(() => {
+    if (!loadedAccountId || executedOnChain.length === 0) return;
+    let map: ReturnType<typeof recordExecuted> | null = null;
+    for (const m of executedOnChain) {
+      map = recordExecuted(loadedAccountId, m.proposalId, m.txIdHex);
+    }
+    if (map) setProposalHistory(historyEntries(map));
+  }, [executedOnChain, loadedAccountId]);
+
+  const handleCancelProposal = useCallback(
+    async (proposalId: string) => {
+      const ms = multisigRef.current;
+      if (!ms) return;
+      setCancelingProposal(proposalId);
+      try {
+        const proposal = ms.listProposals().find((p) => p.id === proposalId);
+        // Best-effort: if this proposal pushed a canonicalization candidate that will never land
+        // (e.g. an execute that failed client-side), release the account lock. Harmless and
+        // idempotent when there is no such candidate.
+        if (proposal) {
+          try {
+            await ms.abandonCandidate(proposal.nonce);
+            for (let i = 0; i < 8; i++) {
+              const status = await ms.abandonStatus(proposal.nonce);
+              if (status === "abandoned" || status === "landed") break;
+              await new Promise((r) => setTimeout(r, 2000));
+            }
+          } catch {
+            // Not a candidate, or already resolved — proceed to hide it locally regardless.
+          }
+        }
+        setDismissedProposalIds((prev) => {
+          const next = new Set(prev);
+          next.add(proposalId);
+          if (loadedAccountId && typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(
+                `dismissedProposals:${loadedAccountId}`,
+                JSON.stringify([...next]),
+              );
+            } catch {
+              /* storage unavailable — dismissal is in-memory for this session */
+            }
+          }
+          return next;
+        });
+        // Record the discard durably so it stays out of the counts and shows as
+        // "Discarded" in history (this browser only — Guardian has no
+        // cross-signer delete, so another signer discards on their own side).
+        setProposalHistory(historyEntries(recordDiscarded(ms.accountId, proposalId)));
+        try {
+          setProposals(await ms.syncProposals());
+        } catch {
+          /* keep the current list if the refresh fails */
+        }
+        await refreshAccount(ms);
+        toast.success("Request cancelled");
+      } catch (err) {
+        toast.error(`Failed to cancel: ${err instanceof Error ? err.message : "Unknown"}`);
+      } finally {
+        setCancelingProposal(null);
+      }
+    },
+    [loadedAccountId, refreshAccount],
+  );
 
   // Switching account starts a fresh session: nothing from the previous
   // account's lock, warnings or funding carries over. A background
@@ -2073,8 +2272,21 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           privateDelivery = true;
         }
 
-        await multisig.executeProposal(proposalId);
+        // Built-ins execute via Guardian's own signed-proposal pipeline. A CUSTOM admin
+        // proposal (e.g. a USDCx admin action) instead needs its deterministic request
+        // rebuilt from its recipe and the resulting execution advice folded in — see
+        // `executeCustomProposal`.
+        if (fresh.metadata.proposalType === "custom") {
+          if (!midenClient) throw new Error("The Miden client is not ready to execute this proposal.");
+          await executeCustomProposal(ms, midenClient, fresh);
+        } else {
+          await multisig.executeProposal(proposalId);
+        }
         executingSends.current.delete(proposalId);
+        // Durable record: Guardian prunes this from `proposals` once it is no
+        // longer pending (and never canonicalizes custom proposals at all), so
+        // without this the execution would vanish from the Transaction tab.
+        setProposalHistory(historyEntries(recordExecuted(ms.accountId, proposalId)));
         toast.success("Proposal executed successfully");
         // The user may have switched or reloaded the account meanwhile: never
         // show this account's results on another one. A reloaded account
@@ -2085,6 +2297,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         setProposals(multisig.listProposals());
+        refreshOnChainHistory();
 
         // Sync after execution
         if (midenClient) {
@@ -2151,7 +2364,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         if (accountOpInFlight.current === ms.accountId) accountOpInFlight.current = null;
       }
     },
-    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead, checkPrivateNotes],
+    [multisig, midenClient, inspectAccountLock, releaseLock, refreshAccount, handleLocalStateAhead, checkPrivateNotes, refreshOnChainHistory],
   );
 
   /** Lets any signer release a lock that has outlived every live execution. */
@@ -2251,6 +2464,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     );
   }, [disconnectMidenWalletRaw]);
 
+  const proposalStats = useMemo<HistoryStats>(() => statsFromEntries(proposalHistory), [proposalHistory]);
+
   const value = useMemo(
     (): MultisigContextValue => ({
       ledger,
@@ -2285,6 +2500,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       midenWalletSession: {
         connected: midenWalletSession.connected,
         commitment: midenWalletSession.commitment,
+        // The connected account's address: what identifies the Bread account for role detection
+        // and direct admin actions. Dropping it here left the admin page blind to Bread's roles.
+        address: midenWalletSession.address ?? null,
       },
 
       creating,
@@ -2312,8 +2530,16 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      handleCancelProposal,
+      cancelingProposal,
+      dismissedProposalIds,
+      proposalHistory,
+      proposalStats,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateAdminProposal,
+      handleDirectAdminAction,
+      onChainHistory,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -2321,6 +2547,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateAddSignerProposal,
       handleCreateRemoveSignerProposal,
       handleCreateChangeThresholdProposal,
+      handleCreateProcedureThresholdProposal,
       handleCreateSwitchGuardianProposal,
       handleExportProposal,
       handleSignProposalOffline,
@@ -2379,6 +2606,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       paraSession.publicKey,
       midenWalletSession.connected,
       midenWalletSession.commitment,
+      midenWalletSession.address,
       creating,
       registeringOnGuardian,
       guardianRegistrationRequired,
@@ -2403,8 +2631,16 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       retryProposalVerification,
       handleSignProposal,
       handleExecuteProposal,
+      handleCancelProposal,
+      cancelingProposal,
+      dismissedProposalIds,
+      proposalHistory,
+      proposalStats,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateAdminProposal,
+      handleDirectAdminAction,
+      onChainHistory,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -2412,6 +2648,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleCreateAddSignerProposal,
       handleCreateRemoveSignerProposal,
       handleCreateChangeThresholdProposal,
+      handleCreateProcedureThresholdProposal,
       handleCreateSwitchGuardianProposal,
       handleExportProposal,
       handleSignProposalOffline,

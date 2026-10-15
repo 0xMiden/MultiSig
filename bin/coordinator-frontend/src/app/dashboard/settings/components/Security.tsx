@@ -61,7 +61,7 @@ const Security = () => {
                 walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-gray-200 hover:border-[#FF5500]'
               }`}
             >
-              MIDEN WALLET {midenWalletSession.connected ? '(connected)' : ''}
+              BREAD {midenWalletSession.connected ? '(connected)' : ''}
             </button>
           </div>
 
@@ -77,13 +77,13 @@ const Security = () => {
             </div>
           </div>
 
-          {/* Disconnect Miden Wallet */}
+          {/* Disconnect Bread */}
           {midenWalletSession.connected && walletSource === 'miden-wallet' && (
             <button
               onClick={disconnectMidenWallet}
               className="mt-3 px-4 py-2 text-[12px] border border-red-300 text-red-600 rounded-sm hover:bg-red-50"
             >
-              DISCONNECT MIDEN WALLET
+              DISCONNECT BREAD
             </button>
           )}
         </div>

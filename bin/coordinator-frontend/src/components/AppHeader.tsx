@@ -4,7 +4,7 @@ import { GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED } from '@/config/psm';
 import { GuardianChoices } from '@/components/GuardianChoices';
 import React, { useState, useEffect, useRef } from 'react';
 import { useMultisig } from '@/contexts/MultisigContext';
-import { copyToClipboard, truncateHex } from '@/lib/helpers';
+import { copyToClipboard, truncateHex, toBech32Address } from '@/lib/helpers';
 import { toast } from 'sonner';
 import { SignerChip } from '@/components/SignerChip';
 
@@ -85,7 +85,7 @@ export function AppHeader() {
             {walletSource === 'local' && !paraSession.connected && !midenWalletSession.connected && 'LOCAL KEYS'}
             {walletSource === 'local' && paraSession.connected && 'LOCAL (PARA AVAIL)'}
             {walletSource === 'para' && (paraSession.connected ? 'PARA' : 'PARA · NOT CONNECTED')}
-            {walletSource === 'miden-wallet' && (midenWalletSession.connected ? 'MIDEN WALLET' : 'MIDEN WALLET · NOT CONNECTED')}
+            {walletSource === 'miden-wallet' && (midenWalletSession.connected ? 'BREAD' : 'BREAD · NOT CONNECTED')}
             {walletSource === 'ledger' && (ledger.signer ? 'LEDGER ●' : 'LEDGER DISCONNECTED')}
             {(walletSource === 'para' && paraSession.connected) || (walletSource === 'miden-wallet' && midenWalletSession.connected) ? ' ●' : ''}
           </button>
@@ -150,7 +150,7 @@ export function AppHeader() {
                         walletSource === 'miden-wallet' ? 'bg-[#FF5500] text-white border-[#FF5500]' : 'border-[#00000019] hover:border-[#FF5500]'
                       }`}
                     >
-                      MIDEN WALLET (connected)
+                      BREAD (connected)
                     </button>
                     <button
                       onClick={() => disconnectMidenWallet()}
@@ -164,7 +164,7 @@ export function AppHeader() {
                     onClick={() => { connectMidenWallet(); setWalletPopoverOpen(false); }}
                     className="w-full text-left px-3 py-2 text-[11px] rounded-sm border border-[#00000019] hover:border-[#FF5500]"
                   >
-                    CONNECT MIDEN WALLET
+                    CONNECT BREAD
                   </button>
                 )}
                 {midenWalletSession.connected && midenWalletSession.commitment && (
@@ -197,14 +197,26 @@ export function AppHeader() {
                 <div className="flex flex-col gap-2">
                   {multisig?.accountId && (
                     <div>
-                      <div className="text-[9px] text-gray-400 mb-0.5">Account Address</div>
+                      <div className="text-[9px] text-gray-400 mb-0.5">Account ID</div>
                       <div
                         className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
-                        onClick={() => handleCopy(multisig.accountId, 'Account address')}
-                        title="Click to copy"
+                        onClick={() => handleCopy(multisig.accountId, 'Account ID')}
+                        title="Click to copy hex account ID"
                       >
                         {truncateHex(multisig.accountId, 12, 8)}
                       </div>
+                      {toBech32Address(multisig.accountId) && (
+                        <>
+                          <div className="text-[9px] text-gray-400 mb-0.5 mt-1.5">Address</div>
+                          <div
+                            className="text-[10px] bg-gray-50 px-2 py-1.5 rounded-sm cursor-pointer hover:bg-gray-100 break-all"
+                            onClick={() => handleCopy(toBech32Address(multisig.accountId)!, 'Address')}
+                            title="Click to copy address"
+                          >
+                            {toBech32Address(multisig.accountId)}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   <div>

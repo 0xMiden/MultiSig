@@ -84,9 +84,14 @@ describe('direct Ledger → real Guardian signer → Miden WASM', () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it('rejects a device signing with a different key', async () => {
+  it('rejects a device signing with a different key, naming the address that signed and the one expected', async () => {
     const signer = new Eip712Signer(new DirectLedgerAdapter(deviceFor(other), selected), selected.publicKey, selected.address);
-    await expect(signer.signCommitment(commitment)).rejects.toThrow('different key');
+    const failure = await signer.signCommitment(commitment).catch((err: Error) => err);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toMatch(/different key/);
+    expect((failure as Error).message).toContain(other.address);
+    expect((failure as Error).message).toContain(selected.address);
+    expect((failure as Error).message).toContain(selected.path);
   });
 
   it('rejects a mismatched address before contacting the device', () => {

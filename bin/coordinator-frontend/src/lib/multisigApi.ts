@@ -122,7 +122,7 @@ export function createSigner(
   // Only the explicit "local keys" source reaches this point; every external
   // source either returned above or was refused by the caller.
   if (!LOCAL_KEYS_ENABLED) {
-    throw new Error('Connect a wallet (Ledger, Para or the Miden Wallet) first.');
+    throw new Error('Connect a wallet (Ledger, Para or Bread) first.');
   }
   if (!signerInfo) throw new Error('Local keys are still being generated. Try again in a moment.');
   const activeSigner = signatureScheme === 'ecdsa' ? signerInfo.ecdsa : signerInfo.falcon;
@@ -136,13 +136,6 @@ export function createSigner(
  * deserializing its own `txSummary` — no Guardian call, no chain sync, no
  * ambiguity between proposals. Same reconstruction `verifyProposalMetadataBinding`
  * already runs internally on every syncProposals().
- *
- * Returns full `Note` objects, not just IDs: sendPrivate() only skips its
- * local-database lookup when given an object with real `.id()`/`.assets()`
- * methods (checked via duck typing in the SDK's own sendPrivate wrapper). A
- * plain ID string or NoteId falls through to that lookup instead — which
- * fails here, because the note hasn't been executed yet, so it was never
- * written to the local database in the first place.
  */
 export function getOutputNotesFromTxSummary(txSummaryBase64: string): Note[] {
   const summary = TransactionSummary.deserialize(base64ToBytes(txSummaryBase64));

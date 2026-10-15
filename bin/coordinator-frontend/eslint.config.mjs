@@ -10,6 +10,8 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Generated protobuf codec (scripts/gen-history-proto.mjs).
+  { ignores: ["src/lib/history/proto/miden_node.js", "src/lib/history/proto/miden_node.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {

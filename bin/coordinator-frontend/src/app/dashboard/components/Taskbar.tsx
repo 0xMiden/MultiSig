@@ -3,20 +3,8 @@ import { LOCAL_KEYS_ENABLED } from "@/config/psm";
 import { GuardianChoices } from "@/components/GuardianChoices";
 import React, { useState, useMemo } from "react";
 import { useMultisig } from "@/contexts/MultisigContext";
-import { truncateHex, copyToClipboard } from "@/lib/helpers";
+import { truncateHex, copyToClipboard, toBech32Address } from "@/lib/helpers";
 import { SignerChip } from "@/components/SignerChip";
-import { AccountId, AccountInterface, NetworkId } from "@miden-sdk/miden-sdk";
-import { MIDEN_NETWORK } from "@/config/psm";
-import { BECH32_PREFIX } from "@/lib/midenNetwork";
-
-function bech32NetworkId(): NetworkId {
-  switch (MIDEN_NETWORK) {
-    case "mainnet": return NetworkId.mainnet();
-    case "testnet": return NetworkId.testnet();
-    case "devnet": return NetworkId.devnet();
-    default: return NetworkId.custom(BECH32_PREFIX[MIDEN_NETWORK]);
-  }
-}
 import { toast } from "sonner";
 import { TaskBarProps } from "@/types";
 
@@ -36,6 +24,8 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     midenWalletSession,
     connectMidenWallet,
     openParaModal,
+    ledger,
+    accountOperationBusy,
   } = useMultisig();
 
   const [isCopied, setIsCopied] = useState(false);
@@ -58,6 +48,14 @@ const TaskBar: React.FC<TaskBarProps> = () => {
     return multisig?.accountId ?? localStorage.getItem("currentWalletId") ?? null;
   }, [multisig]);
 
+  // The account's bech32 address for the active network, shown next to the hex id — the canonical
+  // mtst1…/mdev1… string, the same one a sender pastes to send to this account. Computed inline
+  // (not memoized) on purpose: the SDK's WASM is initialized lazily, so a conversion attempted on
+  // the first render (before the client loads) throws. A memo keyed on the id would cache that
+  // transient null and never recompute, since the id string is unchanged once the multisig loads —
+  // which is exactly why "Failed to convert" stuck. Re-running each render self-heals once WASM is up.
+  const bech32Address = toBech32Address(accountId);
+
   const copyAccountId = () => {
     if (accountId) {
       copyToClipboard(accountId, () => {
@@ -68,17 +66,15 @@ const TaskBar: React.FC<TaskBarProps> = () => {
   };
 
   const copyBech32 = () => {
-    if (!accountId) return;
-    try {
-      const bech32 = AccountId.fromHex(accountId).toBech32(bech32NetworkId(), AccountInterface.BasicWallet);
-      copyToClipboard(bech32, () => {
-        setIsBech32Copied(true);
-        setTimeout(() => setIsBech32Copied(false), 2000);
-        toast.success("Bech32 address copied");
-      });
-    } catch {
+    if (!bech32Address) {
       toast.error("Failed to convert account ID to bech32");
+      return;
     }
+    copyToClipboard(bech32Address, () => {
+      setIsBech32Copied(true);
+      setTimeout(() => setIsBech32Copied(false), 2000);
+      toast.success("Bech32 address copied");
+    });
   };
 
   const handleGuardianReconnect = async () => {
@@ -148,6 +144,15 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   )}
                 </button>
               </div>
+              {bech32Address && (
+                <div
+                  className="text-[10px] text-[rgba(0,0,0,0.45)] font-[400] cursor-pointer hover:text-[rgba(0,0,0,0.7)] transition-colors"
+                  title={`${bech32Address} — click to copy`}
+                  onClick={copyBech32}
+                >
+                  {`${bech32Address.slice(0, 12)}…${bech32Address.slice(-6)}`}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -219,6 +224,19 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                 Local
               </button>
             )}
+            {/* Opens the Ledger panel to connect a device or change its address; the
+                source switches to Ledger once an address is confirmed there. */}
+            <button
+              onClick={() => ledger.show()}
+              disabled={accountOperationBusy}
+              className={`flex items-center px-3 h-full text-[11px] font-[500] rounded-[6px] transition-all disabled:opacity-50 ${
+                walletSource === 'ledger'
+                  ? 'bg-white text-[#FF5500] shadow-xs'
+                  : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
+              }`}
+            >
+              Ledger {ledger.signer ? '(connected)' : ''}
+            </button>
             <button
               onClick={() => {
                 if (paraSession.connected) setWalletSource('para');
@@ -243,7 +261,7 @@ const TaskBar: React.FC<TaskBarProps> = () => {
                   : 'text-[rgba(0,0,0,0.55)] hover:text-[#111]'
               }`}
             >
-              Wallet {midenWalletSession.connected ? '(connected)' : ''}
+              Bread {midenWalletSession.connected ? '(connected)' : ''}
             </button>
           </div>
         </div>

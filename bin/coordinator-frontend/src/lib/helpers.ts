@@ -1,4 +1,33 @@
-import { AccountId } from '@miden-sdk/miden-sdk';
+import { AccountId, AccountInterface, NetworkId } from '@miden-sdk/miden-sdk';
+import { MIDEN_NETWORK } from '@/config/psm';
+import { BECH32_PREFIX } from '@/lib/midenNetwork';
+
+/** The `NetworkId` for the active network, for bech32 encoding. */
+function bech32NetworkId(): NetworkId {
+  switch (MIDEN_NETWORK) {
+    case 'mainnet': return NetworkId.mainnet();
+    case 'testnet': return NetworkId.testnet();
+    case 'devnet': return NetworkId.devnet();
+    default: return NetworkId.custom(BECH32_PREFIX[MIDEN_NETWORK]);
+  }
+}
+
+/**
+ * Converts a hex account id to its plain bech32 address for the active network (the canonical
+ * `mtst1…`/`mdev1…`/`mm1…` form shown to users). Returns the part before the Address routing-params
+ * separator, matching what a sender pastes to send to the account. Never throws — returns `null` on
+ * any failure (bad id, wasm not ready).
+ */
+export function toBech32Address(hexAccountId: string | null | undefined): string | null {
+  if (!hexAccountId) return null;
+  try {
+    return AccountId.fromHex(hexAccountId)
+      .toBech32(bech32NetworkId(), AccountInterface.BasicWallet)
+      .split('_')[0];
+  } catch {
+    return null;
+  }
+}
 
 // Accepts a hex account ID (with or without 0x) or a bech32 address (mtst1..., mm1..., mdev1...).
 // Returns the canonical hex string expected by AccountId.fromHex().
@@ -8,7 +37,9 @@ export function toHexAccountId(input: string): string {
   const stripped = trimmed.startsWith('0x') || trimmed.startsWith('0X') ? trimmed.slice(2) : trimmed;
   // Canonical form: 0x-prefixed and lowercase, whether or not the user typed the prefix.
   if (/^[0-9a-fA-F]+$/.test(stripped)) return `0x${stripped.toLowerCase()}`;
-  return AccountId.fromBech32(trimmed).toString();
+  // bech32: accept both the plain account address and the full Address form (which appends
+  // `_<routing-params>`); only the part before the separator is the account id.
+  return AccountId.fromBech32(trimmed.split('_')[0]).toString();
 }
 
 export function normalizeCommitment(hex: string): string {

@@ -5,11 +5,12 @@ import { toast } from "sonner";
 import type { SessionEndReason } from "@openzeppelin/guardian-client";
 import { useMultisig } from "@/contexts/MultisigContext";
 import { copyToClipboard, truncateHex } from "@/lib/helpers";
+import { lookupClientFor, lookupSignerAccounts, type SignerAccount } from "@/lib/signerAccounts";
 
 const SOURCE_LABEL: Record<string, string> = {
   ledger: "Ledger",
   para: "Para",
-  "miden-wallet": "Miden Wallet",
+  "miden-wallet": "Bread",
   local: "Local key",
 };
 
@@ -32,7 +33,7 @@ function CopyIcon({ done }: { done: boolean }) {
  * it belongs to (each Ledger address has its own commitment).
  */
 export function SignerChip() {
-  const { walletSource, activeCommitment, activeScheme, ledger, guardianSession, startGuardianSession } = useMultisig();
+  const { walletSource, activeCommitment, activeScheme, ledger, guardianSession, startGuardianSession, guardianUrl } = useMultisig();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -91,6 +92,9 @@ export function SignerChip() {
           {ledgerAccount && (
             <Field label="Ledger address" value={ledgerAccount.address} copied={copied} onCopy={copy}
               hint={`Path ${ledgerAccount.path}. Reconnect this same address to sign with this commitment.`} />
+          )}
+          {walletSource === "ledger" && ledger.signer && (
+            <SignerAccounts signer={ledger.signer} guardianUrl={guardianUrl} copied={copied} onCopy={copy} />
           )}
           {guardianSession.phase !== "off" && (
             <SessionStatus state={guardianSession} onStart={() => void startGuardianSession()} />
@@ -174,6 +178,65 @@ function Field({ label, value, hint, copied, onCopy }: {
       </div>
       <code className="break-all rounded-[4px] bg-[rgba(0,0,0,0.04)] px-2 py-1.5 font-mono text-[11px] leading-snug text-[#111]">{value}</code>
       {hint && <span className="text-[10px] text-[rgba(0,0,0,0.5)]">{hint}</span>}
+    </div>
+  );
+}
+
+type SignerAccountsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; accounts: SignerAccount[] }
+  | { status: "error"; message: string };
+
+/**
+ * The multisig accounts this signer cosigns, from Guardian's signer lookup
+ * (one lookup approval on the device), each with its id and address to copy:
+ * the values another admin needs to grant this signer's account a role.
+ */
+function SignerAccounts({ signer, guardianUrl, copied, onCopy }: {
+  signer: Parameters<typeof lookupSignerAccounts>[1]; guardianUrl: string; copied: string | null; onCopy: (value: string, label: string) => void;
+}) {
+  const [state, setState] = useState<SignerAccountsState>({ status: "idle" });
+  // Another Ledger address is another signer: its accounts are not these.
+  useEffect(() => { setState({ status: "idle" }); }, [signer]);
+
+  const find = async () => {
+    setState({ status: "loading" });
+    try {
+      setState({ status: "ready", accounts: await lookupSignerAccounts(lookupClientFor(guardianUrl), signer) });
+    } catch (err) {
+      setState({ status: "error", message: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-[rgba(0,0,0,0.08)] pt-3">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-[500] text-[#111]">Accounts this signer cosigns</span>
+        <button
+          type="button"
+          disabled={state.status === "loading"}
+          onClick={() => void find()}
+          className="text-[11px] font-[500] text-[#FF5500] hover:text-[#E64A00] disabled:opacity-50"
+        >
+          {state.status === "loading" ? "Approve the lookup on Ledger…" : state.status === "ready" ? "Refresh" : "Find on Guardian"}
+        </button>
+      </div>
+      {state.status === "idle" && (
+        <span className="text-[10px] text-[rgba(0,0,0,0.5)]">Guardian lists the multisig accounts this commitment signs for: one lookup approval on the device.</span>
+      )}
+      {state.status === "error" && <span role="alert" className="text-[10px] text-red-700">{state.message}</span>}
+      {state.status === "ready" && state.accounts.length === 0 && (
+        <span className="text-[10px] text-[rgba(0,0,0,0.5)]">Guardian lists no account for this signer.</span>
+      )}
+      {state.status === "ready" && state.accounts.map((account, index) => (
+        <div key={account.accountId} className="flex flex-col gap-2">
+          <Field label={state.accounts.length > 1 ? `Account ${index + 1} ID` : "Account ID"} value={account.accountId} copied={copied} onCopy={onCopy} />
+          {account.address && (
+            <Field label={state.accounts.length > 1 ? `Account ${index + 1} address` : "Address"} value={account.address} copied={copied} onCopy={onCopy} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import { DashboardUIProvider, useDashboardUI } from "@/contexts/DashboardUIConte
 import type { ActionType } from "medina-agent";
 import "medina-agent/styles.css";
 import AccountStatusBanner from "./components/AccountStatusBanner";
+import { isAdminMode } from "@/config/appMode";
+import { AdminTargetProvider } from "@/contexts/AdminTargetContext";
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT?.trim() ?? "";
 
@@ -80,7 +82,10 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
         </main>
       </div>
 
-      <SendModal open={isSendModalOpen} onClose={closeSendModal} />
+      {/* Sending is an end-user wallet surface and is never mounted in the admin
+          build. Receiving is: an admin multisig pays fees from its own vault, so
+          it has to be able to consume the notes that fund it. */}
+      {!isAdminMode && <SendModal open={isSendModalOpen} onClose={closeSendModal} />}
       <ReceiveModal open={isReceiveModalOpen} onClose={closeReceiveModal} />
 
       {ChatLauncher && (
@@ -101,7 +106,13 @@ export default function Layout({
 }>) {
   return (
     <DashboardUIProvider>
-      <DashboardShell>{children}</DashboardShell>
+      {isAdminMode ? (
+        <AdminTargetProvider>
+          <DashboardShell>{children}</DashboardShell>
+        </AdminTargetProvider>
+      ) : (
+        <DashboardShell>{children}</DashboardShell>
+      )}
     </DashboardUIProvider>
   );
 }
