@@ -45,7 +45,7 @@ describe('decideLastAdmin', () => {
     expectLevel(result, 'block');
   });
 
-  it('is ok revoking one of two ADMINs by a different account', () => {
+  it('is ok revoking one of two ADMIN holders by a different account', () => {
     const r = recipe({ actionArgs: { action: 'rbac_revoke', role: 'ADMIN', accountId: OTHER } });
     const result = decideLastAdmin([OTHER, SELF], '0xccc', r, USDCX_PROFILE);
     expectLevel(result, 'ok');

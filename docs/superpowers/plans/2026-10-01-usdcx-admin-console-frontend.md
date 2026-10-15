@@ -482,7 +482,7 @@ it('maps unpause to DOM_UNPAUSER and pause to DOM_PAUSER', () => {
   - `checkRevokeInFlight(recipe, inflight: Proposal[]): GuardrailResult` — `warn` when a queued revoke could invalidate an in-flight proposal signed by the soon-revoked holder.
   - `runGuardrails(...)` — composes all three; the UI blocks submission on any `block` and requires an explicit confirm on any `warn`.
 
-- [ ] **Step 1: Write the failing test** `tests/admin/guardrails.test.ts` — with a faucet fixture holding exactly one ADMIN, assert `checkLastAdmin` returns `level:'block'` for a revoke of that ADMIN, and `level:'ok'` when two ADMINs exist; assert `checkRoleSeparation` blocks `rbac_grant DOM_PAUSER` to the acting multisig.
+- [ ] **Step 1: Write the failing test** `tests/admin/guardrails.test.ts` — with a faucet fixture holding exactly one ADMIN, assert `checkLastAdmin` returns `level:'block'` for a revoke of that ADMIN, and `level:'ok'` when two ADMIN holders exist; assert `checkRoleSeparation` blocks `rbac_grant DOM_PAUSER` to the acting multisig.
 
 - [ ] **Step 2: Run it, verify it fails** — `npm run test:admin -- guardrails` → FAIL.
 
