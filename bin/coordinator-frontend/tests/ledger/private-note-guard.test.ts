@@ -16,7 +16,7 @@ import {
   UndeliveredPrivateNoteError,
   type GuardNote,
 } from '../../src/lib/privateNoteGuard';
-import { latestCanonicalPrivateNotes, p2idRecipient } from '../../src/lib/multisigApi';
+import { latestCanonicalPrivateNotes, latestHistoryEntry, p2idRecipient } from '../../src/lib/multisigApi';
 
 const SENDER = '0x7678d3cca43430813172a4b980bd6a';
 const RECIPIENT = '0x6193fede3d413581448dbceed2be2b';
@@ -190,5 +190,69 @@ describe('latestCanonicalPrivateNotes', () => {
     await expect(latestCanonicalPrivateNotes(listed, guardian, () => [privateNote()])).rejects.toThrow(/lists 2 private note\(s\).*only 1 could be read/);
     const { guardian: noSummary } = guardianWith({});
     await expect(latestCanonicalPrivateNotes(listed, noSummary)).rejects.toThrow(/no transaction summary/);
+  });
+});
+
+describe('latestHistoryEntry (Guardian 0.18.1 keys new rows by account nonce)', () => {
+  const row = (nonce: number, timestamp: string) =>
+    ({ nonce, status: 'canonical', timestamp, inputNotes: [], outputNotes: [], decodeWarnings: [] });
+  const paged = (pages: Array<{ entries: unknown[]; nextCursor?: string }>) => {
+    const calls: Array<{ limit?: number; cursor?: string } | undefined> = [];
+    const multisig = { deltaHistory: async (options?: { limit?: number; cursor?: string }) => { calls.push(options); return pages[calls.length - 1]; } };
+    return { calls, multisig: multisig as never };
+  };
+  const TS = 1_760_000_000_000; // a Date.now() key, as 0.18.0 clients wrote them
+
+  it('takes the first entry, in one request of one row, when it is keyed by account nonce', async () => {
+    // Guardian decodes every row it returns in full, so the common case asks for one.
+    const { calls, multisig } = paged([{ entries: [row(7, '2026-10-13T11:00:00Z')], nextCursor: 'c1' }]);
+    expect((await latestHistoryEntry(multisig))?.nonce).toBe(7);
+    expect(calls).toEqual([{ limit: 1 }]);
+  });
+
+  it('reads past the timestamp-keyed rows, which are listed first, to the newest nonce-keyed one', async () => {
+    const { calls, multisig } = paged([
+      { entries: [row(TS + 2, '2026-10-12T10:00:00Z')], nextCursor: 'c1' },
+      { entries: [row(TS + 1, '2026-10-12T09:00:00Z'), row(TS, '2026-10-12T08:00:00Z'), row(7, '2026-10-13T11:00:00Z'), row(6, '2026-10-13T10:00:00Z')] },
+    ]);
+    expect((await latestHistoryEntry(multisig))?.nonce).toBe(7);
+    expect(calls).toEqual([{ limit: 1 }, { limit: 500, cursor: 'c1' }]);
+  });
+
+  it('keeps a timestamp-keyed row that became canonical last (a cosigner still on 0.18.0)', async () => {
+    const { multisig } = paged([
+      { entries: [row(TS + 9, '2026-10-13T12:00:00Z')], nextCursor: 'c1' },
+      { entries: [row(7, '2026-10-13T11:00:00Z')] },
+    ]);
+    expect((await latestHistoryEntry(multisig))?.nonce).toBe(TS + 9);
+  });
+
+  it('compares RFC 3339 times with sub-millisecond digits and an offset, as guardian-testnet writes them', async () => {
+    const { multisig } = paged([
+      { entries: [row(TS, '2026-10-13T11:00:00.123456789Z')], nextCursor: 'c1' },
+      { entries: [row(8, '2026-10-13T11:00:00.2Z')] },
+    ]);
+    expect((await latestHistoryEntry(multisig))?.nonce).toBe(8);
+    // The form guardian-testnet returns (0.18.1): nanoseconds and a +00:00 offset.
+    const live = paged([
+      { entries: [row(TS, '2026-10-12T17:07:48.651918345+00:00')], nextCursor: 'c1' },
+      { entries: [row(5, '2026-10-13T11:08:25.401234567+00:00')] },
+    ]);
+    expect((await latestHistoryEntry(live.multisig))?.nonce).toBe(5);
+  });
+
+  it('has nothing for an empty history, and stops at the last page', async () => {
+    expect(await latestHistoryEntry(paged([{ entries: [] }]).multisig)).toBeUndefined();
+    // Only timestamp-keyed rows and no further page: the newest of them.
+    const { calls, multisig } = paged([
+      { entries: [row(TS + 1, '2026-10-12T09:00:00Z')], nextCursor: 'c1' },
+      { entries: [row(TS, '2026-10-12T08:00:00Z')] },
+    ]);
+    expect((await latestHistoryEntry(multisig))?.nonce).toBe(TS + 1);
+    expect(calls).toEqual([{ limit: 1 }, { limit: 500, cursor: 'c1' }]);
+    // A single old row is the last page already: one request.
+    const one = paged([{ entries: [row(TS, '2026-10-12T08:00:00Z')] }]);
+    expect((await latestHistoryEntry(one.multisig))?.nonce).toBe(TS);
+    expect(one.calls).toEqual([{ limit: 1 }]);
   });
 });

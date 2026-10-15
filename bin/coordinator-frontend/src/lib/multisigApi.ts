@@ -13,7 +13,7 @@ import {
   MidenWalletSigner,
   type SignatureScheme,
 } from '@openzeppelin/miden-multisig-client';
-import type { GuardianHttpClient, Signer } from '@openzeppelin/guardian-client';
+import type { GuardianHttpClient, HistoryEntry, Signer } from '@openzeppelin/guardian-client';
 import {
   AccountId,
   Endpoint,
@@ -186,6 +186,43 @@ export interface LatestPrivateNote {
 }
 
 /**
+ * Guardian lists history newest-first by its storage key: `Date.now()` for
+ * proposals made by TypeScript clients through 0.18.0, the account's next
+ * nonce since 0.18.1. Old rows keep their keys, and a timestamp sorts above any
+ * account nonce, so on an account used before the switch (or by a cosigner
+ * still on 0.18.0) the first entries are not the latest transaction.
+ */
+const TIMESTAMP_KEY = 1e12;
+
+function canonicalAt(entry: HistoryEntry): number {
+  // RFC 3339; Date.parse keeps milliseconds, so drop finer digits first.
+  const time = Date.parse(entry.timestamp.replace(/(\.\d{3})\d+/, '$1'));
+  return Number.isNaN(time) ? -Infinity : time;
+}
+
+/**
+ * The account's latest canonical transaction: the history entry that became
+ * canonical last. One request for one row when the newest row is keyed by
+ * account nonce (Guardian decodes every row it returns in full, so the common
+ * case asks for no more); otherwise the timestamp-keyed rows, which come
+ * first, are read up to the first nonce-keyed row (the newest of those, which
+ * follow in chain order).
+ */
+export async function latestHistoryEntry(multisig: Pick<Multisig, 'deltaHistory'>): Promise<HistoryEntry | undefined> {
+  let page = await multisig.deltaHistory({ limit: 1 });
+  let latest = page.entries[0];
+  if (!latest || latest.nonce < TIMESTAMP_KEY) return latest;
+  for (;;) {
+    for (const entry of page.entries) {
+      if (canonicalAt(entry) > canonicalAt(latest)) latest = entry;
+      if (entry.nonce < TIMESTAMP_KEY) return latest;
+    }
+    if (!page.nextCursor) return latest;
+    page = await multisig.deltaHistory({ limit: 500, cursor: page.nextCursor });
+  }
+}
+
+/**
  * The private notes of the account's latest canonical transaction, rebuilt
  * from the transaction summary Guardian keeps with the delta. Guardian
  * acknowledges every execution before it reaches the chain, so any signer can
@@ -196,11 +233,7 @@ export async function latestCanonicalPrivateNotes(
   guardian: Pick<GuardianHttpClient, 'getDelta'> = multisigGuardian(multisig as Multisig),
   readNotes: (txSummaryBase64: string) => Note[] = getOutputNotesFromTxSummary,
 ): Promise<LatestPrivateNote[]> {
-  // Guardian lists history newest-first by nonce, and 0.18.1 labels each
-  // proposal with the account nonce its transaction reaches: the first entry
-  // is the latest transaction.
-  const { entries } = await multisig.deltaHistory({ limit: 1 });
-  const latest = entries[0];
+  const latest = await latestHistoryEntry(multisig);
   if (!latest) return [];
   // Guardian's history already says which output notes are private. Without
   // any (and nothing it failed to decode) there is nothing to deliver, so skip
