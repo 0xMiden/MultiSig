@@ -67,9 +67,18 @@ fn every_admin_note() -> Vec<(&'static str, Note)> {
         ),
         ("pause", usdcx_admin_notes::pause(faucet, sender, false, serial(5)).unwrap()),
         ("unpause", usdcx_admin_notes::pause(faucet, sender, true, serial(6)).unwrap()),
-        ("block", usdcx_admin_notes::blocklist(faucet, sender, other, false, serial(7)).unwrap()),
-        ("unblock", usdcx_admin_notes::blocklist(faucet, sender, other, true, serial(8)).unwrap()),
-        ("set_min_burn", usdcx_admin_notes::set_min_burn(faucet, sender, 1, serial(9)).unwrap()),
+        (
+            "block",
+            usdcx_admin_notes::blocklist(faucet, sender, other, false, serial(7)).unwrap(),
+        ),
+        (
+            "unblock",
+            usdcx_admin_notes::blocklist(faucet, sender, other, true, serial(8)).unwrap(),
+        ),
+        (
+            "set_min_burn",
+            usdcx_admin_notes::set_min_burn(faucet, sender, 1, serial(9)).unwrap(),
+        ),
         (
             "set_attester",
             usdcx_admin_notes::set_attester(faucet, sender, serial(10), true, serial(11)).unwrap(),
@@ -84,7 +93,10 @@ fn every_admin_note_script_is_on_the_faucet_allowlist() {
         let root = note.script().root();
         let hex: String = root.as_word().as_bytes().iter().map(|b| format!("{b:02x}")).collect();
         println!("NOTE {name} {hex}");
-        assert!(allowed.contains(&root), "{name}: script root {hex} is not on the faucet allowlist");
+        assert!(
+            allowed.contains(&root),
+            "{name}: script root {hex} is not on the faucet allowlist"
+        );
     }
 }
 

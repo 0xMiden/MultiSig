@@ -177,8 +177,9 @@ pub fn current_token_supply(faucet: &Account) -> u64 {
 /// policy, or `None` when no explicit fee is scheduled for that script (the fee schedule stores
 /// `root -> [fee, 0, 0, 1]`, where the last element marks a set entry; unset keys read as zero).
 pub fn note_fee(faucet: &Account, note_script_root: &NoteScriptRoot) -> Option<u64> {
-    let slot = StorageSlotName::new("miden::standards::fees::policies::basic_constant_fee::fee_schedule")
-        .expect("fee schedule slot name is valid");
+    let slot =
+        StorageSlotName::new("miden::standards::fees::policies::basic_constant_fee::fee_schedule")
+            .expect("fee schedule slot name is valid");
     let key = StorageMapKey::new(Word::from(*note_script_root));
     match faucet.storage().get_map_item(&slot, key) {
         Ok(value) if value[3] == Felt::ONE => Some(felt_to_u64(value[0])),
@@ -194,7 +195,8 @@ pub fn note_fee(faucet: &Account, note_script_root: &NoteScriptRoot) -> Option<u
 /// Returns an empty `Vec` if the allowlist slot is absent or is not a storage map (fail-safe, as
 /// [`rbac_role_members`] does), so a malformed account reads as "no attesters" rather than panicking.
 pub fn enabled_attesters(faucet: &Account) -> Vec<Word> {
-    let Some(slot) = faucet.storage().get(XReserveFaucetExtension::xreserve_attesters_slot()) else {
+    let Some(slot) = faucet.storage().get(XReserveFaucetExtension::xreserve_attesters_slot())
+    else {
         return Vec::new();
     };
     let StorageSlotContent::Map(map) = slot.content() else {

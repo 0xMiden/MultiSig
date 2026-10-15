@@ -173,8 +173,7 @@ async fn pause_note_from_non_pauser_fails_on_0_17_faucet() {
 /// `set_max_supply`/`pause`; `set_min_burn`'s script also lives in `miden-usdcx`).
 #[tokio::test]
 async fn set_min_burn_note_consumes_on_0_17_faucet() {
-    let (chain, faucet_id, admin, _pauser, _attest_admin, _other) =
-        mock_chain_with_faucet_roles();
+    let (chain, faucet_id, admin, _pauser, _attest_admin, _other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::set_min_burn(faucet_id, admin, 5_000, serial(104))
         .expect("building the set_min_burn note");
 
@@ -198,8 +197,7 @@ async fn set_min_burn_note_consumes_on_0_17_faucet() {
 /// allowlisted) but TRAPS at the procedure's own `ADMIN` gate.
 #[tokio::test]
 async fn set_min_burn_note_from_non_admin_fails_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) =
-        mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::set_min_burn(faucet_id, other, 5_000, serial(105))
         .expect("building the set_min_burn note");
 
@@ -220,8 +218,7 @@ async fn set_min_burn_note_from_non_admin_fails_on_0_17_faucet() {
 /// note storage, not note args) is correct for this builder too.
 #[tokio::test]
 async fn set_attester_note_consumes_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, _pauser, attest_admin, _other) =
-        mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, _pauser, attest_admin, _other) = mock_chain_with_faucet_roles();
     let commitment = serial(200);
     let note =
         usdcx_admin_notes::set_attester(faucet_id, attest_admin, commitment, true, serial(106))
@@ -262,8 +259,7 @@ async fn set_attester_note_consumes_on_0_17_faucet() {
 /// allowlisted) but TRAPS at the procedure's own `ATTEST_ADMIN` gate.
 #[tokio::test]
 async fn set_attester_note_from_non_attest_admin_fails_on_0_17_faucet() {
-    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) =
-        mock_chain_with_faucet_roles();
+    let (chain, faucet_id, _admin, _pauser, _attest_admin, other) = mock_chain_with_faucet_roles();
     let note = usdcx_admin_notes::set_attester(faucet_id, other, serial(201), true, serial(107))
         .expect("building the set_attester note");
 

@@ -39,7 +39,10 @@ fn role_symbol_accepts_bridge_role_names() {
     for name in ["ADMIN", "PAUSER", "FAUCET_MNGR", "GER_INJECTOR", "GER_REMOVER", "FEE_MNGR"] {
         assert!(usdcx_admin_notes::role_symbol(name).is_ok(), "{name}");
     }
-    assert!(usdcx_admin_notes::role_symbol("pauser").is_err(), "lowercase is not a role symbol");
+    assert!(
+        usdcx_admin_notes::role_symbol("pauser").is_err(),
+        "lowercase is not a role symbol"
+    );
     assert!(usdcx_admin_notes::role_symbol("A VERY LONG ROLE NAME").is_err());
 }
 

@@ -7,11 +7,11 @@
 //! Each builder returns a serialized `Note` (`Uint8Array`); the frontend
 //! deserializes it with `@miden-sdk`'s `Note.deserialize`.
 
+use miden_protocol::Word;
 use miden_protocol::account::{Account, AccountId};
 use miden_protocol::asset::FungibleAsset;
 use miden_protocol::note::NoteScriptRoot;
 use miden_protocol::utils::serde::{Deserializable, Serializable};
-use miden_protocol::Word;
 use miden_standards::note::config::RbacConfig;
 use wasm_bindgen::prelude::*;
 
@@ -125,12 +125,13 @@ pub fn note_id_from_header(
     attachments_commitment: &[u8],
 ) -> Result<String, JsError> {
     use miden_protocol::note::{
-        NoteAttachmentHeader, NoteAttachmentScheme, NoteAttachments, NoteDetailsCommitment,
-        NoteId, NoteMetadata, NoteTag, NoteType, PartialNoteMetadata,
+        NoteAttachmentHeader, NoteAttachmentScheme, NoteAttachments, NoteDetailsCommitment, NoteId,
+        NoteMetadata, NoteTag, NoteType, PartialNoteMetadata,
     };
 
     let note_type = if is_public { NoteType::Public } else { NoteType::Private };
-    let partial = PartialNoteMetadata::new(acct(sender_hex)?, note_type).with_tag(NoteTag::new(tag));
+    let partial =
+        PartialNoteMetadata::new(acct(sender_hex)?, note_type).with_tag(NoteTag::new(tag));
     if attachment_schemes.len() > NoteAttachments::MAX_COUNT {
         return Err(JsError::new("too many attachment schemes"));
     }
@@ -195,9 +196,14 @@ pub fn build_set_note_fee(
 ) -> Result<Vec<u8>, JsError> {
     let root = NoteScriptRoot::read_from_bytes(note_script_root).map_err(js)?;
     let fee_asset = FungibleAsset::new(acct(fee_faucet_hex)?, fee_amount).map_err(js)?;
-    let note =
-        builders::set_note_fee(acct(faucet_hex)?, acct(sender_hex)?, root, fee_asset, word(serial)?)
-            .map_err(js)?;
+    let note = builders::set_note_fee(
+        acct(faucet_hex)?,
+        acct(sender_hex)?,
+        root,
+        fee_asset,
+        word(serial)?,
+    )
+    .map_err(js)?;
     Ok(note.to_bytes())
 }
 
@@ -287,8 +293,8 @@ pub fn build_pause(
     unpause: bool,
     serial: &[u8],
 ) -> Result<Vec<u8>, JsError> {
-    let note =
-        builders::pause(acct(faucet_hex)?, acct(sender_hex)?, unpause, word(serial)?).map_err(js)?;
+    let note = builders::pause(acct(faucet_hex)?, acct(sender_hex)?, unpause, word(serial)?)
+        .map_err(js)?;
     Ok(note.to_bytes())
 }
 
@@ -322,8 +328,9 @@ pub fn build_set_min_burn(
     min_burn: u64,
     serial: &[u8],
 ) -> Result<Vec<u8>, JsError> {
-    let note = builders::set_min_burn(acct(faucet_hex)?, acct(sender_hex)?, min_burn, word(serial)?)
-        .map_err(js)?;
+    let note =
+        builders::set_min_burn(acct(faucet_hex)?, acct(sender_hex)?, min_burn, word(serial)?)
+            .map_err(js)?;
     Ok(note.to_bytes())
 }
 

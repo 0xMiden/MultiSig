@@ -208,7 +208,10 @@ fn rbac_set_admin_targets_the_contract_and_round_trips() {
     let grant = usdcx_admin_notes::rbac(
         faucet,
         sender,
-        RbacConfig::GrantRole { role: usdcx_admin_notes::role_symbol("PAUSER").unwrap(), account: sender },
+        RbacConfig::GrantRole {
+            role: usdcx_admin_notes::role_symbol("PAUSER").unwrap(),
+            account: sender,
+        },
         serial(9),
     )
     .unwrap();

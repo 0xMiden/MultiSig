@@ -49,5 +49,8 @@ fn enabled_attesters_lists_enabled_commitments_and_skips_disabled_ones() {
     let (faucet, enabled, disabled) = faucet_with_attesters();
     let listed = enabled_attesters(&faucet);
     assert_eq!(listed, vec![enabled], "only the attester under the enabled marker is listed");
-    assert!(!listed.contains(&disabled), "a disabled attester (zero marker) must not be listed");
+    assert!(
+        !listed.contains(&disabled),
+        "a disabled attester (zero marker) must not be listed"
+    );
 }
