@@ -240,10 +240,37 @@ Proposal rows show `signed/required` directly. Actions are derived from Guardian
 - an **Outdated** proposal (labelled at or below the account's nonce: another transaction took its slot, Guardian 0.18.1) exposes **Create again** instead of collecting signatures;
 - completed proposals have no action.
 
+## Custom-note proposals
+
+The account can propose, cosign and execute a transaction whose own output is any public note
+the caller builds with the SDK (its script, inputs, assets and attachment are the caller's), for
+example a configuration note for a network account. The library lives in `src/lib/customNote`
+and the context exposes it as `handleCreateCustomNoteProposal(note, options)`; there is no page
+for it yet.
+
+It runs on Guardian's custom-proposal protocol (`createCustomProposal`, `prepareCustomExecution`,
+`submitTransaction` of the multisig client): Guardian signs a summary of the proposer's transaction
+request, and whoever executes rebuilds the same request, byte for byte, and folds Guardian's
+execution advice into it. The recipe that makes the rebuild possible (the serialized note, the
+sender, the foreign accounts the transaction reads, the salt and the block the summary binds) is
+carried in the proposal's label (`note_v1_` plus base32 JSON, the only characters the label
+admits), so every cosigner can execute, not only the proposer, who also keeps a copy in local
+storage under the proposal id. A custom proposal whose label is not a custom-note recipe is
+refused at execute time.
+
+Private custom notes are refused at creation: the private-note guard delivers a private note to
+the recipient it reads off a P2ID note and knows no other recipient, so a private custom note
+would be undeliverable and block the account after execution. `options.foreignAccountIds` names
+the public accounts the transaction reads through foreign-procedure invocation (a faucet that
+estimates its own note fee, for example); the web client does not load them on demand.
+`src/lib/customNote/consumption.ts` reads whether the note was consumed, and for a note aimed at a
+network account, the node's own verdict and last error.
+
 ## Key files
 
 - `src/contexts/MultisigContext.tsx` — account, Guardian, proposal, signing, execution, and funding state
 - `src/lib/multisigApi.ts` — Guardian/Miden client setup, node registration, and private-note transport
+- `src/lib/customNote/` — custom-note proposals: recipe label, request build, execution, consumption
 - `src/lib/proposalActions.ts` — centralized proposal action policy
 - `src/lib/initClient.ts` — browser Miden client and local signer-key initialization
 - `src/hooks/useMidenWallet.ts` — Miden Wallet extension adapter
