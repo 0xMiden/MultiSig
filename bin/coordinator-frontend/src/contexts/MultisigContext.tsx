@@ -26,6 +26,9 @@ import {
 } from "@openzeppelin/miden-multisig-client";
 import { GuardianHttpError, type GuardianHttpClient, type SessionGrantFields, type Signer } from "@openzeppelin/guardian-client";
 import { Note, NoteType, type MidenClient } from "@miden-sdk/miden-sdk";
+import { buildCustomNoteRequest, createCustomNoteProposalWith, draftRecipe, type DraftOptions } from "@/lib/customNote/request";
+import { executeCustomNoteProposal } from "@/lib/customNote/execute";
+import { resolveCustomNoteId } from "@/lib/customNote/recipe";
 
 import { normalizeCommitment } from "@/lib/helpers";
 import { formatError, classifyWalletError, describeExecutionError, UserFacingError } from "@/lib/errors";
@@ -282,6 +285,13 @@ export interface MultisigContextValue {
     faucetId: string,
     amount: bigint,
   ) => Promise<void>;
+  /**
+   * Proposes a transaction whose own output is `note`, a public note the caller built with the
+   * SDK (any script, inputs, assets or attachment), through Guardian's custom-proposal protocol.
+   * Every cosigner can execute it: the recipe travels in the proposal's label (src/lib/customNote).
+   * `options.foreignAccountIds` names the public accounts the transaction reads through FPI.
+   */
+  handleCreateCustomNoteProposal: (note: Note, options?: DraftOptions) => Promise<void>;
   handleSendPrivateNote: (
     recipientId: string,
     faucetId: string,
@@ -1620,6 +1630,18 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
     [runProposalCreation],
   );
 
+  const handleCreateCustomNoteProposal = useCallback(
+    async (note: Note, options: DraftOptions = {}) => {
+      await runProposalCreation("Custom note", async (ms) => {
+        const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+        if (!liveClient) throw new Error("The Miden client is not ready to build this proposal.");
+        const built = await buildCustomNoteRequest(liveClient, draftRecipe(note, ms.accountId, options));
+        await createCustomNoteProposalWith(ms, built, resolveCustomNoteId(built.recipe));
+      });
+    },
+    [runProposalCreation, midenClient],
+  );
+
   // Creates the private send proposal only. The note is delivered after the
   // transaction lands (the note transport needs its inclusion proof): see
   // handleExecuteProposal and the private-note guard (privateNoteGuard.ts),
@@ -2073,7 +2095,15 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           privateDelivery = true;
         }
 
-        await multisig.executeProposal(proposalId);
+        if (fresh.metadata.proposalType === "custom") {
+          // The party that executes a custom proposal rebuilds its request from the recipe and
+          // folds Guardian's advice in; executeProposal knows the built-in types only.
+          const liveClient = clientPartsRef.current?.midenClient ?? midenClient;
+          if (!liveClient) throw new Error("The Miden client is not ready to execute this proposal.");
+          await executeCustomNoteProposal(ms, liveClient, fresh);
+        } else {
+          await multisig.executeProposal(proposalId);
+        }
         executingSends.current.delete(proposalId);
         toast.success("Proposal executed successfully");
         // The user may have switched or reloaded the account meanwhile: never
@@ -2314,6 +2344,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleExecuteProposal,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateCustomNoteProposal,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
@@ -2405,6 +2436,7 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       handleExecuteProposal,
       unlockAccount,
       handleCreateP2idProposal,
+      handleCreateCustomNoteProposal,
       handleSendPrivateNote,
       privateSendProgress,
       resetPrivateSendProgress,
