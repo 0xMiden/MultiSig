@@ -23,7 +23,7 @@ describe('describeExecutionError', () => {
     const word = (c: string) => `0x${c.repeat(64)}`;
     const stale = new Error(`Proposal ${word('a')} was made for account state ${word('b')}, but this client's account is at ${word('c')}: sync and retry, or create the proposal again`);
     expect(describeExecutionError(stale, 'Execute failed')).toBe(
-      'Execute failed: this proposal was made for an earlier state of the account. Sync and try again; if it still fails, create it again.',
+      'Execute failed: another transaction was executed first, so this proposal can no longer execute. Discard it and create it again if the change is still needed.',
     );
   });
 

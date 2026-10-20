@@ -39,7 +39,8 @@ export interface AdminNoteConsumption {
 
 /**
  * Tracks the full lifecycle of an admin change: the proposal-level state
- * (`created`/`collecting`/`threshold_reached`/`executed`, from `deriveStateFromProposal`), and --
+ * (`created`/`collecting`/`threshold_reached`/`outdated`/`executed`, from `deriveStateFromProposal`
+ * against the account nonce the context tracks), and --
  * once the proposal is `executed` -- whether its admin note has actually been consumed (nullified)
  * at the faucet, AND if not, why.
  *
@@ -68,8 +69,8 @@ export function useAdminNoteConsumption(
   proposal: Proposal,
   recipe: AdminRecipe | null,
 ): AdminNoteConsumption {
-  const { midenClient } = useMultisig();
-  const baseState = deriveStateFromProposal(proposal);
+  const { midenClient, accountNonce } = useMultisig();
+  const baseState = deriveStateFromProposal(proposal, undefined, accountNonce);
   const [result, setResult] = useState<AdminNoteConsumption>({ state: baseState });
 
   useEffect(() => {

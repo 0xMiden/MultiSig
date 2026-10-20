@@ -152,6 +152,26 @@ export function decideSetRoleAdmin(recipe: AdminRecipe, target: AdminTargetProfi
   };
 }
 
+/**
+ * Role-membership guardrail. `warn`s (never blocks) on an `rbac_grant` to an account that already
+ * holds the role, or an `rbac_revoke` from one that does not: the chain accepts both as no-ops, so
+ * the proposal would spend signatures and a nonce slot for nothing. Pure: callers fetch
+ * `roleMembers` via `rbac_role_members(bytes, role)` for the recipe's role.
+ */
+export function decideRoleMembership(roleMembers: string[], recipe: AdminRecipe, target: AdminTargetProfile): GuardrailResult {
+  const args = recipe.actionArgs;
+  if (args.action !== 'rbac_grant' && args.action !== 'rbac_revoke') return OK;
+  const holds = roleMembers.some((member) => sameAccount(member, args.accountId));
+  const role = roleLabel(target, args.role);
+  if (args.action === 'rbac_grant' && holds) {
+    return { level: 'warn', message: `${args.accountId} already holds ${role}; this grant would change nothing.` };
+  }
+  if (args.action === 'rbac_revoke' && !holds) {
+    return { level: 'warn', message: `${args.accountId} does not hold ${role}; this revoke would change nothing.` };
+  }
+  return OK;
+}
+
 const SEVERITY: Record<GuardrailResult['level'], number> = { ok: 0, warn: 1, block: 2 };
 
 function mostSevere(results: GuardrailResult[]): GuardrailResult {
@@ -159,9 +179,9 @@ function mostSevere(results: GuardrailResult[]): GuardrailResult {
 }
 
 /**
- * Composes all five guardrails for a proposed `recipe`. Fetches the current ADMIN member set via
- * `rbac_role_members` (initializing the admin wasm module first) and returns the single most
- * severe result (`block` > `warn` > `ok`). The UI blocks submission on `block` and requires an
+ * Composes all six guardrails for a proposed `recipe`. Fetches the current ADMIN member set (and,
+ * for a grant or revoke, the recipe's role's member set) via `rbac_role_members` (initializing the
+ * admin wasm module first) and returns the single most severe result (`block` > `warn` > `ok`). The UI blocks submission on `block` and requires an
  * explicit typed confirmation on `warn`.
  *
  * Per ruling R-pre1, this wrapper is intentionally NOT unit-tested against real serialized faucet
@@ -176,8 +196,16 @@ export async function runGuardrails(
 ): Promise<GuardrailResult> {
   await initAdminWasm();
   const adminMembers = rbac_role_members(contractBytes, 'ADMIN');
+  const args = recipe.actionArgs;
+  const roleMembers =
+    args.action === 'rbac_grant' || args.action === 'rbac_revoke'
+      ? args.role === 'ADMIN'
+        ? adminMembers
+        : rbac_role_members(contractBytes, args.role)
+      : [];
   return mostSevere([
     decideLastAdmin(adminMembers, recipe.senderAccountId, recipe, target),
+    decideRoleMembership(roleMembers, recipe, target),
     decideRoleSeparation(recipe, recipe.senderAccountId),
     decideRevokeInFlight(recipe, inflightRecipes),
     decideAdminChurnInFlight(recipe, inflightRecipes),

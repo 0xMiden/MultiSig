@@ -55,11 +55,14 @@ export function describeExecutionError(err: unknown, prefix: string): string {
   if (lower.includes('failed to submit proven transaction')) {
     return `${prefix}: the Miden node rejected the transaction. Sync and try again.`;
   }
-  // Guardian 0.18.1 refuses, before anything is pushed, to execute a proposal
-  // made for another account state than this client holds (its message names
-  // two 64-hex commitments, which would push its advice past the cut-off).
+  // The multisig client refuses, before anything is pushed, to execute a
+  // proposal pinned to another account state than this client holds (its
+  // message names two 64-hex commitments, which would push its advice past
+  // the cut-off). The execute handler syncs the account first, so by the time
+  // this is seen the account has moved past the proposal's state: another
+  // transaction took its slot, and no retry can help.
   if (lower.includes('was made for account state')) {
-    return `${prefix}: this proposal was made for an earlier state of the account. Sync and try again; if it still fails, create it again.`;
+    return `${prefix}: another transaction was executed first, so this proposal can no longer execute. Discard it and create it again if the change is still needed.`;
   }
   // Before the network check: "failed to fetch account snapshot" is a local
   // IndexedDB failure, not a network one.

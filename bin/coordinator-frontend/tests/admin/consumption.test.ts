@@ -53,11 +53,11 @@ function recipe(overrides: Partial<AdminRecipe> = {}): AdminRecipe {
 }
 
 /** Minimal `Proposal`-shaped fixture; only `status` and `signatures.length` matter here. */
-function proposal(status: Proposal['status'], signatureCount: number): Proposal {
+function proposal(status: Proposal['status'], signatureCount: number, nonce = 0): Proposal {
   return {
     id: 'p1',
     accountId: '0xabc',
-    nonce: 0,
+    nonce,
     status,
     txSummary: '',
     signatures: Array.from({ length: signatureCount }, (_, i) => ({
@@ -92,6 +92,23 @@ describe('deriveStateFromProposal', () => {
     expect(deriveStateFromProposal(proposal('pending', 2), 2)).toBe('threshold_reached');
     // Below threshold stays collecting.
     expect(deriveStateFromProposal(proposal('pending', 1), 2)).toBe('collecting');
+  });
+
+  it('a pending or ready proposal whose nonce slot the account has passed is outdated', () => {
+    // Guardian 0.18.1 labels a proposal with the nonce its transaction reaches; once the account is
+    // at or past it, another transaction took that slot and the proposal can never execute.
+    expect(deriveStateFromProposal(proposal('ready', 2, 7), undefined, 7n)).toBe('outdated');
+    expect(deriveStateFromProposal(proposal('pending', 1, 7), undefined, 9n)).toBe('outdated');
+  });
+
+  it('a proposal labelled past the account nonce keeps its lifecycle state', () => {
+    expect(deriveStateFromProposal(proposal('ready', 2, 8), undefined, 7n)).toBe('threshold_reached');
+    expect(deriveStateFromProposal(proposal('pending', 0, 8), undefined, 7n)).toBe('created');
+  });
+
+  it('an executed proposal is never outdated, and an unknown account nonce changes nothing', () => {
+    expect(deriveStateFromProposal(proposal('finalized', 2, 7), undefined, 7n)).toBe('executed');
+    expect(deriveStateFromProposal(proposal('ready', 2, 7), undefined, null)).toBe('threshold_reached');
   });
 
   it('never returns applied or awaiting_consumption from the proposal alone', () => {

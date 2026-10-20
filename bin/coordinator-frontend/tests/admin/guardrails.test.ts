@@ -5,6 +5,7 @@ import {
   decideRevokeInFlight,
   decideAdminChurnInFlight,
   decideSetRoleAdmin,
+  decideRoleMembership,
   type GuardrailResult,
 } from '@/lib/admin/guardrails';
 import type { AdminRecipe } from '@/lib/admin/recipe';
@@ -228,5 +229,37 @@ describe('decideSetRoleAdmin', () => {
 
   it('ignores other actions', () => {
     expectLevel(decideSetRoleAdmin(recipe(), USDCX_PROFILE), 'ok');
+  });
+});
+
+describe('decideRoleMembership', () => {
+  it('warns when granting a role the account already holds', () => {
+    const r = recipe({ action: 'rbac_grant', actionArgs: { action: 'rbac_grant', role: 'DOM_PAUSER', accountId: OTHER } });
+    const result = decideRoleMembership([OTHER, '0xddd'], r, USDCX_PROFILE);
+    expectLevel(result, 'warn');
+    expect(result.level === 'warn' && result.message).toContain('already holds');
+  });
+
+  it('is ok granting a role to an account that does not hold it', () => {
+    const r = recipe({ action: 'rbac_grant', actionArgs: { action: 'rbac_grant', role: 'DOM_PAUSER', accountId: OTHER } });
+    expectLevel(decideRoleMembership(['0xddd'], r, USDCX_PROFILE), 'ok');
+  });
+
+  it('warns when revoking a role the account does not hold', () => {
+    const r = recipe({ actionArgs: { action: 'rbac_revoke', role: 'DOM_PAUSER', accountId: OTHER } });
+    const result = decideRoleMembership(['0xddd'], r, USDCX_PROFILE);
+    expectLevel(result, 'warn');
+    expect(result.level === 'warn' && result.message).toContain('does not hold');
+  });
+
+  it('is ok revoking a role the account holds', () => {
+    const r = recipe({ actionArgs: { action: 'rbac_revoke', role: 'DOM_PAUSER', accountId: OTHER } });
+    expectLevel(decideRoleMembership([OTHER], r, USDCX_PROFILE), 'ok');
+  });
+
+  it('compares account ids case-insensitively and ignores other actions', () => {
+    const r = recipe({ action: 'rbac_grant', actionArgs: { action: 'rbac_grant', role: 'DOM_PAUSER', accountId: '0xBBB' } });
+    expectLevel(decideRoleMembership([OTHER], r, USDCX_PROFILE), 'warn');
+    expectLevel(decideRoleMembership([OTHER], recipe({ action: 'pause', actionArgs: { action: 'pause' } }), USDCX_PROFILE), 'ok');
   });
 });

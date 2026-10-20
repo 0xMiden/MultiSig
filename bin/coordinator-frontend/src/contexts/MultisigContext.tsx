@@ -2248,6 +2248,15 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
         }
         const unreachable = switchGuardianProblem(fresh);
         if (unreachable) throw new UserFacingError(unreachable);
+        // Labelled with the nonce its transaction reaches: at or below the
+        // synced account's nonce, another transaction took that slot, and the
+        // multisig client would refuse it on the pinned state anyway.
+        if (BigInt(fresh.nonce) <= ms.account.nonce().asInt()) {
+          throw new UserFacingError(
+            "Another transaction was executed first, so this proposal can no longer execute. " +
+              "Discard it and create it again if the change is still needed.",
+          );
+        }
         executing = { id: fresh.id, nonce: fresh.nonce };
 
         // A private note is delivered after the transaction commits (the note

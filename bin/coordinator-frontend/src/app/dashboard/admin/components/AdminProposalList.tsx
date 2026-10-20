@@ -15,6 +15,7 @@ const STATE_LABELS: Record<ConsumptionState, string> = {
   created: 'Created',
   collecting: 'Collecting signatures',
   threshold_reached: 'Ready to execute',
+  outdated: 'Outdated: another transaction was executed first',
   executed: 'Executed',
   awaiting_consumption: 'Awaiting note consumption',
   applied: 'Applied',
@@ -25,6 +26,7 @@ const STATE_COLORS: Record<ConsumptionState, string> = {
   created: 'bg-gray-100 text-gray-600',
   collecting: 'bg-gray-100 text-gray-600',
   threshold_reached: 'bg-blue-50 text-blue-700',
+  outdated: 'bg-red-50 text-red-700',
   executed: 'bg-amber-50 text-amber-800',
   awaiting_consumption: 'bg-amber-50 text-amber-800',
   applied: 'bg-[#28A857]/10 text-[#1F7A3F]',
@@ -52,7 +54,8 @@ function AdminProposalRow({ proposal }: { proposal: Proposal }) {
   // not land) can be retried — this re-syncs and re-executes at the current
   // chain tip. If its signed block binding has since expired, the retry fails
   // the same way and Discard is the resolution. Retry does nothing useful once
-  // the action has actually applied.
+  // the action has actually applied, or once another transaction took the
+  // proposal's nonce slot (`outdated`): then only Discard remains.
   const canRetry = state === 'threshold_reached' || state === 'failed' || state === 'awaiting_consumption';
   const isRetrying = executingProposal === proposal.id;
 

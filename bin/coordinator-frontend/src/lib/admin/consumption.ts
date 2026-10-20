@@ -23,6 +23,7 @@ export type ConsumptionState =
   | 'created'
   | 'collecting'
   | 'threshold_reached'
+  | 'outdated'
   | 'executed'
   | 'awaiting_consumption'
   | 'applied'
@@ -36,6 +37,12 @@ export type ConsumptionState =
  * case (a `pending` proposal whose signature count already meets it reports `threshold_reached`
  * rather than `collecting`) -- it never overrides `status` for `ready`/`finalized`.
  *
+ * `accountNonce`, when known, marks a not-yet-executed proposal `outdated` once the account is at
+ * or past the nonce the proposal is labelled with: Guardian 0.18.1 labels a proposal with the nonce
+ * its transaction reaches, so another transaction took that slot and this one can never execute
+ * (the same rule as the dashboard's `getProposalActionState`). Without it a stale proposal keeps
+ * showing as ready, and executing it fails on the pinned account state.
+ *
  * This never returns `applied` or `awaiting_consumption`: those require an actual note-consumption
  * check, which this function -- taking only the proposal -- has no way to perform. See
  * `useAdminNoteConsumption` for the state machine that adds them.
@@ -43,8 +50,10 @@ export type ConsumptionState =
 export function deriveStateFromProposal(
   proposal: Proposal,
   requiredSignatures?: number,
+  accountNonce: bigint | null = null,
 ): ConsumptionState {
   if (proposal.status === 'finalized') return 'executed';
+  if (accountNonce !== null && BigInt(proposal.nonce) <= accountNonce) return 'outdated';
   if (proposal.status === 'ready') return 'threshold_reached';
 
   // proposal.status === 'pending'
