@@ -52,16 +52,18 @@ import {
   type LatestPrivateNote,
 } from "@/lib/multisigApi";
 import type { ExternalSignerParams } from "@/lib/multisigApi";
-import { CONFIG_ERRORS, GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK, MIDEN_SDK_VERSION } from "@/config/psm";
+import { CONFIG_ERRORS, GUARDIAN_ENDPOINT, LOCAL_KEYS_ENABLED, MIDEN_DB_NAME, MIDEN_NETWORK, MIDEN_RPC_URL, MIDEN_SDK_VERSION, OTHER_NETWORK_APP_URL } from "@/config/psm";
 import { assertInvitationCodeValid, fundsOnRegistration, invitationCodeRequired } from "@/lib/midenNetwork";
 import {
   assertConfigured,
   deriveStartupState,
   resetStoreExclusively,
   startHoldingStoreLock,
+  storeResetNotice,
   waitForClientParts,
   type StartupState,
 } from "@/lib/clientStartup";
+import { readNodeIdentity } from "@/lib/nodeRegistration";
 import type { SignerInfo } from "@/types/psm";
 import type { WalletSource } from "@/wallets/types";
 import { getProposalActionState } from "@/lib/proposalActions";
@@ -316,6 +318,9 @@ export interface MultisigContextValue {
   privateNoteGuard: PrivateNoteGuardState;
   /** Start-up of the in-browser Miden client (downloads and compiles the SDK). */
   clientStartup: StartupState;
+  /** Shown once after a start that cleared local data left by another network. */
+  storeResetNotice: string | null;
+  dismissStoreResetNotice: () => void;
   /** Start the Miden client again after a failed start-up. */
   retryClientStartup: () => Promise<void>;
   /** True while any account operation runs; wallet and Guardian changes wait for it. */
@@ -386,6 +391,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
   // tracked; the phase is derived from the client parts (see deriveStartupState).
   const [startupBuilding, setStartupBuilding] = useState(true);
   const [startupError, setStartupError] = useState<string | null>(null);
+  const [storeResetNoticeText, setStoreResetNoticeText] = useState<string | null>(null);
+  const dismissStoreResetNotice = useCallback(() => setStoreResetNoticeText(null), []);
   const [undeliveredNotes, setUndeliveredNotes] = useState<UndeliveredNote[]>([]);
   const [privateNoteGuard, setPrivateNoteGuard] = useState<PrivateNoteGuardState>({ phase: "idle" });
   // The loaded account's nonce: proposals labelled at or below it are outdated.
@@ -896,7 +903,14 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           create: () => createMidenClient(),
           reset: () => resetStoreExclusively(MIDEN_DB_NAME),
           sdkVersion: MIDEN_SDK_VERSION,
-          onReset: (reason) => console.warn(`Resetting the Miden client's local data: ${reason}.`),
+          // The node URL and genesis identify the network: a domain that moved
+          // networks keeps its IndexedDB, which the new network's node rejects.
+          network: async () => `${MIDEN_RPC_URL} genesis ${(await readNodeIdentity(MIDEN_RPC_URL)).genesis}`,
+          onReset: (reason) => {
+            console.warn(`Resetting the Miden client's local data: ${reason}.`);
+            const notice = storeResetNotice(reason, MIDEN_NETWORK, OTHER_NETWORK_APP_URL);
+            if (notice) setStoreResetNoticeText(notice);
+          },
         });
         setMidenClient(client);
       }
@@ -2329,6 +2343,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       setWalletSource,
       clientStartup,
       retryClientStartup: startClient,
+      storeResetNotice: storeResetNoticeText,
+      dismissStoreResetNotice,
       undeliveredNotes,
       retryPrivateDeliveries,
       privateNoteGuard,
@@ -2351,6 +2367,8 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
       privateNoteGuard,
       clientStartup,
       startClient,
+      storeResetNoticeText,
+      dismissStoreResetNotice,
       accountOperationBusy,
       ledger,
       setWalletSource,

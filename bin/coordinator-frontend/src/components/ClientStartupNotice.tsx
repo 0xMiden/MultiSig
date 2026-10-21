@@ -6,10 +6,11 @@ import { useMultisig } from "@/contexts/MultisigContext";
 /**
  * Start-up status of the in-browser Miden client. On a first visit the SDK
  * download and compile take a while; Create/Load wait for it, and this says
- * so. If start-up fails, it shows the real reason and a Retry.
+ * so. If start-up fails, it shows the real reason and a Retry. After a start
+ * that had to clear local data left by another network, it says so once.
  */
 export function ClientStartupNotice() {
-  const { clientStartup, retryClientStartup } = useMultisig();
+  const { clientStartup, retryClientStartup, storeResetNotice, dismissStoreResetNotice } = useMultisig();
   // Only mention start-up if it is noticeable, so fast (cached) starts don't flash a banner.
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -31,6 +32,20 @@ export function ClientStartupNotice() {
           className="min-h-8 shrink-0 rounded-[6px] bg-red-600 px-3 text-[12px] font-[500] text-white hover:bg-red-700"
         >
           Retry
+        </button>
+      </div>
+    );
+  }
+  if (storeResetNotice) {
+    return (
+      <div role="status" className="mx-auto mt-3 flex w-[90%] md:w-[70%] items-start justify-between gap-3 rounded-[8px] border border-[#FF550033] bg-[#FF55000A] px-3 py-2.5">
+        <span className="text-[12px] text-[#9A3412] wrap-break-word">{storeResetNotice}</span>
+        <button
+          type="button"
+          onClick={dismissStoreResetNotice}
+          className="min-h-8 shrink-0 rounded-[6px] border border-[#FF550066] px-3 text-[12px] font-[500] text-[#9A3412] hover:bg-[#FF550014]"
+        >
+          Dismiss
         </button>
       </div>
     );

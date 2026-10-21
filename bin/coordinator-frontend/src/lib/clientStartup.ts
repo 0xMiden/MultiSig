@@ -2,6 +2,8 @@ import { formatError } from '@/lib/errors';
 
 /** localStorage key recording the SDK version that wrote the local store. */
 export const STORE_VERSION_KEY = 'midenStoreSdkVersion';
+/** localStorage key recording the network (node URL and genesis) the local store belongs to. */
+export const STORE_NETWORK_KEY = 'midenStoreNetwork';
 /**
  * Web Lock every running tab holds in shared mode once its client has
  * started. A store reset takes it exclusively, so it can never delete a store
@@ -15,22 +17,31 @@ export interface StoreStartOptions<T> {
   reset: () => Promise<void>;
   /** The SDK version running now. */
   sdkVersion: string;
+  /**
+   * The network this app targets, as one string (node URL and genesis
+   * commitment). A failure skips the network check for this start.
+   */
+  network?: () => Promise<string>;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
   onReset?: (reason: string) => void;
 }
 
 /**
  * Starts the Miden client on its local store. The store is reset only when it
- * was written by another SDK version: a store left by an older SDK can stop
- * the current one from starting. A start failure with the same version is
- * reported, never "fixed" by wiping the store (which holds private-note
- * history). A store from before versions were recorded is reset once, as
- * before. Signer keys live in a separate database and are not touched.
+ * was written by another SDK version, or belongs to another network: a store
+ * left by an older SDK can stop the current one from starting, and a store
+ * from another chain (a domain that moved networks keeps its IndexedDB) makes
+ * the SDK send that chain's genesis, which the node rejects on every request.
+ * A start failure with the same version is reported, never "fixed" by wiping
+ * the store (which holds private-note history). A store from before versions
+ * or networks were recorded is reset once, as before. Signer keys live in a
+ * separate database and are not touched.
  */
 export async function startWithStoreCheck<T>({
   create,
   reset,
   sdkVersion,
+  network,
   storage = globalThis.localStorage,
   onReset,
 }: StoreStartOptions<T>): Promise<T> {
@@ -38,6 +49,17 @@ export async function startWithStoreCheck<T>({
   if (recorded && recorded !== sdkVersion) {
     onReset?.(`the local data was written by Miden SDK ${recorded}; this app runs ${sdkVersion}`);
     await reset();
+  } else if (network) {
+    const target = await network().catch(() => null);
+    const stored = readStorage(storage, STORE_NETWORK_KEY);
+    if (target && stored && stored !== target) {
+      onReset?.(`the local data belongs to another network (${stored}); this app targets ${target}`);
+      await reset();
+    } else if (target && !stored && recorded) {
+      onReset?.(`the local data predates network tracking and may belong to another network; this app targets ${target}`);
+      await reset();
+    }
+    if (target) writeStorage(storage, STORE_NETWORK_KEY, target);
   }
   let client: T;
   try {
@@ -229,4 +251,17 @@ export function assertConfigured(errors: readonly string[]): void {
   if (errors.length > 0) {
     throw new Error(`This deployment is misconfigured: ${errors.join(' ')}`);
   }
+}
+
+/**
+ * What to tell the user after `startWithStoreCheck` reset the store because it
+ * belonged to another network (or predated network tracking). `null` for any
+ * other reset reason. The reason's node URLs and genesis commitments are not
+ * repeated: the user needs to know what happened and where their other
+ * network's accounts are reached, not the chain identifiers.
+ */
+export function storeResetNotice(reason: string, network: string, otherNetworkAppUrl: string): string | null {
+  if (!/another network/.test(reason)) return null;
+  const base = `This site now serves Miden ${network}, so local data left here by another network was cleared. The accounts themselves are untouched.`;
+  return otherNetworkAppUrl ? `${base} Multisigs on other networks: ${otherNetworkAppUrl}` : base;
 }
