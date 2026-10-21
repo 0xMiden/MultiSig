@@ -52,7 +52,7 @@ const STATUS_BODY=Buffer.from([
   ...frame(128,[...Buffer.from('grpc-status:0\r\n')]),
 ]);
 for(const {route,cookie} of [{route:'/dashboard/home',cookie:true},{route:'/login',cookie:false}]){
-  test(`a store left by another network is reset and the user is told on ${route}`,async({page,context,baseURL})=>{
+  test(`the user is told that a store left by another network was cleared on ${route}`,async({page,context,baseURL})=>{
     const rpc=process.env.NEXT_PUBLIC_MIDEN_RPC_URL;
     expect(rpc,'NEXT_PUBLIC_MIDEN_RPC_URL must be set for this suite').toBeTruthy();
     await page.route(`${rpc!.replace(/\/+$/,'')}/miden.node.v1.NodeService/Status`,r=>r.fulfill(r.request().method()==='OPTIONS'
