@@ -149,6 +149,33 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
     expect(onReset.mock.calls[0][1]).toBe('network');
   });
 
+  it('a failed probe does not replace a network marker another start confirmed', async () => {
+    const storage = memoryStorage();
+    let rejectProbe!: (error: Error) => void;
+    const probe = new Promise<string>((_, reject) => { rejectProbe = reject; });
+    let entered!: () => void;
+    const enteredP = new Promise<void>((resolve) => { entered = resolve; });
+    const slow = startWithStoreCheck({
+      create: async () => 'slow',
+      reset: async () => {},
+      sdkVersion: '0.17.3',
+      network: async () => { entered(); return probe; },
+      networkTimeoutMs: 60_000,
+      storage,
+    });
+    await enteredP;
+    await startWithStoreCheck({
+      create: async () => 'fast',
+      reset: async () => {},
+      sdkVersion: '0.17.3',
+      network: async () => MAINNET,
+      storage,
+    });
+    rejectProbe(new Error('gave up'));
+    await slow;
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
   it('starts without touching a store from this network', async () => {
     const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: MAINNET });
     const reset = vi.fn(async () => {});

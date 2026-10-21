@@ -76,9 +76,15 @@ export async function startWithStoreCheck<T>({
     onReset?.(...stale);
   }
   // A new or just-reset store belongs to the network this app targets, even
-  // when the node could not say which one that is.
+  // when the node could not say which one that is. Re-read the markers: a
+  // failed probe must not overwrite a network another start confirmed while
+  // this one was waiting.
   if (target) writeStorage(storage, STORE_NETWORK_KEY, target);
-  else if (network && (stale || !recorded)) writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+  else if (network && stale) writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+  else if (network && !readStorage(storage, STORE_VERSION_KEY)) {
+    const current = readStorage(storage, STORE_NETWORK_KEY);
+    if (!current || current === NETWORK_UNCONFIRMED) writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+  }
   let client: T;
   try {
     client = await create();
