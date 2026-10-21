@@ -80,6 +80,19 @@ describe('startWithStoreCheck (review 10: reset only on an SDK version change)',
     expect(storage.data.get(STORE_VERSION_KEY)).toBe('0.17.3');
   });
 
+  it('announces the pre-version reset that succeeded even when the retry fails to start', async () => {
+    const storage = memoryStorage();
+    const order: string[] = [];
+    const onReset = vi.fn((_reason: string, _kind: string) => { order.push('onReset'); });
+    await expect(startWithStoreCheck({
+      create: async () => { order.push('create'); throw new Error('bad store'); },
+      reset: async () => { order.push('reset'); },
+      sdkVersion: '0.17.3', storage, onReset,
+    })).rejects.toThrow(/could not start/);
+    expect(order).toEqual(['create', 'reset', 'onReset', 'create']);
+    expect(onReset.mock.calls[0][1]).toBe('untracked-version');
+  });
+
   it('reports both failures when an untracked store still cannot start after the reset', async () => {
     let attempt = 0;
     await expect(startWithStoreCheck({
@@ -110,6 +123,30 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
     expect(onReset.mock.calls[0][0]).toContain(TESTNET);
     expect(onReset.mock.calls[0][0]).toContain(MAINNET);
     expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
+  it('does not announce a network reset that failed', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: TESTNET });
+    const onReset = vi.fn();
+    await expect(startWithStoreCheck({
+      create: async () => 'client',
+      reset: async () => { throw new Error('other tab'); },
+      sdkVersion: '0.17.3', network: async () => MAINNET, storage, onReset,
+    })).rejects.toThrow(/other tab/);
+    expect(onReset).not.toHaveBeenCalled();
+  });
+
+  it('announces a network reset that succeeded even when the client then fails to start', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: TESTNET });
+    const order: string[] = [];
+    const onReset = vi.fn((_reason: string, _kind: string) => { order.push('onReset'); });
+    await expect(startWithStoreCheck({
+      create: async () => { order.push('create'); throw new Error('wasm'); },
+      reset: async () => { order.push('reset'); },
+      sdkVersion: '0.17.3', network: async () => MAINNET, storage, onReset,
+    })).rejects.toThrow(/wasm/);
+    expect(order).toEqual(['reset', 'onReset', 'create']);
+    expect(onReset.mock.calls[0][1]).toBe('network');
   });
 
   it('starts without touching a store from this network', async () => {

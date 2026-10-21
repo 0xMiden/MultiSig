@@ -71,8 +71,9 @@ export async function startWithStoreCheck<T>({
     : target && !stored && recorded ? [`the local data predates network tracking and may belong to another network; this app targets ${target}`, 'untracked-network']
     : null;
   if (stale) {
-    onReset?.(...stale);
+    // Announce only after the delete. A rejected reset must not claim the data was cleared.
     await reset();
+    onReset?.(...stale);
   }
   // A new or just-reset store belongs to the network this app targets, even
   // when the node could not say which one that is.
@@ -83,8 +84,8 @@ export async function startWithStoreCheck<T>({
     client = await create();
   } catch (first) {
     if (recorded) throw first;
-    onReset?.(`the local data predates version tracking and the client failed to start: ${formatError(first)}`, 'untracked-version');
     await reset();
+    onReset?.(`the local data predates version tracking and the client failed to start: ${formatError(first)}`, 'untracked-version');
     try {
       client = await create();
     } catch (second) {
