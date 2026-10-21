@@ -47,3 +47,25 @@ export function ClientStartupNotice() {
   }
   return null;
 }
+
+/**
+ * After a start that had to clear local data left by another network, says so
+ * until dismissed. Start-up runs on whichever route the app opens on, so every
+ * layout mounts this; `className` places it there.
+ */
+export function StoreResetNotice({ className }: { className: string }) {
+  const { storeResetNotice, dismissStoreResetNotice } = useMultisig();
+  if (!storeResetNotice) return null;
+  return (
+    <div role="status" className={`${className} flex items-start justify-between gap-3 rounded-[8px] border border-[#FF550033] bg-[#FF55000A] px-3 py-2.5`}>
+      <span className="text-[12px] text-[#9A3412] wrap-break-word">{storeResetNotice}</span>
+      <button
+        type="button"
+        onClick={dismissStoreResetNotice}
+        className="min-h-8 shrink-0 rounded-[6px] border border-[#FF550066] px-3 text-[12px] font-[500] text-[#9A3412] hover:bg-[#FF550014]"
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}

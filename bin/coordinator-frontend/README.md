@@ -44,6 +44,7 @@ NEXT_PUBLIC_MIDEN_REGISTRATION_CODE=guardian
 | `NEXT_PUBLIC_MIDEN_NETWORK` | Network name: `devnet`, `testnet`, `mainnet`, `local` or `custom` (wallet network, address prefix, invitation-code rule) | none (required) |
 | `NEXT_PUBLIC_MIDEN_RPC_URL` | Full Miden RPC URL, e.g. `https://rpc.testnet.miden.io` | none (required) |
 | `NEXT_PUBLIC_MIDEN_NOTE_TRANSPORT_URL` | Full note transport URL, e.g. `https://transport.miden.io` | none (required) |
+| `NEXT_PUBLIC_OTHER_NETWORK_APP_URL` | Where multisigs on other networks are reached (e.g. the testnet site from the mainnet one), named when local data left by another network is cleared | none |
 | `NEXT_PUBLIC_MIDEN_PROVER_URL` | Full remote prover URL, or `local` to prove in the browser | `local` |
 | `NEXT_PUBLIC_MIDEN_REGISTRATION_CODE` | Default registration invitation code on devnet, local and custom networks (testnet pre-fills `00000`; mainnet requires the creator's code) | `guardian` |
 | `NEXT_PUBLIC_PARA_API_KEY` | Enables Para signing | none |

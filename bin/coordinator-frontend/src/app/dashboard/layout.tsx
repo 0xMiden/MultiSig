@@ -11,6 +11,7 @@ import { DashboardUIProvider, useDashboardUI } from "@/contexts/DashboardUIConte
 import type { ActionType } from "medina-agent";
 import "medina-agent/styles.css";
 import AccountStatusBanner from "./components/AccountStatusBanner";
+import { StoreResetNotice } from "@/components/ClientStartupNotice";
 
 const CHAT_ENDPOINT = process.env.NEXT_PUBLIC_CHAT_ENDPOINT?.trim() ?? "";
 
@@ -75,6 +76,7 @@ function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
         </aside>
 
         <main className="flex-1 overflow-y-auto p-4 scrollbar-hidden" style={{ scrollbarGutter: 'stable' }}>
+          <StoreResetNotice className="mb-4 w-full" />
           <AccountStatusBanner />
           {children}
         </main>

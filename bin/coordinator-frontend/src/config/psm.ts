@@ -84,6 +84,11 @@ export const GUARDIAN_ENDPOINTS: readonly string[] = (() => {
   }
   return urls;
 })();
+// Where multisigs on other networks are reached (e.g. the testnet site from
+// the mainnet one): named when a store from another network is cleared.
+export const OTHER_NETWORK_APP_URL = process.env.NEXT_PUBLIC_OTHER_NETWORK_APP_URL?.trim()
+  ? endpoint('NEXT_PUBLIC_OTHER_NETWORK_APP_URL', process.env.NEXT_PUBLIC_OTHER_NETWORK_APP_URL, { required: false })
+  : '';
 /** Configuration problems; the app refuses to start the Miden client while any remain. */
 export const CONFIG_ERRORS: readonly string[] = configErrors;
 export const MIDEN_REGISTRATION_CODE = process.env.NEXT_PUBLIC_MIDEN_REGISTRATION_CODE || 'guardian';

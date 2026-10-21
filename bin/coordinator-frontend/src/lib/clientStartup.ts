@@ -2,6 +2,18 @@ import { formatError } from '@/lib/errors';
 
 /** localStorage key recording the SDK version that wrote the local store. */
 export const STORE_VERSION_KEY = 'midenStoreSdkVersion';
+/** localStorage key recording the network (node URL and genesis) the local store belongs to. */
+export const STORE_NETWORK_KEY = 'midenStoreNetwork';
+/**
+ * STORE_NETWORK_KEY of a store this app created or reset while the node could
+ * not be asked: it belongs to the network this app targets, so the next start
+ * that reaches the node records that network instead of resetting the store.
+ */
+const NETWORK_UNCONFIRMED = 'unconfirmed';
+/** How long a start waits for the node to name its network before skipping the check. */
+const NETWORK_CHECK_TIMEOUT_MS = 10_000;
+/** Why the store was reset. The notice is chosen from this, never from the reason text. */
+export type StoreResetKind = 'network' | 'version' | 'untracked-network' | 'untracked-version';
 /**
  * Web Lock every running tab holds in shared mode once its client has
  * started. A store reset takes it exclusively, so it can never delete a store
@@ -15,37 +27,79 @@ export interface StoreStartOptions<T> {
   reset: () => Promise<void>;
   /** The SDK version running now. */
   sdkVersion: string;
+  /**
+   * The network this app targets, as one string (node URL and genesis
+   * commitment). A failure, or no answer within `networkTimeoutMs`, skips the
+   * network check for this start.
+   */
+  network?: () => Promise<string>;
+  networkTimeoutMs?: number;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
-  onReset?: (reason: string) => void;
+  onReset?: (reason: string, kind: StoreResetKind) => void;
 }
 
 /**
  * Starts the Miden client on its local store. The store is reset only when it
- * was written by another SDK version: a store left by an older SDK can stop
- * the current one from starting. A start failure with the same version is
- * reported, never "fixed" by wiping the store (which holds private-note
- * history). A store from before versions were recorded is reset once, as
- * before. Signer keys live in a separate database and are not touched.
+ * was written by another SDK version, or belongs to another network: a store
+ * left by an older SDK can stop the current one from starting, and a store
+ * from another chain (a domain that moved networks keeps its IndexedDB) makes
+ * the SDK send that chain's genesis, which the node rejects on every request.
+ * A start failure with the same version is reported, never "fixed" by wiping
+ * the store (which holds private-note history). A store from before versions
+ * or networks were recorded is reset once, as before. A start resets at most
+ * once before opening the store, and leaves both markers describing the store
+ * it opened. Signer keys live in a separate database and are not touched.
  */
 export async function startWithStoreCheck<T>({
   create,
   reset,
   sdkVersion,
+  network,
+  networkTimeoutMs = NETWORK_CHECK_TIMEOUT_MS,
   storage = globalThis.localStorage,
   onReset,
 }: StoreStartOptions<T>): Promise<T> {
   const recorded = readStorage(storage, STORE_VERSION_KEY);
-  if (recorded && recorded !== sdkVersion) {
-    onReset?.(`the local data was written by Miden SDK ${recorded}; this app runs ${sdkVersion}`);
+  const target = network ? await withinDeadline(network(), networkTimeoutMs).catch(() => null) : null;
+  const stored = readStorage(storage, STORE_NETWORK_KEY);
+  const known = stored && stored !== NETWORK_UNCONFIRMED ? stored : null;
+  // One decision and at most one reset. Another network is the better
+  // explanation when the SDK version changed as well.
+  const stale: [string, StoreResetKind] | null =
+    target && known && known !== target ? [`the local data belongs to another network (${known}); this app targets ${target}`, 'network']
+    : recorded && recorded !== sdkVersion ? [`the local data was written by Miden SDK ${recorded}; this app runs ${sdkVersion}`, 'version']
+    : target && !stored && recorded ? [`the local data predates network tracking and may belong to another network; this app targets ${target}`, 'untracked-network']
+    : null;
+  if (stale) {
+    // Announce only after the delete. A rejected reset must not claim the data was cleared.
     await reset();
+    onReset?.(...stale);
+  }
+  // A new or just-reset store belongs to the network this app targets, even
+  // when the node could not say which one that is. Re-read the markers: a
+  // failed probe must not overwrite a network another start confirmed while
+  // this one was waiting.
+  if (target) writeStorage(storage, STORE_NETWORK_KEY, target);
+  else if (network && stale) writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+  else if (network && !readStorage(storage, STORE_VERSION_KEY)) {
+    const current = readStorage(storage, STORE_NETWORK_KEY);
+    if (!current || current === NETWORK_UNCONFIRMED) writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
   }
   let client: T;
   try {
     client = await create();
   } catch (first) {
     if (recorded) throw first;
-    onReset?.(`the local data predates version tracking and the client failed to start: ${formatError(first)}`);
     await reset();
+    onReset?.(`the local data predates version tracking and the client failed to start: ${formatError(first)}`, 'untracked-version');
+    // The store just cleared belongs to this app's network, which the probe
+    // could not name. Keep a marker another start confirmed during the reset.
+    if (network && !target) {
+      const current = readStorage(storage, STORE_NETWORK_KEY);
+      if (!current || current === NETWORK_UNCONFIRMED || current === stored) {
+        writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+      }
+    }
     try {
       client = await create();
     } catch (second) {
@@ -57,6 +111,14 @@ export async function startWithStoreCheck<T>({
   }
   writeStorage(storage, STORE_VERSION_KEY, sdkVersion);
   return client;
+}
+
+function withinDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
 function readStorage(storage: StoreStartOptions<unknown>['storage'], key: string): string | null {
@@ -229,4 +291,17 @@ export function assertConfigured(errors: readonly string[]): void {
   if (errors.length > 0) {
     throw new Error(`This deployment is misconfigured: ${errors.join(' ')}`);
   }
+}
+
+/**
+ * What to tell the user after `startWithStoreCheck` reset the store because it
+ * belonged to another network (or predated network tracking). `null` for any
+ * other kind of reset. The reason's node URLs and genesis commitments are not
+ * repeated: the user needs to know what happened and where their other
+ * network's accounts are reached, not the chain identifiers.
+ */
+export function storeResetNotice(kind: StoreResetKind, network: string, otherNetworkAppUrl: string): string | null {
+  if (kind !== 'network' && kind !== 'untracked-network') return null;
+  const base = `This site now serves Miden ${network}, so local data left here by another network was cleared. The accounts themselves are untouched.`;
+  return otherNetworkAppUrl ? `${base} Multisigs on other networks: ${otherNetworkAppUrl}` : base;
 }
