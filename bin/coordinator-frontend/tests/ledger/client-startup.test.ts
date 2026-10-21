@@ -70,11 +70,13 @@ describe('startWithStoreCheck (review 10: reset only on an SDK version change)',
     const storage = memoryStorage();
     let attempts = 0;
     const reset = vi.fn(async () => {});
+    const onReset = vi.fn();
     await expect(startWithStoreCheck({
       create: async () => { if (++attempts === 1) throw new Error('UpgradeError'); return 'client'; },
-      reset, sdkVersion: '0.17.3', storage,
+      reset, sdkVersion: '0.17.3', storage, onReset,
     })).resolves.toBe('client');
     expect(reset).toHaveBeenCalledTimes(1);
+    expect(onReset.mock.calls[0][1]).toBe('untracked-version');
     expect(storage.data.get(STORE_VERSION_KEY)).toBe('0.17.3');
   });
 
@@ -113,10 +115,67 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
   it('starts without touching a store from this network', async () => {
     const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: MAINNET });
     const reset = vi.fn(async () => {});
+    const network = vi.fn(async () => MAINNET);
     await expect(startWithStoreCheck({
-      create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage,
+      create: async () => 'client', reset, sdkVersion: '0.17.3', network, storage,
     })).resolves.toBe('client');
+    expect(network).toHaveBeenCalledTimes(1);
     expect(reset).not.toHaveBeenCalled();
+  });
+
+  it('resets once for an SDK version change and records the network, so the next start keeps the store', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.1' });
+    const reset = vi.fn(async () => {});
+    const start = () => startWithStoreCheck({ create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage });
+    await start();
+    await start();
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
+  it('resets once when both the SDK version and the network changed, and names the network as the reason', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.1', [STORE_NETWORK_KEY]: TESTNET });
+    const reset = vi.fn(async () => {});
+    const onReset = vi.fn();
+    const start = () => startWithStoreCheck({ create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage, onReset });
+    await start();
+    await start();
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onReset.mock.calls[0][1]).toBe('network');
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
+  it('reports an SDK version reset as one, whatever the recorded version says', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: 'another network', [STORE_NETWORK_KEY]: MAINNET });
+    const onReset = vi.fn();
+    await startWithStoreCheck({
+      create: async () => 'client', reset: async () => {}, sdkVersion: '0.17.3', network: async () => MAINNET, storage, onReset,
+    });
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onReset.mock.calls[0][1]).toBe('version');
+  });
+
+  it('keeps a store created while the node could not be asked, and records the network once it can be', async () => {
+    const storage = memoryStorage();
+    const reset = vi.fn(async () => {});
+    await startWithStoreCheck({
+      create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => { throw new Error('node unreachable'); }, storage,
+    });
+    await startWithStoreCheck({ create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage });
+    expect(reset).not.toHaveBeenCalled();
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
+  it('does not reset again a store it reset while the node could not be asked', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.1', [STORE_NETWORK_KEY]: TESTNET });
+    const reset = vi.fn(async () => {});
+    await startWithStoreCheck({
+      create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => { throw new Error('node unreachable'); }, storage,
+    });
+    await startWithStoreCheck({ create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage });
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
   });
 
   it('resets once a version-tracked store from before network tracking: it may be another network\'s', async () => {
@@ -142,10 +201,11 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
   it('skips the network check when the node cannot be reached, and keeps the recorded network', async () => {
     const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: MAINNET });
     const reset = vi.fn(async () => {});
+    const network = vi.fn(async (): Promise<string> => { throw new Error('node unreachable'); });
     await expect(startWithStoreCheck({
-      create: async () => 'client', reset, sdkVersion: '0.17.3',
-      network: async () => { throw new Error('node unreachable'); }, storage,
+      create: async () => 'client', reset, sdkVersion: '0.17.3', network, storage,
     })).resolves.toBe('client');
+    expect(network).toHaveBeenCalledTimes(1);
     expect(reset).not.toHaveBeenCalled();
     expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
   });
@@ -273,28 +333,20 @@ describe('startHoldingStoreLock (re-review of #33: a failed start gives the lock
 
 describe('storeResetNotice: what the user is told after a network reset', () => {
   it('explains a reset caused by data from another network and points at the other site', () => {
-    const text = storeResetNotice(
-      'the local data belongs to another network (https://rpc.testnet.miden.io genesis 0xabc); this app targets https://rpc.cedar.miden.io genesis 0xdef',
-      'mainnet',
-      'https://multisig-testnet.miden.xyz',
-    );
+    const text = storeResetNotice('network', 'mainnet', 'https://multisig-testnet.miden.xyz');
     expect(text).toContain('Miden mainnet');
     expect(text).toContain('another network');
     expect(text).toContain('https://multisig-testnet.miden.xyz');
-    expect(text).not.toContain('genesis');
   });
 
   it('treats a store from before network tracking the same way, without a link when none is configured', () => {
-    const text = storeResetNotice(
-      'the local data predates network tracking and may belong to another network; this app targets https://rpc.cedar.miden.io genesis 0xdef',
-      'mainnet',
-      '',
-    );
+    const text = storeResetNotice('untracked-network', 'mainnet', '');
     expect(text).toContain('Miden mainnet');
     expect(text).not.toContain('http');
   });
 
   it('says nothing for a reset that has another cause', () => {
-    expect(storeResetNotice('the local data was written by Miden SDK 0.16.0; this app runs 0.17.3', 'mainnet', '')).toBeNull();
+    expect(storeResetNotice('version', 'mainnet', '')).toBeNull();
+    expect(storeResetNotice('untracked-version', 'mainnet', '')).toBeNull();
   });
 });

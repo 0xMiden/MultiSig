@@ -906,9 +906,9 @@ export function MultisigProvider({ children }: { children: React.ReactNode }) {
           // The node URL and genesis identify the network: a domain that moved
           // networks keeps its IndexedDB, which the new network's node rejects.
           network: async () => `${MIDEN_RPC_URL} genesis ${(await readNodeIdentity(MIDEN_RPC_URL)).genesis}`,
-          onReset: (reason) => {
+          onReset: (reason, kind) => {
             console.warn(`Resetting the Miden client's local data: ${reason}.`);
-            const notice = storeResetNotice(reason, MIDEN_NETWORK, OTHER_NETWORK_APP_URL);
+            const notice = storeResetNotice(kind, MIDEN_NETWORK, OTHER_NETWORK_APP_URL);
             if (notice) setStoreResetNoticeText(notice);
           },
         });
