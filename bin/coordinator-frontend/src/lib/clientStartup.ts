@@ -92,6 +92,14 @@ export async function startWithStoreCheck<T>({
     if (recorded) throw first;
     await reset();
     onReset?.(`the local data predates version tracking and the client failed to start: ${formatError(first)}`, 'untracked-version');
+    // The store just cleared belongs to this app's network, which the probe
+    // could not name. Keep a marker another start confirmed during the reset.
+    if (network && !target) {
+      const current = readStorage(storage, STORE_NETWORK_KEY);
+      if (!current || current === NETWORK_UNCONFIRMED || current === stored) {
+        writeStorage(storage, STORE_NETWORK_KEY, NETWORK_UNCONFIRMED);
+      }
+    }
     try {
       client = await create();
     } catch (second) {

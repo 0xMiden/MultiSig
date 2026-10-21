@@ -242,6 +242,23 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
     expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
   });
 
+  it('a pre-version reset during a failed probe does not keep the old network marker', async () => {
+    const storage = memoryStorage({ [STORE_NETWORK_KEY]: TESTNET });
+    let creates = 0;
+    const reset = vi.fn(async () => {});
+    await startWithStoreCheck({
+      create: async () => { if (++creates === 1) throw new Error('legacy'); return 'client'; },
+      reset, sdkVersion: '0.17.3', network: async () => { throw new Error('node down'); }, storage,
+    });
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe('unconfirmed');
+    await startWithStoreCheck({
+      create: async () => 'client', reset, sdkVersion: '0.17.3', network: async () => MAINNET, storage,
+    });
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
+
   it('resets once a version-tracked store from before network tracking: it may be another network\'s', async () => {
     const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3' });
     const reset = vi.fn(async () => {});
