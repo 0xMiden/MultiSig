@@ -40,3 +40,36 @@ test('production app loads the real USB SDK and opens the Ledger dialog',async({
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
+// A store left by another network. The node's Status is answered here (its
+// genesis differs from the seeded marker), so this does not depend on the node
+// being up. A returning user with an account cookie lands on the dashboard, so
+// the notice must reach that route as well as the login page.
+const varint=(n:number)=>{const out:number[]=[];do{out.push((n&127)|(n>127?128:0));n=Math.floor(n/128);}while(n);return out;};
+const field=(number:number,bytes:number[])=>[...varint(number*8+2),...varint(bytes.length),...bytes];
+const frame=(flag:number,bytes:number[])=>[flag,(bytes.length>>>24)&255,(bytes.length>>>16)&255,(bytes.length>>>8)&255,bytes.length&255,...bytes];
+const STATUS_BODY=Buffer.from([
+  ...frame(0,[...field(1,[...Buffer.from('0.17.3')]),...field(2,field(1,Array(32).fill(0x11)))]),
+  ...frame(128,[...Buffer.from('grpc-status:0\r\n')]),
+]);
+for(const {route,cookie} of [{route:'/dashboard/home',cookie:true},{route:'/login',cookie:false}]){
+  test(`a store left by another network is reset and the user is told on ${route}`,async({page,context,baseURL})=>{
+    const rpc=process.env.NEXT_PUBLIC_MIDEN_RPC_URL;
+    expect(rpc,'NEXT_PUBLIC_MIDEN_RPC_URL must be set for this suite').toBeTruthy();
+    await page.route(`${rpc!.replace(/\/+$/,'')}/miden.node.v1.NodeService/Status`,r=>r.fulfill(r.request().method()==='OPTIONS'
+      ?{status:204,headers:{'access-control-allow-origin':'*','access-control-allow-methods':'POST','access-control-allow-headers':'content-type,x-grpc-web'}}
+      :{status:200,headers:{'content-type':'application/grpc-web+proto','access-control-allow-origin':'*'},body:STATUS_BODY}));
+    if(cookie)await context.addCookies([{name:'currentWalletId',value:`0x${'1'.repeat(30)}`,url:baseURL!}]);
+    // Seeded once, on the first document only.
+    await page.addInitScript(()=>{
+      if(sessionStorage.getItem('seeded'))return;
+      sessionStorage.setItem('seeded','1');
+      localStorage.setItem('midenStoreSdkVersion','0.17.3');
+      localStorage.setItem('midenStoreNetwork','https://rpc.other.example genesis 0x00');
+    });
+    await page.goto(route);
+    const notice=page.getByRole('status').filter({hasText:/left here by another network was cleared/});
+    await expect(notice).toBeVisible({timeout:60000});
+    await notice.getByRole('button',{name:'Dismiss'}).click();
+    await expect(notice).toHaveCount(0);
+  });
+}
