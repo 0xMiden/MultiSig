@@ -10,6 +10,8 @@ export const STORE_NETWORK_KEY = 'midenStoreNetwork';
  * that reaches the node records that network instead of resetting the store.
  */
 const NETWORK_UNCONFIRMED = 'unconfirmed';
+/** How long a start waits for the node to name its network before skipping the check. */
+const NETWORK_CHECK_TIMEOUT_MS = 10_000;
 /** Why the store was reset. The notice is chosen from this, never from the reason text. */
 export type StoreResetKind = 'network' | 'version' | 'untracked-network' | 'untracked-version';
 /**
@@ -27,9 +29,11 @@ export interface StoreStartOptions<T> {
   sdkVersion: string;
   /**
    * The network this app targets, as one string (node URL and genesis
-   * commitment). A failure skips the network check for this start.
+   * commitment). A failure, or no answer within `networkTimeoutMs`, skips the
+   * network check for this start.
    */
   network?: () => Promise<string>;
+  networkTimeoutMs?: number;
   storage?: Pick<Storage, 'getItem' | 'setItem'>;
   onReset?: (reason: string, kind: StoreResetKind) => void;
 }
@@ -51,11 +55,12 @@ export async function startWithStoreCheck<T>({
   reset,
   sdkVersion,
   network,
+  networkTimeoutMs = NETWORK_CHECK_TIMEOUT_MS,
   storage = globalThis.localStorage,
   onReset,
 }: StoreStartOptions<T>): Promise<T> {
   const recorded = readStorage(storage, STORE_VERSION_KEY);
-  const target = network ? await network().catch(() => null) : null;
+  const target = network ? await withinDeadline(network(), networkTimeoutMs).catch(() => null) : null;
   const stored = readStorage(storage, STORE_NETWORK_KEY);
   const known = stored && stored !== NETWORK_UNCONFIRMED ? stored : null;
   // One decision and at most one reset. Another network is the better
@@ -91,6 +96,14 @@ export async function startWithStoreCheck<T>({
   }
   writeStorage(storage, STORE_VERSION_KEY, sdkVersion);
   return client;
+}
+
+function withinDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer within ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
 function readStorage(storage: StoreStartOptions<unknown>['storage'], key: string): string | null {

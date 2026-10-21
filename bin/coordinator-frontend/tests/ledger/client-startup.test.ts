@@ -209,6 +209,17 @@ describe('startWithStoreCheck: the store must belong to the network this app tar
     expect(reset).not.toHaveBeenCalled();
     expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
   });
+
+  it('stops waiting for a node that does not answer, and starts without the check', async () => {
+    const storage = memoryStorage({ [STORE_VERSION_KEY]: '0.17.3', [STORE_NETWORK_KEY]: MAINNET });
+    const reset = vi.fn(async () => {});
+    await expect(startWithStoreCheck({
+      create: async () => 'client', reset, sdkVersion: '0.17.3',
+      network: () => new Promise<string>(() => {}), networkTimeoutMs: 20, storage,
+    })).resolves.toBe('client');
+    expect(reset).not.toHaveBeenCalled();
+    expect(storage.data.get(STORE_NETWORK_KEY)).toBe(MAINNET);
+  });
 });
 
 describe('store reset across tabs (review 6)', () => {
