@@ -1,0 +1,26 @@
+# Every push to main triggers the production builds of both Vercel projects
+# through their deploy hooks, independently of Vercel's own Git integration
+# (which did not react to the merge of #37). The hook URLs are repository
+# secrets; a hook builds the ref it was created for (main) at call time.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  vercel:
+    name: trigger Vercel production builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: multisig-mainnet (multisig.miden.xyz)
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_MULTISIG_MAINNET }}
+        run: curl -fsS -X POST "$HOOK" -o /dev/null
+      - name: multisig-testnet (multisig-testnet.miden.xyz)
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_MULTISIG_TESTNET }}
+        run: curl -fsS -X POST "$HOOK" -o /dev/null
