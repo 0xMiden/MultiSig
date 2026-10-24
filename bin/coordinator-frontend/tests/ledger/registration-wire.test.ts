@@ -55,11 +55,18 @@ describe('registerNodeAccount', () => {
 
   it.each([
     ['missing genesis', status('0.17.1', Buffer.alloc(0))],
-    ['unsupported protocol', status('0.18.0')],
+    ['unsupported protocol', status('0.19.0')],
   ])('fails before registering on %s', async (_label, bytes) => {
     const calls = stubFetch([response(bytes)]);
     await expect(registerNodeAccount(RPC, id, 'guardian', () => {})).rejects.toThrow(/genesis|version/);
     expect(calls).toHaveLength(1);
+  });
+
+  it('registers with a 0.18 node, as mainnet runs', async () => {
+    const calls = stubFetch([response(status('0.18.0')), response(Buffer.alloc(0))]);
+    await registerNodeAccount(RPC, id, 'guardian', () => {});
+    expect(calls).toHaveLength(2);
+    expect((calls[1].headers as Record<string, string>).accept).toMatch(/^application\/vnd\.miden; version=0\.18\.0; genesis=0x/);
   });
 
   it('propagates node registration errors instead of reporting success', async () => {
