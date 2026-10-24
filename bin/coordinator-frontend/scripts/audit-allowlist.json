@@ -3,5 +3,10 @@
     "package": "node-forge",
     "reason": "RSA PKCS#1 v1.5 signature verification flaw. node-forge only reaches the app through Para (@getpara/core-sdk), which uses it for RSA/AES encryption, key generation and randomness, never to verify RSA signatures; the app itself does not use it. No fixed node-forge release exists yet.",
     "reviewBy": "2026-11-08"
+  },
+  "GHSA-mrhx-c7xc-m3w5": {
+    "package": "zod",
+    "reason": "Memory exhaustion when a zod array schema without a length bound validates a huge attacker-supplied array. zod 3.25 reaches the app only through Para (@getpara/shared validates Para's own API responses) and abitype via viem (an optional peer that parses the app's own ABI definitions); the app has no zod schema and never validates user input with one. The fix is zod 4.6.6, but Para requires zod ^3 and no 3.x release carries it.",
+    "reviewBy": "2026-11-21"
   }
 }
